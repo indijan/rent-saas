@@ -43,8 +43,17 @@ export async function POST(request: Request) {
         if (p.email) emailByTenant.set(p.id, p.email);
     });
 
+    type ChargeWithProperty = {
+        id: string;
+        title: string;
+        amount: number | string;
+        currency: string;
+        due_date: string;
+        tenant_id: string;
+        properties?: { name: string | null }[] | { name: string | null } | null;
+    };
     const chargeIds: string[] = [];
-    for (const charge of charges ?? []) {
+    for (const charge of (charges ?? []) as ChargeWithProperty[]) {
         const tenantEmail = emailByTenant.get(charge.tenant_id);
         if (!tenantEmail) continue;
 
