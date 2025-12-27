@@ -48,13 +48,16 @@ export async function POST(request: Request) {
         const tenantEmail = emailByTenant.get(charge.tenant_id);
         if (!tenantEmail) continue;
 
+        const propertyName = Array.isArray(charge.properties)
+            ? charge.properties[0]?.name ?? null
+            : charge.properties?.name ?? null;
         const payload = renderReminderEmail({
             tenantEmail,
             title: charge.title,
             amount: Number(charge.amount),
             currency: charge.currency,
             dueDate: charge.due_date,
-            propertyName: charge.properties?.name ?? null,
+            propertyName,
         });
         await sendEmail(payload);
         chargeIds.push(charge.id);
