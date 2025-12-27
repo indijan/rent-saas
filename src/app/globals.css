@@ -225,6 +225,10 @@ img {
   color: #1f5c58;
 }
 
+.charge-archived {
+  opacity: 0.62;
+}
+
 .status-active {
   background: rgba(47, 127, 123, 0.18);
   color: #1f5c58;

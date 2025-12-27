@@ -160,9 +160,23 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                     />
                 </div>
 
-                <button className="btn btn-primary">
-                    Mutasd
-                </button>
+                <div className="flex flex-wrap gap-2">
+                    <button className="btn btn-primary">
+                        Mutasd
+                    </button>
+                    <a
+                        className="btn btn-secondary"
+                        href={`/tenant/charges/export?${new URLSearchParams({
+                            ...(selectedPropertyId ? { property: selectedPropertyId } : {}),
+                            ...(statusFilter ? { status: statusFilter } : {}),
+                            ...(typeFilter ? { type: typeFilter } : {}),
+                            ...(fromFilter ? { from: fromFilter } : {}),
+                            ...(toFilter ? { to: toFilter } : {}),
+                        }).toString()}`}
+                    >
+                        Export Excel
+                    </a>
+                </div>
             </form>
 
             <div className="grid">
@@ -234,7 +248,10 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                             if (card.kind === "single") {
                                 const c = card.item;
                                 return (
-                                    <div key={c.id} className="p-4 flex items-center justify-between gap-4">
+                                    <div
+                                        key={c.id}
+                                        className={`p-4 flex items-center justify-between gap-4${c.status === "ARCHIVED" ? " charge-archived" : ""}`}
+                                    >
                                         <div>
                                             <div className="card-title">{c.title}</div>
                                             <div className="text-sm">
@@ -287,7 +304,9 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                             const next = card.next;
                             return (
                                 <div key={card.groupId} className="p-4 space-y-3">
-                                    <div className="flex items-center justify-between gap-4">
+                                    <div
+                                        className={`flex items-center justify-between gap-4${next?.status === "ARCHIVED" ? " charge-archived" : ""}`}
+                                    >
                                         <div>
                                             <div className="card-title">{next?.title}</div>
                                             <div className="text-sm">
@@ -343,8 +362,11 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                                 További ismétlődések ({card.rest.length})
                                             </summary>
                                             <div className="mt-2 space-y-2">
-                                                {card.rest.map((c: any) => (
-                                                    <div key={c.id} className="flex items-center justify-between gap-4">
+                                            {card.rest.map((c: any) => (
+                                                    <div
+                                                        key={c.id}
+                                                        className={`flex items-center justify-between gap-4${c.status === "ARCHIVED" ? " charge-archived" : ""}`}
+                                                    >
                                                         <div>
                                                             <div className="card-title">{c.title}</div>
                                                             <div className="text-sm">

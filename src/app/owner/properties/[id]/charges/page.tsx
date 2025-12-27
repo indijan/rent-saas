@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
 import { archiveCharge, cancelCharge, deleteCharge, markChargePaid } from "./actions";
+import ConfirmActionForm from "./ConfirmActionForm";
 import UploadInvoice from "@/components/UploadInvoice";
 import CreateChargeForm from "./CreateChargeForm";
 
@@ -139,9 +140,22 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                         className="input"
                     />
                 </div>
-                <button className="btn btn-primary">
-                    Szűrés
-                </button>
+                <div className="flex flex-wrap gap-2">
+                    <button className="btn btn-primary">
+                        Szűrés
+                    </button>
+                    <a
+                        className="btn btn-secondary"
+                        href={`/owner/properties/${propertyId}/charges/export?${new URLSearchParams({
+                            ...(statusFilter ? { status: statusFilter } : {}),
+                            ...(typeFilter ? { type: typeFilter } : {}),
+                            ...(fromFilter ? { from: fromFilter } : {}),
+                            ...(toFilter ? { to: toFilter } : {}),
+                        }).toString()}`}
+                    >
+                        Export Excel
+                    </a>
+                </div>
             </form>
 
             <CreateChargeForm propertyId={propertyId} />
@@ -168,7 +182,10 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
             ) : (
                 <div className="card divide-y">
                     {charges.map((c: any) => (
-                        <div key={c.id} className="p-4 flex items-center justify-between gap-4">
+                        <div
+                            key={c.id}
+                            className={`p-4 flex items-center justify-between gap-4${c.status === "ARCHIVED" ? " charge-archived" : ""}`}
+                        >
                             <div>
                                 <div className="card-title">{c.title}</div>
                                 <div className="text-sm">
@@ -198,13 +215,14 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                 <div className={`status-badge status-${String(c.status).toLowerCase()}`}>
                                     {c.status}
                                 </div>
-                                <form
+                                <ConfirmActionForm
                                     action={async () => {
                                         "use server";
                                         if (c.status !== "PAID") return;
                                         const res = await archiveCharge(c.id);
                                         if (!res.ok) return;
                                     }}
+                                    confirmMessage="Biztosan archiválod ezt a díjat?"
                                 >
                                     <button
                                         type="submit"
@@ -214,15 +232,16 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                     >
                                         ARCHIVE
                                     </button>
-                                </form>
+                                </ConfirmActionForm>
 
-                                <form
+                                <ConfirmActionForm
                                     action={async () => {
                                         "use server";
                                         if (c.status === "PAID" || c.status === "CANCELLED" || c.status === "ARCHIVED") return;
                                         const res = await markChargePaid(c.id);
                                         if (!res.ok) return;
                                     }}
+                                    confirmMessage="Biztosan fizetettnek jelölöd ezt a díjat?"
                                 >
                                     <button
                                         type="submit"
@@ -232,14 +251,15 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                     >
                                         PAID
                                     </button>
-                                </form>
-                                <form
+                                </ConfirmActionForm>
+                                <ConfirmActionForm
                                     action={async () => {
                                         "use server";
                                         if (c.status === "PAID" || c.status === "CANCELLED" || c.status === "ARCHIVED") return;
                                         const res = await cancelCharge(c.id);
                                         if (!res.ok) return;
                                     }}
+                                    confirmMessage="Biztosan törlöd (cancel) ezt a díjat?"
                                 >
                                     <button
                                         type="submit"
@@ -249,13 +269,14 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                     >
                                         CANCEL
                                     </button>
-                                </form>
-                                <form
+                                </ConfirmActionForm>
+                                <ConfirmActionForm
                                     action={async () => {
                                         "use server";
                                         const res = await deleteCharge(c.id);
                                         if (!res.ok) return;
                                     }}
+                                    confirmMessage="Biztosan végleg törlöd ezt a díjat?"
                                 >
                                     <button
                                         type="submit"
@@ -264,7 +285,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                     >
                                         DELETE
                                     </button>
-                                </form>
+                                </ConfirmActionForm>
                             </div>
                         </div>
                     ))}
