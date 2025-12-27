@@ -99,11 +99,12 @@ export async function markChargePaid(chargeId: string) {
 
     const { data: charge, error: chargeErr } = await supabase
         .from("charges")
-        .select("property_id")
+        .select("property_id,status")
         .eq("id", chargeId)
         .single();
 
     if (chargeErr || !charge) return { ok: false, error: "Charge nem található." };
+    if (charge.status !== "UNPAID") return { ok: false, error: "Csak UNPAID díj jelölhető fizetettnek." };
 
     const { error } = await supabase
         .from("charges")
@@ -129,13 +130,39 @@ export async function cancelCharge(chargeId: string) {
         .single();
 
     if (chargeErr || !charge) return { ok: false, error: "Charge nem található." };
-    if (charge.status === "PAID") return { ok: false, error: "Fizetett díj nem cancel-elhető." };
+    if (charge.status === "PAID" || charge.status === "ARCHIVED") {
+        return { ok: false, error: "Fizetett díj nem cancel-elhető." };
+    }
 
     const { error } = await supabase
         .from("charges")
         .update({
             status: "CANCELLED",
         })
+        .eq("id", chargeId)
+        .eq("owner_id", user.id);
+
+    if (error) return { ok: false, error: error.message };
+    revalidatePath(`/owner/properties/${charge.property_id}/charges`);
+    return { ok: true };
+}
+
+export async function archiveCharge(chargeId: string) {
+    const { supabase, user } = await requireRole("OWNER");
+
+    const { data: charge, error: chargeErr } = await supabase
+        .from("charges")
+        .select("property_id,status")
+        .eq("id", chargeId)
+        .eq("owner_id", user.id)
+        .single();
+
+    if (chargeErr || !charge) return { ok: false, error: "Charge nem található." };
+    if (charge.status !== "PAID") return { ok: false, error: "Csak PAID díj archiválható." };
+
+    const { error } = await supabase
+        .from("charges")
+        .update({ status: "ARCHIVED" })
         .eq("id", chargeId)
         .eq("owner_id", user.id);
 

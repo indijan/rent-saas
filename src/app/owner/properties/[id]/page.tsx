@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
 import { revalidatePath } from "next/cache";
-import { assignTenantToProperty, updateProperty } from "./actions";
+import { assignTenantToProperty, deleteProperty, updateProperty } from "./actions";
 import { createClient } from "@supabase/supabase-js";
 
 type Props = { params: Promise<{ id: string }> };
@@ -135,6 +135,25 @@ export default async function OwnerPropertyDetailPage({ params }: Props) {
                     Díjak megnyitása →
                 </Link>
             </div>
+
+            <form
+                action={async () => {
+                    "use server";
+                    const res = await deleteProperty(property.id);
+                    if (!res.ok) return;
+                    revalidatePath("/owner/properties");
+                    redirect("/owner/properties");
+                }}
+                className="card space-y-3"
+            >
+                <div className="card-title">Ingatlan törlése</div>
+                <p className="text-sm text-gray-600">
+                    A törlés a kapcsolódó díjakat és dokumentumokat is eltávolítja.
+                </p>
+                <button className="btn btn-danger">
+                    Törlés
+                </button>
+            </form>
         </main>
     );
 }

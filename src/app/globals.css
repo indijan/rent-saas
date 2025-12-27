@@ -220,6 +220,11 @@ img {
   color: #3b4451;
 }
 
+.status-archived {
+  background: rgba(47, 127, 123, 0.12);
+  color: #1f5c58;
+}
+
 .status-active {
   background: rgba(47, 127, 123, 0.18);
   color: #1f5c58;

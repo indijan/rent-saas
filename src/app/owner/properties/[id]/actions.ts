@@ -50,3 +50,55 @@ export async function updateProperty(propertyId: string, formData: FormData) {
     if (error) return { ok: false, error: error.message };
     return { ok: true };
 }
+
+export async function deleteProperty(propertyId: string) {
+    const { supabase, user } = await requireRole("OWNER");
+
+    const { data: property, error: propErr } = await supabase
+        .from("properties")
+        .select("id")
+        .eq("id", propertyId)
+        .eq("owner_id", user.id)
+        .single();
+
+    if (propErr || !property) return { ok: false, error: "Ingatlan nem található." };
+
+    const { data: docs, error: docsErr } = await supabase
+        .from("documents")
+        .select("bucket_path")
+        .eq("property_id", propertyId);
+
+    if (docsErr) return { ok: false, error: docsErr.message };
+
+    const paths = (docs ?? []).map((d: any) => d.bucket_path).filter(Boolean);
+    if (paths.length > 0) {
+        const { error: storageErr } = await supabase.storage
+            .from("documents")
+            .remove(paths);
+        if (storageErr) return { ok: false, error: storageErr.message };
+    }
+
+    const { error: docDeleteErr } = await supabase
+        .from("documents")
+        .delete()
+        .eq("property_id", propertyId);
+
+    if (docDeleteErr) return { ok: false, error: docDeleteErr.message };
+
+    const { error: chargeErr } = await supabase
+        .from("charges")
+        .delete()
+        .eq("property_id", propertyId)
+        .eq("owner_id", user.id);
+
+    if (chargeErr) return { ok: false, error: chargeErr.message };
+
+    const { error } = await supabase
+        .from("properties")
+        .delete()
+        .eq("id", propertyId)
+        .eq("owner_id", user.id);
+
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+}

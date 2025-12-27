@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/requireRole";
+import { archiveTenantCharge } from "./actions";
 
 type Props = {
-    searchParams?: Promise<{ property?: string; status?: string; type?: string; from?: string; to?: string }> | {
+    searchParams?: Promise<{ property?: string; status?: string; type?: string; from?: string; to?: string; page?: string }> | {
         property?: string;
         status?: string;
         type?: string;
         from?: string;
         to?: string;
+        page?: string;
     };
 };
 
@@ -20,6 +22,11 @@ export default async function TenantChargesPage({ searchParams }: Props) {
     const typeFilter = sp.type ? String(sp.type) : "";
     const fromFilter = sp.from ? String(sp.from) : "";
     const toFilter = sp.to ? String(sp.to) : "";
+    const pageParam = sp.page ? Number(sp.page) : 1;
+    const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
+    const pageSize = 20;
+    const rangeFrom = (page - 1) * pageSize;
+    const rangeTo = rangeFrom + pageSize - 1;
 
     // 1) Tenant ingatlanjai (lehet több is)
     const { data: properties, error: propErr } = await supabase
@@ -46,7 +53,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
     // 2) Díjak lekérése (szűrhető property szerint)
     let q = supabase
         .from("charges")
-        .select("id,title,type,amount,currency,due_date,status,paid_at,created_at,property_id,recurring_group,recurring_index,recurring_count,properties(id,name,address)")
+        .select("id,title,type,amount,currency,due_date,status,paid_at,created_at,property_id,recurring_group,recurring_index,recurring_count,properties(id,name,address)", { count: "exact" })
         .eq("tenant_id", user.id)
         .order("due_date", { ascending: false });
 
@@ -56,7 +63,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
     if (fromFilter) q = q.gte("due_date", fromFilter);
     if (toFilter) q = q.lte("due_date", toFilter);
 
-    const { data: charges, error } = await q;
+    const { data: charges, error, count } = await q.range(rangeFrom, rangeTo);
 
     const { data: documents } = await supabase
         .from("documents")
@@ -85,7 +92,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
     const totals = dueCharges.reduce(
         (acc, c: any) => {
             const amount = Number(c.amount) || 0;
-            if (c.status === "PAID") acc.paid += amount;
+            if (c.status === "PAID" || c.status === "ARCHIVED") acc.paid += amount;
             if (c.status === "UNPAID") acc.unpaid += amount;
             if (c.status !== "CANCELLED") acc.total += amount;
             return acc;
@@ -129,6 +136,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                         <option value="">Összes státusz</option>
                         <option value="UNPAID">UNPAID</option>
                         <option value="PAID">PAID</option>
+                        <option value="ARCHIVED">ARCHIVED</option>
                         <option value="CANCELLED">CANCELLED</option>
                     </select>
                     <select name="type" defaultValue={typeFilter} className="select">
@@ -250,9 +258,27 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                                 </div>
                                             ) : null}
                                         </div>
-
-                                        <div className={`status-badge status-${String(c.status).toLowerCase()}`}>
-                                            {c.status}
+                                        <div className="flex items-center gap-3">
+                                            <div className={`status-badge status-${String(c.status).toLowerCase()}`}>
+                                                {c.status}
+                                            </div>
+                                            <form
+                                                action={async () => {
+                                                    "use server";
+                                                    if (c.status !== "PAID") return;
+                                                    const res = await archiveTenantCharge(c.id);
+                                                    if (!res.ok) return;
+                                                }}
+                                            >
+                                                <button
+                                                    type="submit"
+                                                    className="btn btn-secondary btn-sm"
+                                                    disabled={c.status !== "PAID"}
+                                                    title={c.status === "PAID" ? "Archiválás" : "Csak PAID díj archiválható"}
+                                                >
+                                                    ARCHIVE
+                                                </button>
+                                            </form>
                                         </div>
                                     </div>
                                 );
@@ -285,8 +311,29 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                                 </div>
                                             ) : null}
                                         </div>
-                                        <div className={`status-badge status-${String(next?.status).toLowerCase()}`}>
-                                            {next?.status}
+                                        <div className="flex items-center gap-3">
+                                            <div className={`status-badge status-${String(next?.status).toLowerCase()}`}>
+                                                {next?.status}
+                                            </div>
+                                            {next?.id ? (
+                                                <form
+                                                    action={async () => {
+                                                        "use server";
+                                                        if (next?.status !== "PAID") return;
+                                                        const res = await archiveTenantCharge(next.id);
+                                                        if (!res.ok) return;
+                                                    }}
+                                                >
+                                                    <button
+                                                        type="submit"
+                                                        className="btn btn-secondary btn-sm"
+                                                        disabled={next?.status !== "PAID"}
+                                                        title={next?.status === "PAID" ? "Archiválás" : "Csak PAID díj archiválható"}
+                                                    >
+                                                        ARCHIVE
+                                                    </button>
+                                                </form>
+                                            ) : null}
                                         </div>
                                     </div>
 
@@ -304,8 +351,27 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                                                 {c.type} • {c.amount} {c.currency} • esedékes: {c.due_date}
                                                             </div>
                                                         </div>
-                                                        <div className={`status-badge status-${String(c.status).toLowerCase()}`}>
-                                                            {c.status}
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`status-badge status-${String(c.status).toLowerCase()}`}>
+                                                                {c.status}
+                                                            </div>
+                                                            <form
+                                                                action={async () => {
+                                                                    "use server";
+                                                                    if (c.status !== "PAID") return;
+                                                                    const res = await archiveTenantCharge(c.id);
+                                                                    if (!res.ok) return;
+                                                                }}
+                                                            >
+                                                                <button
+                                                                    type="submit"
+                                                                    className="btn btn-secondary btn-sm"
+                                                                    disabled={c.status !== "PAID"}
+                                                                    title={c.status === "PAID" ? "Archiválás" : "Csak PAID díj archiválható"}
+                                                                >
+                                                                    ARCHIVE
+                                                                </button>
+                                                            </form>
                                                         </div>
                                                     </div>
                                                 ))}
@@ -318,6 +384,50 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                     })()}
                 </div>
             )}
+
+            {count && count > pageSize ? (
+                <div className="card flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                        Oldal: {page} / {Math.max(1, Math.ceil(count / pageSize))}
+                    </div>
+                    <div className="flex gap-2">
+                        {page > 1 ? (
+                            <Link
+                                className="btn btn-secondary btn-sm"
+                                href={`?${new URLSearchParams({
+                                    ...(selectedPropertyId ? { property: selectedPropertyId } : {}),
+                                    ...(statusFilter ? { status: statusFilter } : {}),
+                                    ...(typeFilter ? { type: typeFilter } : {}),
+                                    ...(fromFilter ? { from: fromFilter } : {}),
+                                    ...(toFilter ? { to: toFilter } : {}),
+                                    page: String(page - 1),
+                                }).toString()}`}
+                            >
+                                Előző
+                            </Link>
+                        ) : (
+                            <span className="btn btn-secondary btn-sm" aria-disabled="true">Előző</span>
+                        )}
+                        {page < Math.ceil(count / pageSize) ? (
+                            <Link
+                                className="btn btn-secondary btn-sm"
+                                href={`?${new URLSearchParams({
+                                    ...(selectedPropertyId ? { property: selectedPropertyId } : {}),
+                                    ...(statusFilter ? { status: statusFilter } : {}),
+                                    ...(typeFilter ? { type: typeFilter } : {}),
+                                    ...(fromFilter ? { from: fromFilter } : {}),
+                                    ...(toFilter ? { to: toFilter } : {}),
+                                    page: String(page + 1),
+                                }).toString()}`}
+                            >
+                                Következő
+                            </Link>
+                        ) : (
+                            <span className="btn btn-secondary btn-sm" aria-disabled="true">Következő</span>
+                        )}
+                    </div>
+                </div>
+            ) : null}
         </main>
     );
 }

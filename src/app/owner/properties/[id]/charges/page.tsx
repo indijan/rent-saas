@@ -1,17 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
-import { cancelCharge, deleteCharge, markChargePaid } from "./actions";
+import { archiveCharge, cancelCharge, deleteCharge, markChargePaid } from "./actions";
 import UploadInvoice from "@/components/UploadInvoice";
 import CreateChargeForm from "./CreateChargeForm";
 
 type Props = {
     params: Promise<{ id: string }>;
-    searchParams?: Promise<{ status?: string; type?: string; from?: string; to?: string }> | {
+    searchParams?: Promise<{ status?: string; type?: string; from?: string; to?: string; page?: string }> | {
         status?: string;
         type?: string;
         from?: string;
         to?: string;
+        page?: string;
     };
 };
 
@@ -24,6 +25,11 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
     const typeFilter = sp.type ? String(sp.type) : "";
     const fromFilter = sp.from ? String(sp.from) : "";
     const toFilter = sp.to ? String(sp.to) : "";
+    const pageParam = sp.page ? Number(sp.page) : 1;
+    const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
+    const pageSize = 20;
+    const rangeFrom = (page - 1) * pageSize;
+    const rangeTo = rangeFrom + pageSize - 1;
 
     const { data: property, error: propErr } = await supabase
         .from("properties")
@@ -35,7 +41,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
 
     let q = supabase
         .from("charges")
-        .select("id,title,type,amount,currency,due_date,status,paid_at,created_at,tenant_id,recurring_group,recurring_index,recurring_count")
+        .select("id,title,type,amount,currency,due_date,status,paid_at,created_at,tenant_id,recurring_group,recurring_index,recurring_count", { count: "exact" })
         .eq("property_id", propertyId)
         .order("due_date", { ascending: false });
 
@@ -44,7 +50,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
     if (fromFilter) q = q.gte("due_date", fromFilter);
     if (toFilter) q = q.lte("due_date", toFilter);
 
-    const { data: charges, error } = await q;
+    const { data: charges, error, count } = await q.range(rangeFrom, rangeTo);
 
     const { data: documents } = await supabase
         .from("documents")
@@ -73,7 +79,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
     const totals = dueCharges.reduce(
         (acc, c: any) => {
             const amount = Number(c.amount) || 0;
-            if (c.status === "PAID") acc.paid += amount;
+            if (c.status === "PAID" || c.status === "ARCHIVED") acc.paid += amount;
             if (c.status === "UNPAID") acc.unpaid += amount;
             if (c.status !== "CANCELLED") acc.total += amount;
             return acc;
@@ -110,6 +116,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                         <option value="">Összes státusz</option>
                         <option value="UNPAID">UNPAID</option>
                         <option value="PAID">PAID</option>
+                        <option value="ARCHIVED">ARCHIVED</option>
                         <option value="CANCELLED">CANCELLED</option>
                     </select>
                     <select name="type" defaultValue={typeFilter} className="select">
@@ -191,11 +198,28 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                 <div className={`status-badge status-${String(c.status).toLowerCase()}`}>
                                     {c.status}
                                 </div>
+                                <form
+                                    action={async () => {
+                                        "use server";
+                                        if (c.status !== "PAID") return;
+                                        const res = await archiveCharge(c.id);
+                                        if (!res.ok) return;
+                                    }}
+                                >
+                                    <button
+                                        type="submit"
+                                        className="btn btn-secondary btn-sm"
+                                        disabled={c.status !== "PAID"}
+                                        title={c.status === "PAID" ? "Archiválás" : "Csak PAID díj archiválható"}
+                                    >
+                                        ARCHIVE
+                                    </button>
+                                </form>
 
                                 <form
                                     action={async () => {
                                         "use server";
-                                        if (c.status === "PAID" || c.status === "CANCELLED") return;
+                                        if (c.status === "PAID" || c.status === "CANCELLED" || c.status === "ARCHIVED") return;
                                         const res = await markChargePaid(c.id);
                                         if (!res.ok) return;
                                     }}
@@ -203,8 +227,8 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                     <button
                                         type="submit"
                                         className="btn btn-success btn-sm"
-                                        disabled={c.status === "PAID" || c.status === "CANCELLED"}
-                                        title={c.status === "PAID" ? "Már fizetett" : "Megjelölés fizetettnek"}
+                                        disabled={c.status === "PAID" || c.status === "CANCELLED" || c.status === "ARCHIVED"}
+                                        title={c.status === "PAID" || c.status === "ARCHIVED" ? "Már fizetett" : "Megjelölés fizetettnek"}
                                     >
                                         PAID
                                     </button>
@@ -212,7 +236,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                 <form
                                     action={async () => {
                                         "use server";
-                                        if (c.status === "PAID" || c.status === "CANCELLED") return;
+                                        if (c.status === "PAID" || c.status === "CANCELLED" || c.status === "ARCHIVED") return;
                                         const res = await cancelCharge(c.id);
                                         if (!res.ok) return;
                                     }}
@@ -220,8 +244,8 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                     <button
                                         type="submit"
                                         className="btn btn-danger btn-sm"
-                                        disabled={c.status === "PAID" || c.status === "CANCELLED"}
-                                        title={c.status === "PAID" ? "Fizetett díj" : "Díj törlése"}
+                                        disabled={c.status === "PAID" || c.status === "CANCELLED" || c.status === "ARCHIVED"}
+                                        title={c.status === "PAID" || c.status === "ARCHIVED" ? "Fizetett díj" : "Díj törlése"}
                                     >
                                         CANCEL
                                     </button>
@@ -246,6 +270,48 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                     ))}
                 </div>
             )}
+
+            {count && count > pageSize ? (
+                <div className="card flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                        Oldal: {page} / {Math.max(1, Math.ceil(count / pageSize))}
+                    </div>
+                    <div className="flex gap-2">
+                        {page > 1 ? (
+                            <Link
+                                className="btn btn-secondary btn-sm"
+                                href={`?${new URLSearchParams({
+                                    ...(statusFilter ? { status: statusFilter } : {}),
+                                    ...(typeFilter ? { type: typeFilter } : {}),
+                                    ...(fromFilter ? { from: fromFilter } : {}),
+                                    ...(toFilter ? { to: toFilter } : {}),
+                                    page: String(page - 1),
+                                }).toString()}`}
+                            >
+                                Előző
+                            </Link>
+                        ) : (
+                            <span className="btn btn-secondary btn-sm" aria-disabled="true">Előző</span>
+                        )}
+                        {page < Math.ceil(count / pageSize) ? (
+                            <Link
+                                className="btn btn-secondary btn-sm"
+                                href={`?${new URLSearchParams({
+                                    ...(statusFilter ? { status: statusFilter } : {}),
+                                    ...(typeFilter ? { type: typeFilter } : {}),
+                                    ...(fromFilter ? { from: fromFilter } : {}),
+                                    ...(toFilter ? { to: toFilter } : {}),
+                                    page: String(page + 1),
+                                }).toString()}`}
+                            >
+                                Következő
+                            </Link>
+                        ) : (
+                            <span className="btn btn-secondary btn-sm" aria-disabled="true">Következő</span>
+                        )}
+                    </div>
+                </div>
+            ) : null}
         </main>
     );
 }

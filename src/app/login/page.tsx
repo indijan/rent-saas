@@ -14,10 +14,19 @@ export default function LoginPage() {
         setMsg(null);
         setLoading(true);
 
-        const { error } = await supabaseBrowser.auth.signInWithPassword({
+        let { error } = await supabaseBrowser.auth.signInWithPassword({
             email,
             password,
         });
+
+        if (error?.message?.toLowerCase().includes("refresh token")) {
+            await supabaseBrowser.auth.signOut();
+            const retry = await supabaseBrowser.auth.signInWithPassword({
+                email,
+                password,
+            });
+            error = retry.error;
+        }
 
         setLoading(false);
         if (error) setMsg(error.message);
