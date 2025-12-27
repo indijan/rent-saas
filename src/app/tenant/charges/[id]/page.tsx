@@ -32,6 +32,8 @@ export default async function TenantChargeDetailPage({ params }: Props) {
         })
     );
 
+    const property = Array.isArray(charge.properties) ? charge.properties[0] : charge.properties;
+
     return (
         <main className="app-shell page-enter space-y-4">
             <Link className="link text-sm" href="/tenant/charges">
@@ -41,7 +43,7 @@ export default async function TenantChargeDetailPage({ params }: Props) {
             <h1>{charge.title}</h1>
 
             <div className="card space-y-2">
-                <div><b>Ingatlan:</b> {charge.properties?.name ?? "-"}</div>
+                <div><b>Ingatlan:</b> {property?.name ?? "-"}</div>
                 <div><b>Összeg:</b> {charge.amount} {charge.currency}</div>
                 <div><b>Esedékes:</b> {charge.due_date}</div>
                 <div>
