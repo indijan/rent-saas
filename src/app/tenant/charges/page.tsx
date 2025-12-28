@@ -101,6 +101,38 @@ export default async function TenantChargesPage({ searchParams }: Props) {
         { paid: 0, unpaid: 0, total: 0 }
     );
     const formatMoney = (value: number) => value.toLocaleString("hu-HU");
+    const totalPages = Math.max(1, Math.ceil((count ?? 0) / pageSize));
+    const buildPageHref = (targetPage: number) => {
+        const params = new URLSearchParams({
+            ...(selectedPropertyId ? { property: selectedPropertyId } : {}),
+            ...(statusFilter ? { status: statusFilter } : {}),
+            ...(typeFilter ? { type: typeFilter } : {}),
+            ...(fromFilter ? { from: fromFilter } : {}),
+            ...(toFilter ? { to: toFilter } : {}),
+            ...(targetPage > 1 ? { page: String(targetPage) } : {}),
+        });
+        const query = params.toString();
+        return query ? `/tenant/charges?${query}` : "/tenant/charges";
+    };
+    const pageItems = (() => {
+        if (totalPages <= 7) {
+            return Array.from({ length: totalPages }, (_, i) => ({ type: "page", value: i + 1 }));
+        }
+
+        const items: Array<{ type: "page" | "ellipsis"; value?: number }> = [];
+        const pushPage = (value: number) => items.push({ type: "page", value });
+        const pushEllipsis = () => items.push({ type: "ellipsis" });
+
+        pushPage(1);
+        if (page > 3) pushEllipsis();
+        const start = Math.max(2, page - 1);
+        const end = Math.min(totalPages - 1, page + 1);
+        for (let p = start; p <= end; p += 1) pushPage(p);
+        if (page < totalPages - 2) pushEllipsis();
+        pushPage(totalPages);
+
+        return items;
+    })();
 
     if (error) {
         return (
@@ -409,44 +441,48 @@ export default async function TenantChargesPage({ searchParams }: Props) {
             )}
 
             {count && count > pageSize ? (
-                <div className="card flex items-center justify-between">
+                <div className="card flex flex-wrap items-center justify-between gap-3">
                     <div className="text-sm text-gray-600">
-                        Oldal: {page} / {Math.max(1, Math.ceil(count / pageSize))}
+                        Oldal: {page} / {totalPages}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         {page > 1 ? (
-                            <Link
-                                className="btn btn-secondary btn-sm"
-                                href={`?${new URLSearchParams({
-                                    ...(selectedPropertyId ? { property: selectedPropertyId } : {}),
-                                    ...(statusFilter ? { status: statusFilter } : {}),
-                                    ...(typeFilter ? { type: typeFilter } : {}),
-                                    ...(fromFilter ? { from: fromFilter } : {}),
-                                    ...(toFilter ? { to: toFilter } : {}),
-                                    page: String(page - 1),
-                                }).toString()}`}
-                            >
+                            <Link className="btn btn-secondary" href={buildPageHref(page - 1)}>
                                 Előző
                             </Link>
                         ) : (
-                            <span className="btn btn-secondary btn-sm" aria-disabled="true">Előző</span>
+                            <span className="btn btn-secondary" aria-disabled="true">Előző</span>
                         )}
-                        {page < Math.ceil(count / pageSize) ? (
-                            <Link
-                                className="btn btn-secondary btn-sm"
-                                href={`?${new URLSearchParams({
-                                    ...(selectedPropertyId ? { property: selectedPropertyId } : {}),
-                                    ...(statusFilter ? { status: statusFilter } : {}),
-                                    ...(typeFilter ? { type: typeFilter } : {}),
-                                    ...(fromFilter ? { from: fromFilter } : {}),
-                                    ...(toFilter ? { to: toFilter } : {}),
-                                    page: String(page + 1),
-                                }).toString()}`}
-                            >
+                        <div className="flex flex-wrap items-center gap-2">
+                            {pageItems.map((item, idx) => {
+                                if (item.type === "ellipsis") {
+                                    return (
+                                        <span key={`ellipsis-${idx}`} className="px-2 text-sm text-gray-500">
+                                            …
+                                        </span>
+                                    );
+                                }
+
+                                const value = item.value ?? 1;
+                                const isActive = value === page;
+                                return (
+                                    <Link
+                                        key={`page-${value}`}
+                                        className={isActive ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm"}
+                                        href={buildPageHref(value)}
+                                        aria-current={isActive ? "page" : undefined}
+                                    >
+                                        {value}
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                        {page < totalPages ? (
+                            <Link className="btn btn-secondary" href={buildPageHref(page + 1)}>
                                 Következő
                             </Link>
                         ) : (
-                            <span className="btn btn-secondary btn-sm" aria-disabled="true">Következő</span>
+                            <span className="btn btn-secondary" aria-disabled="true">Következő</span>
                         )}
                     </div>
                 </div>
