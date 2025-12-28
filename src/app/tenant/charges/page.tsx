@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/requireRole";
+import AppHeader from "@/components/AppHeader";
 import { archiveTenantCharge } from "./actions";
 
 type Props = {
@@ -14,7 +15,7 @@ type Props = {
 };
 
 export default async function TenantChargesPage({ searchParams }: Props) {
-    const { supabase, user } = await requireRole("TENANT");
+    const { supabase, user, profile } = await requireRole("TENANT");
 
     const sp = (searchParams instanceof Promise) ? await searchParams : (searchParams ?? {});
     const selectedPropertyId = sp.property ? String(sp.property) : "";
@@ -38,9 +39,9 @@ export default async function TenantChargesPage({ searchParams }: Props) {
     if (propErr) {
         return (
             <main className="app-shell page-enter">
-                <div className="card flex items-center justify-between">
+                <AppHeader profile={profile} />
+                <div className="card">
                     <h1>Saját díjaim</h1>
-                    <Link className="link" href="/account">Account</Link>
                 </div>
                 <p className="mt-2 text-red-600">Hiba (properties): {propErr.message}</p>
             </main>
@@ -104,9 +105,9 @@ export default async function TenantChargesPage({ searchParams }: Props) {
     if (error) {
         return (
             <main className="app-shell page-enter">
-                <div className="card flex items-center justify-between">
+                <AppHeader profile={profile} />
+                <div className="card">
                     <h1>Saját díjaim</h1>
-                    <Link className="link" href="/account">Account</Link>
                 </div>
                 <p className="mt-2 text-red-600">Hiba (charges): {error.message}</p>
             </main>
@@ -115,9 +116,9 @@ export default async function TenantChargesPage({ searchParams }: Props) {
 
     return (
         <main className="app-shell page-enter space-y-4">
-            <div className="card flex items-center justify-between">
+            <AppHeader profile={profile} />
+            <div className="card">
                 <h1>Saját díjaim</h1>
-                <Link className="link" href="/account">Account</Link>
             </div>
 
             {/* Ingatlan választó */}

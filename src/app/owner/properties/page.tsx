@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/requireRole";
+import AppHeader from "@/components/AppHeader";
 import { createProperty } from "./actions";
 
 export default async function OwnerPropertiesPage() {
-    const { supabase } = await requireRole("OWNER");
+    const { supabase, profile } = await requireRole("OWNER");
 
     const { data: properties, error } = await supabase
         .from("properties")
@@ -21,6 +22,7 @@ export default async function OwnerPropertiesPage() {
     if (error) {
         return (
             <main className="app-shell page-enter">
+                <AppHeader profile={profile} />
                 <div className="card space-y-2">
                 <h1>Ingatlanok</h1>
                 <p className="mt-2 text-red-600">Hiba: {error.message}</p>
@@ -31,12 +33,10 @@ export default async function OwnerPropertiesPage() {
 
     return (
         <main className="app-shell page-enter space-y-4">
-            <div className="card flex items-center justify-between">
+            <AppHeader profile={profile} />
+
+            <div className="card">
                 <h1>Ingatlanok</h1>
-                <div className="flex gap-4">
-                    <Link className="link" href="/owner/tenants">Bérlők</Link>
-                    <Link className="link" href="/account">Account</Link>
-                </div>
             </div>
 
             <form action={onCreate} className="card space-y-3">

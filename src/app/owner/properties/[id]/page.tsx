@@ -5,12 +5,13 @@ import { revalidatePath } from "next/cache";
 import { assignTenantToProperty, deleteProperty, updateProperty } from "./actions";
 import DeletePropertyForm from "./DeletePropertyForm";
 import { createClient } from "@supabase/supabase-js";
+import AppHeader from "@/components/AppHeader";
 
 type Props = { params: Promise<{ id: string }> };
 
 export default async function OwnerPropertyDetailPage({ params }: Props) {
     const { id } = await params;
-    const { supabase } = await requireRole("OWNER");
+    const { supabase, profile } = await requireRole("OWNER");
 
     const { data: property, error } = await supabase
         .from("properties")
@@ -34,22 +35,15 @@ export default async function OwnerPropertyDetailPage({ params }: Props) {
 
     return (
         <main className="app-shell page-enter space-y-4">
-            <div className="card flex items-center justify-between">
+            <AppHeader profile={profile} />
+
+            <div className="card">
                 <div>
                     <Link className="link text-sm" href="/owner/properties">
                         ← Vissza
                     </Link>
                     <h1 className="mt-2">{property.name}</h1>
                     <p className="text-sm text-gray-600">{property.address}</p>
-                </div>
-
-                <div className="flex gap-4">
-                    <Link className="link" href="/owner/tenants">
-                        Bérlők
-                    </Link>
-                    <Link className="link" href="/account">
-                        Account
-                    </Link>
                 </div>
             </div>
 

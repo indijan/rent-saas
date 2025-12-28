@@ -1,16 +1,16 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createTenant, deleteTenant } from "./actions";
 import DeleteTenantButton from "./DeleteTenantButton";
+import AppHeader from "@/components/AppHeader";
 
 type Props = {
     searchParams?: Promise<{ status?: string; message?: string }> | { status?: string; message?: string };
 };
 
 export default async function OwnerTenantsPage({ searchParams }: Props) {
-    await requireRole("OWNER");
+    const { profile } = await requireRole("OWNER");
     const admin = createSupabaseAdminClient();
     const sp = (searchParams instanceof Promise) ? await searchParams : (searchParams ?? {});
     const status = sp.status ? String(sp.status) : "";
@@ -25,6 +25,7 @@ export default async function OwnerTenantsPage({ searchParams }: Props) {
     if (error) {
         return (
             <main className="app-shell page-enter">
+                <AppHeader profile={profile} />
                 <div className="card space-y-2">
                     <h1>Bérlők</h1>
                     <p className="mt-2 text-red-600">Hiba: {error.message}</p>
@@ -35,12 +36,9 @@ export default async function OwnerTenantsPage({ searchParams }: Props) {
 
     return (
         <main className="app-shell page-enter space-y-4">
-            <div className="card flex items-center justify-between">
+            <AppHeader profile={profile} />
+            <div className="card">
                 <h1>Bérlők</h1>
-                <div className="flex gap-4">
-                    <Link className="link" href="/owner/properties">Ingatlanok</Link>
-                    <Link className="link" href="/account">Account</Link>
-                </div>
             </div>
 
             {message ? (
