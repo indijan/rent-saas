@@ -25,6 +25,7 @@ export default function AuthCallbackPage() {
                 const { error } = await supabaseBrowser.auth.exchangeCodeForSession(code);
                 authError = error?.message ?? null;
             } else if (accessToken && refreshToken) {
+                await supabaseBrowser.auth.signOut();
                 const { error } = await supabaseBrowser.auth.setSession({
                     access_token: accessToken,
                     refresh_token: refreshToken,

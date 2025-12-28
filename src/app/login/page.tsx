@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
 export default function LoginPage() {
@@ -8,6 +8,41 @@ export default function LoginPage() {
     const [password, setPassword] = useState("");
     const [msg, setMsg] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        const run = async () => {
+            if (!window.location.hash.includes("access_token")) return;
+            const hash = new URLSearchParams(window.location.hash.slice(1));
+            const accessToken = hash.get("access_token");
+            const refreshToken = hash.get("refresh_token");
+            const errorDescription = hash.get("error_description");
+
+            if (errorDescription) {
+                setMsg(decodeURIComponent(errorDescription));
+                return;
+            }
+
+            if (!accessToken || !refreshToken) return;
+
+            setLoading(true);
+            await supabaseBrowser.auth.signOut();
+            const { error } = await supabaseBrowser.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+            });
+            setLoading(false);
+
+            if (error) {
+                setMsg(error.message);
+                return;
+            }
+
+            window.history.replaceState({}, document.title, "/login");
+            window.location.replace("/account");
+        };
+
+        run();
+    }, []);
 
     async function onLogin(e: React.FormEvent) {
         e.preventDefault();
