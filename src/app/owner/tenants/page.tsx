@@ -54,7 +54,8 @@ export default async function OwnerTenantsPage({ searchParams }: Props) {
                     "use server";
                     const res = await createTenant(formData);
                     if (!res.ok) {
-                        redirect(`/owner/tenants?status=error&message=${encodeURIComponent(res.error)}`);
+                        const msg = res.error ?? "Ismeretlen hiba.";
+                        redirect(`/owner/tenants?status=error&message=${encodeURIComponent(msg)}`);
                     }
                     redirect("/owner/tenants?status=success&message=B%C3%A9rl%C5%91+megh%C3%ADvva.");
                 }}
@@ -101,7 +102,8 @@ export default async function OwnerTenantsPage({ searchParams }: Props) {
                                     "use server";
                                     const res = await deleteTenant(tenant.id);
                                     if (!res.ok) {
-                                        redirect(`/owner/tenants?status=error&message=${encodeURIComponent(res.error)}`);
+                                        const msg = res.error ?? "Ismeretlen hiba.";
+                                        redirect(`/owner/tenants?status=error&message=${encodeURIComponent(msg)}`);
                                     }
                                     redirect("/owner/tenants?status=success&message=B%C3%A9rl%C5%91+t%C3%B6r%C3%B6lve.");
                                 }}
