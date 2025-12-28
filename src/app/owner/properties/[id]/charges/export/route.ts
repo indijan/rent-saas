@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type UserContext = {
@@ -33,13 +33,14 @@ function escapeCsv(value: unknown) {
 }
 
 export async function GET(
-    request: Request,
-    { params }: { params: { id: string } }
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
 ) {
+    const { id } = await params;
     const ctx = await requireOwner();
     if (ctx instanceof NextResponse) return ctx;
 
-    const propertyId = params.id;
+    const propertyId = id;
     const url = new URL(request.url);
     const status = url.searchParams.get("status") ?? "";
     const type = url.searchParams.get("type") ?? "";
