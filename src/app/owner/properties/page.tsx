@@ -34,6 +34,7 @@ export default async function OwnerPropertiesPage() {
             <div className="card flex items-center justify-between">
                 <h1>Ingatlanok</h1>
                 <div className="flex gap-4">
+                    <Link className="link" href="/owner/tenants">Bérlők</Link>
                     <Link className="link" href="/account">Account</Link>
                 </div>
             </div>

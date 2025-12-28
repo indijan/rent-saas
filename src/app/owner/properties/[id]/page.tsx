@@ -43,9 +43,14 @@ export default async function OwnerPropertyDetailPage({ params }: Props) {
                     <p className="text-sm text-gray-600">{property.address}</p>
                 </div>
 
-                <Link className="link" href="/account">
-                    Account
-                </Link>
+                <div className="flex gap-4">
+                    <Link className="link" href="/owner/tenants">
+                        Bérlők
+                    </Link>
+                    <Link className="link" href="/account">
+                        Account
+                    </Link>
+                </div>
             </div>
 
             <div className="card space-y-2">
@@ -127,7 +132,7 @@ export default async function OwnerPropertyDetailPage({ params }: Props) {
                     Hozzárendelés
                 </button>
                 <p className="text-xs text-gray-600">
-                    Tipp: a TENANT usernek már léteznie kell (Auth user + profiles sor).
+                    Tipp: a TENANT usernek már léteznie kell (Bérlők oldalon hozhatod létre).
                 </p>
             </form>
 

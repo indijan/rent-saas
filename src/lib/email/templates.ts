@@ -19,6 +19,12 @@ type ReminderInput = {
     propertyName?: string | null;
 };
 
+type TenantInviteInput = {
+    tenantEmail: string;
+    tenantName?: string | null;
+    inviteLink: string;
+};
+
 export function renderNewChargeEmail(input: NewChargeInput) {
     const countText = input.count && input.count > 1 ? ` (${input.count} alkalom)` : "";
     const propertyLine = input.propertyName ? `Ingatlan: ${input.propertyName}` : "Ingatlan: -";
@@ -71,6 +77,33 @@ export function renderReminderEmail(input: ReminderInput) {
                 <li><b>Esedékes:</b> ${input.dueDate}</li>
             </ul>
             <p><a href="${SITE_URL}/tenant/charges">Részletek megnyitása</a></p>
+        </div>
+    `;
+
+    return { to: input.tenantEmail, subject, html, text };
+}
+
+export function renderTenantInviteEmail(input: TenantInviteInput) {
+    const subject = "Belépési meghívó";
+    const nameLine = input.tenantName ? `Szia ${input.tenantName},` : "Szia,";
+    const text = [
+        nameLine,
+        "Létrehoztuk a bérlői fiókodat.",
+        "A belépéshez nyisd meg az alábbi meghívó linket:",
+        input.inviteLink,
+        `A jelszót a Fiók oldalon állíthatod be: ${SITE_URL}/account`,
+    ].join("\n");
+
+    const html = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+            <p>${nameLine}</p>
+            <p>Létrehoztuk a bérlői fiókodat.</p>
+            <p>
+                A belépéshez nyisd meg ezt a meghívó linket:
+                <br />
+                <a href="${input.inviteLink}">Belépési link</a>
+            </p>
+            <p>Jelszó beállítása: <a href="${SITE_URL}/account">${SITE_URL}/account</a></p>
         </div>
     `;
 
