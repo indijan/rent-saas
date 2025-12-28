@@ -2,7 +2,7 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/requireRole";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { createTenant } from "./actions";
+import { createTenant, deleteTenant } from "./actions";
 
 export default async function OwnerTenantsPage() {
     await requireRole("OWNER");
@@ -74,9 +74,23 @@ export default async function OwnerTenantsPage() {
             ) : (
                 <div className="card divide-y">
                     {tenants.map((tenant) => (
-                        <div key={tenant.id} className="p-4">
-                            <div className="card-title">{tenant.full_name || "Név nélküli"}</div>
-                            <div className="text-sm text-gray-600">{tenant.email}</div>
+                        <div key={tenant.id} className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <div className="card-title">{tenant.full_name || "Név nélküli"}</div>
+                                <div className="text-sm text-gray-600">{tenant.email}</div>
+                            </div>
+                            <form
+                                action={async () => {
+                                    "use server";
+                                    const res = await deleteTenant(tenant.id);
+                                    if (!res.ok) return;
+                                    revalidatePath("/owner/tenants");
+                                }}
+                            >
+                                <button className="btn btn-secondary" type="submit">
+                                    Törlés
+                                </button>
+                            </form>
                         </div>
                     ))}
                 </div>

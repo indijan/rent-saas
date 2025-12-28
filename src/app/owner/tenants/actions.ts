@@ -63,3 +63,25 @@ export async function createTenant(formData: FormData) {
 
     return { ok: true };
 }
+
+export async function deleteTenant(tenantId: string) {
+    await requireRole("OWNER");
+    const admin = createSupabaseAdminClient();
+
+    const { error: propertyError } = await admin
+        .from("properties")
+        .update({ tenant_id: null })
+        .eq("tenant_id", tenantId);
+    if (propertyError) return { ok: false, error: propertyError.message };
+
+    const { error: profileError } = await admin
+        .from("profiles")
+        .delete()
+        .eq("id", tenantId);
+    if (profileError) return { ok: false, error: profileError.message };
+
+    const { error: authError } = await admin.auth.admin.deleteUser(tenantId);
+    if (authError) return { ok: false, error: authError.message };
+
+    return { ok: true };
+}
