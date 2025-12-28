@@ -11,10 +11,24 @@ export default function AuthCallbackPage() {
             const params = new URLSearchParams(window.location.search);
             const next = params.get("next") || "/account";
             const code = params.get("code");
+            const hash = window.location.hash.startsWith("#")
+                ? new URLSearchParams(window.location.hash.slice(1))
+                : new URLSearchParams();
+            const accessToken = hash.get("access_token");
+            const refreshToken = hash.get("refresh_token");
+            const errorDescription = hash.get("error_description");
 
             let authError: string | null = null;
-            if (code) {
+            if (errorDescription) {
+                authError = decodeURIComponent(errorDescription);
+            } else if (code) {
                 const { error } = await supabaseBrowser.auth.exchangeCodeForSession(code);
+                authError = error?.message ?? null;
+            } else if (accessToken && refreshToken) {
+                const { error } = await supabaseBrowser.auth.setSession({
+                    access_token: accessToken,
+                    refresh_token: refreshToken,
+                });
                 authError = error?.message ?? null;
             } else {
                 const { error } = await supabaseBrowser.auth.getSession();

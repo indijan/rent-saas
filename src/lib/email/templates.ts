@@ -89,9 +89,9 @@ export function renderTenantInviteEmail(input: TenantInviteInput) {
     const text = [
         nameLine,
         "Létrehoztuk a bérlői fiókodat.",
-        "Az aktiváláshoz nyisd meg az alábbi meghívó linket:",
+        "Az aktiváláshoz nyisd meg az alábbi meghívó linket, ezzel belépsz:",
         input.inviteLink,
-        `A jelszót a Fiók oldalon állíthatod be: ${SITE_URL}/account`,
+        `Jelszó beállítása belépés után: ${SITE_URL}/account`,
     ].join("\n");
 
     const html = `
@@ -99,11 +99,11 @@ export function renderTenantInviteEmail(input: TenantInviteInput) {
             <p>${nameLine}</p>
             <p>Létrehoztuk a bérlői fiókodat.</p>
             <p>
-                Az aktiváláshoz nyisd meg ezt a meghívó linket:
+                Az aktiváláshoz nyisd meg ezt a meghívó linket, ezzel belépsz:
                 <br />
                 <a href="${input.inviteLink}">Meghívó link megnyitása</a>
             </p>
-            <p>Jelszó beállítása: <a href="${SITE_URL}/account">${SITE_URL}/account</a></p>
+            <p>Jelszó beállítása belépés után: <a href="${SITE_URL}/account">${SITE_URL}/account</a></p>
         </div>
     `;
 
