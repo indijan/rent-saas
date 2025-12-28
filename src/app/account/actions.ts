@@ -15,7 +15,7 @@ export async function updateProfile(formData: FormData) {
     const full_name = String(formData.get("full_name") || "").trim();
 
     if (!full_name) {
-        return { ok: false, error: "A név megadása kötelező." };
+        return;
     }
 
     const { error } = await supabase
@@ -23,8 +23,7 @@ export async function updateProfile(formData: FormData) {
         .update({ full_name })
         .eq("id", user.id);
 
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+    if (error) return;
 }
 
 export async function updatePassword(formData: FormData) {
@@ -33,13 +32,12 @@ export async function updatePassword(formData: FormData) {
     const confirm = String(formData.get("password_confirm") || "");
 
     if (!password || password.length < 8) {
-        return { ok: false, error: "A jelszónak legalább 8 karakter hosszúnak kell lennie." };
+        return;
     }
     if (password !== confirm) {
-        return { ok: false, error: "A jelszavak nem egyeznek." };
+        return;
     }
 
     const { error } = await supabase.auth.updateUser({ password });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+    if (error) return;
 }
