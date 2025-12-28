@@ -68,6 +68,12 @@ export async function deleteTenant(tenantId: string) {
     await requireRole("OWNER");
     const admin = createSupabaseAdminClient();
 
+    const { error: chargesError } = await admin
+        .from("charges")
+        .update({ tenant_id: null })
+        .eq("tenant_id", tenantId);
+    if (chargesError) return { ok: false, error: chargesError.message };
+
     const { error: propertyError } = await admin
         .from("properties")
         .update({ tenant_id: null })
