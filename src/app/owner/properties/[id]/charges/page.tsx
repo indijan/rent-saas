@@ -184,7 +184,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                     {charges.map((c: any) => (
                         <div
                             key={c.id}
-                            className={`p-4 flex items-center justify-between gap-4${c.status === "ARCHIVED" ? " charge-archived" : ""}`}
+                            className={`p-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between${c.status === "ARCHIVED" ? " charge-archived" : ""}`}
                         >
                             <div>
                                 <div className="card-title">{c.title}</div>
@@ -208,7 +208,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                 ) : null}
                             </div>
 
-                            <div className="flex items-center gap-3">
+                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end">
                                 <UploadInvoice
                                     chargeId={c.id}
                                 />

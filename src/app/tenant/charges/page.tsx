@@ -250,7 +250,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                 return (
                                     <div
                                         key={c.id}
-                                        className={`p-4 flex items-center justify-between gap-4${c.status === "ARCHIVED" ? " charge-archived" : ""}`}
+                                        className={`p-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between${c.status === "ARCHIVED" ? " charge-archived" : ""}`}
                                     >
                                         <div>
                                             <div className="card-title">{c.title}</div>
@@ -275,7 +275,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                                 </div>
                                             ) : null}
                                         </div>
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end">
                                             <div className={`status-badge status-${String(c.status).toLowerCase()}`}>
                                                 {c.status}
                                             </div>
@@ -305,7 +305,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                             return (
                                 <div key={card.groupId} className="p-4 space-y-3">
                                     <div
-                                        className={`flex items-center justify-between gap-4${next?.status === "ARCHIVED" ? " charge-archived" : ""}`}
+                                        className={`flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between${next?.status === "ARCHIVED" ? " charge-archived" : ""}`}
                                     >
                                         <div>
                                             <div className="card-title">{next?.title}</div>
@@ -330,7 +330,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                                 </div>
                                             ) : null}
                                         </div>
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end">
                                             <div className={`status-badge status-${String(next?.status).toLowerCase()}`}>
                                                 {next?.status}
                                             </div>
@@ -365,7 +365,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                             {card.rest.map((c: any) => (
                                                     <div
                                                         key={c.id}
-                                                        className={`flex items-center justify-between gap-4${c.status === "ARCHIVED" ? " charge-archived" : ""}`}
+                                                        className={`flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between${c.status === "ARCHIVED" ? " charge-archived" : ""}`}
                                                     >
                                                         <div>
                                                             <div className="card-title">{c.title}</div>
@@ -373,7 +373,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                                                 {c.type} • {c.amount} {c.currency} • esedékes: {c.due_date}
                                                             </div>
                                                         </div>
-                                                        <div className="flex items-center gap-3">
+                                                        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end">
                                                             <div className={`status-badge status-${String(c.status).toLowerCase()}`}>
                                                                 {c.status}
                                                             </div>

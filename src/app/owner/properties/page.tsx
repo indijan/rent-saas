@@ -74,7 +74,7 @@ export default async function OwnerPropertiesPage() {
                             href={`/owner/properties/${p.id}`}
                             className="block p-4 hover:bg-gray-50"
                         >
-                            <div className="flex items-center justify-between">
+                            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                     <div className="card-title">{p.name}</div>
                                     <div className="text-sm text-gray-600">{p.address}</div>
