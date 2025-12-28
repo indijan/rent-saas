@@ -1,25 +1,26 @@
 import Link from "next/link";
-import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createTenant, deleteTenant } from "./actions";
+import DeleteTenantButton from "./DeleteTenantButton";
 
-export default async function OwnerTenantsPage() {
+type Props = {
+    searchParams?: Promise<{ status?: string; message?: string }> | { status?: string; message?: string };
+};
+
+export default async function OwnerTenantsPage({ searchParams }: Props) {
     await requireRole("OWNER");
     const admin = createSupabaseAdminClient();
+    const sp = (searchParams instanceof Promise) ? await searchParams : (searchParams ?? {});
+    const status = sp.status ? String(sp.status) : "";
+    const message = sp.message ? String(sp.message) : "";
 
     const { data: tenants, error } = await admin
         .from("profiles")
         .select("id,email,full_name,created_at")
         .eq("role", "TENANT")
         .order("created_at", { ascending: false });
-
-    async function onCreate(formData: FormData) {
-        "use server";
-        const res = await createTenant(formData);
-        if (!res.ok) return;
-        revalidatePath("/owner/tenants");
-    }
 
     if (error) {
         return (
@@ -42,7 +43,23 @@ export default async function OwnerTenantsPage() {
                 </div>
             </div>
 
-            <form action={onCreate} className="card space-y-3">
+            {message ? (
+                <div className={`card ${status === "error" ? "text-red-600" : "text-green-600"}`}>
+                    {message}
+                </div>
+            ) : null}
+
+            <form
+                action={async (formData) => {
+                    "use server";
+                    const res = await createTenant(formData);
+                    if (!res.ok) {
+                        redirect(`/owner/tenants?status=error&message=${encodeURIComponent(res.error)}`);
+                    }
+                    redirect("/owner/tenants?status=success&message=B%C3%A9rl%C5%91+megh%C3%ADvva.");
+                }}
+                className="card space-y-3"
+            >
                 <div className="card-title">Új bérlő létrehozása</div>
                 <div className="grid gap-3 md:grid-cols-2">
                     <input
@@ -79,18 +96,16 @@ export default async function OwnerTenantsPage() {
                                 <div className="card-title">{tenant.full_name || "Név nélküli"}</div>
                                 <div className="text-sm text-gray-600">{tenant.email}</div>
                             </div>
-                            <form
+                            <DeleteTenantButton
                                 action={async () => {
                                     "use server";
                                     const res = await deleteTenant(tenant.id);
-                                    if (!res.ok) return;
-                                    revalidatePath("/owner/tenants");
+                                    if (!res.ok) {
+                                        redirect(`/owner/tenants?status=error&message=${encodeURIComponent(res.error)}`);
+                                    }
+                                    redirect("/owner/tenants?status=success&message=B%C3%A9rl%C5%91+t%C3%B6r%C3%B6lve.");
                                 }}
-                            >
-                                <button className="btn btn-secondary" type="submit">
-                                    Törlés
-                                </button>
-                            </form>
+                            />
                         </div>
                     ))}
                 </div>
