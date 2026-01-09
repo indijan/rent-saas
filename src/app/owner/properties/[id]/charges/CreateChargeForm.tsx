@@ -39,6 +39,10 @@ export default function CreateChargeForm({ propertyId }: Props) {
                 return;
             }
 
+            if (!res.ok || !("data" in res)) {
+                setAiMessage(res.error || "AI feldolgozás sikertelen.");
+                return;
+            }
             const data = res.data;
             const hasAny =
                 data?.amount !== null && data?.amount !== undefined ||
