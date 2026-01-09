@@ -32,12 +32,12 @@ export async function POST(request: Request) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const extraction = await extractInvoiceFromBuffer(buffer);
-    if (!extraction.ok) {
+    if (!extraction.ok || !extraction.data) {
         await sendEmail(renderImportInvoiceStatusEmail({
             ownerEmail,
             status: "FAILED",
             fileName: file.name,
-            error: extraction.error,
+            error: extraction.error || "AI feldolgozás sikertelen.",
         }));
         return new Response(JSON.stringify({ ok: false, error: extraction.error }), {
             status: 400,
