@@ -5,6 +5,7 @@ import { archiveCharge, cancelCharge, deleteCharge, markChargePaid } from "./act
 import ConfirmActionForm from "./ConfirmActionForm";
 import UploadInvoice from "@/components/UploadInvoice";
 import CreateChargeForm from "./CreateChargeForm";
+import { formatCurrency } from "@/lib/formatters";
 
 type Props = {
     params: Promise<{ id: string }>;
@@ -87,7 +88,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
         },
         { paid: 0, unpaid: 0, total: 0 }
     );
-    const formatMoney = (value: number) => value.toLocaleString("hu-HU");
+    const formatMoney = (value: number) => formatCurrency(value, "HUF");
 
     if (error) {
         return (
@@ -189,7 +190,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                             <div>
                                 <div className="card-title">{c.title}</div>
                                 <div className="text-sm">
-                                    {c.type} • {c.amount} {c.currency} • esedékes: {c.due_date}
+                                    {c.type} • {formatCurrency(Number(c.amount), String(c.currency || "HUF"))} • esedékes: {c.due_date}
                                     {c.status === "PAID" && c.paid_at ? (
                                         <span> • fizetve: {new Date(c.paid_at).toLocaleString("hu-HU")}</span>
                                     ) : null}

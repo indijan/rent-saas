@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/requireRole";
+import { formatCurrency } from "@/lib/formatters";
 import AppHeader from "@/components/AppHeader";
 import { archiveTenantCharge } from "./actions";
 
@@ -100,7 +101,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
         },
         { paid: 0, unpaid: 0, total: 0 }
     );
-    const formatMoney = (value: number) => value.toLocaleString("hu-HU");
+    const formatMoney = (value: number) => formatCurrency(value, "HUF");
     const totalPages = Math.max(1, Math.ceil((count ?? 0) / pageSize));
     const buildPageHref = (targetPage: number) => {
         const params = new URLSearchParams({
@@ -290,7 +291,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                             <div className="text-sm">
                                                 {(c.properties?.name ? `${c.properties.name} • ` : "")}
                                                 {(c.properties?.address ? `${c.properties.address} • ` : "")}
-                                                {c.type} • {c.amount} {c.currency} • esedékes: {c.due_date}
+                                                {c.type} • {formatCurrency(Number(c.amount), String(c.currency || "HUF"))} • esedékes: {c.due_date}
                                                 {c.status === "PAID" && c.paid_at ? (
                                                     <span> • fizetve: {new Date(c.paid_at).toLocaleString("hu-HU")}</span>
                                                 ) : null}
@@ -345,7 +346,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                             <div className="text-sm">
                                                 {(next?.properties?.name ? `${next.properties.name} • ` : "")}
                                                 {(next?.properties?.address ? `${next.properties.address} • ` : "")}
-                                                {next?.type} • {next?.amount} {next?.currency} • esedékes: {next?.due_date}
+                                                {next?.type} • {formatCurrency(Number(next?.amount), String(next?.currency || "HUF"))} • esedékes: {next?.due_date}
                                                 {next?.status === "PAID" && next?.paid_at ? (
                                                     <span> • fizetve: {new Date(next.paid_at).toLocaleString("hu-HU")}</span>
                                                 ) : null}
@@ -403,7 +404,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                                         <div>
                                                             <div className="card-title">{c.title}</div>
                                                             <div className="text-sm">
-                                                                {c.type} • {c.amount} {c.currency} • esedékes: {c.due_date}
+                                                                {c.type} • {formatCurrency(Number(c.amount), String(c.currency || "HUF"))} • esedékes: {c.due_date}
                                                             </div>
                                                         </div>
                                                         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end">

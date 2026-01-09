@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
+import { formatCurrency } from "@/lib/formatters";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -44,7 +45,7 @@ export default async function TenantChargeDetailPage({ params }: Props) {
 
             <div className="card space-y-2">
                 <div><b>Ingatlan:</b> {property?.name ?? "-"}</div>
-                <div><b>Összeg:</b> {charge.amount} {charge.currency}</div>
+                <div><b>Összeg:</b> {formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))}</div>
                 <div><b>Esedékes:</b> {charge.due_date}</div>
                 <div>
                     <b>Státusz:</b>{" "}

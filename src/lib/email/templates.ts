@@ -25,6 +25,18 @@ type TenantInviteInput = {
     inviteLink: string;
 };
 
+type ImportInvoiceStatusInput = {
+    ownerEmail: string;
+    status: "SUCCESS" | "FAILED";
+    provider?: string | null;
+    amount?: number | null;
+    currency?: string | null;
+    dueDate?: string | null;
+    propertyName?: string | null;
+    fileName?: string | null;
+    error?: string | null;
+};
+
 export function renderNewChargeEmail(input: NewChargeInput) {
     const countText = input.count && input.count > 1 ? ` (${input.count} alkalom)` : "";
     const propertyLine = input.propertyName ? `Ingatlan: ${input.propertyName}` : "Ingatlan: -";
@@ -108,4 +120,35 @@ export function renderTenantInviteEmail(input: TenantInviteInput) {
     `;
 
     return { to: input.tenantEmail, subject, html, text };
+}
+
+export function renderImportInvoiceStatusEmail(input: ImportInvoiceStatusInput) {
+    const subject = `Számla import ${input.status}`;
+    const text = [
+        `Státusz: ${input.status}`,
+        input.fileName ? `Fájl: ${input.fileName}` : null,
+        input.propertyName ? `Ingatlan: ${input.propertyName}` : null,
+        input.provider ? `Szolgáltató: ${input.provider}` : null,
+        input.amount !== null && input.amount !== undefined ? `Összeg: ${input.amount} ${input.currency ?? ""}` : null,
+        input.dueDate ? `Határidő: ${input.dueDate}` : null,
+        input.error ? `Hiba: ${input.error}` : null,
+        `Részletek: ${SITE_URL}/owner/properties`,
+    ].filter(Boolean).join("\n");
+
+    const html = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+            <h2>Számla import: ${input.status}</h2>
+            <ul>
+                ${input.fileName ? `<li><b>Fájl:</b> ${input.fileName}</li>` : ""}
+                ${input.propertyName ? `<li><b>Ingatlan:</b> ${input.propertyName}</li>` : ""}
+                ${input.provider ? `<li><b>Szolgáltató:</b> ${input.provider}</li>` : ""}
+                ${input.amount !== null && input.amount !== undefined ? `<li><b>Összeg:</b> ${input.amount} ${input.currency ?? ""}</li>` : ""}
+                ${input.dueDate ? `<li><b>Határidő:</b> ${input.dueDate}</li>` : ""}
+                ${input.error ? `<li><b>Hiba:</b> ${input.error}</li>` : ""}
+            </ul>
+            <p><a href="${SITE_URL}/owner/properties">Részletek megnyitása</a></p>
+        </div>
+    `;
+
+    return { to: input.ownerEmail, subject, html, text };
 }
