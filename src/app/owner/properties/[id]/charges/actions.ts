@@ -208,7 +208,7 @@ async function runAzureReadOCR(buffer: Buffer) {
                 "Ocp-Apim-Subscription-Key": apiKey,
                 "Content-Type": "application/pdf",
             },
-            body: buffer,
+            body: new Uint8Array(buffer),
         });
         if (!res.ok) {
             return { text: "", error: `Azure OCR HTTP ${res.status}` };
@@ -407,7 +407,7 @@ async function runAzureInvoiceOCR(buffer: Buffer): Promise<{ data: AzureInvoiceF
                 "Ocp-Apim-Subscription-Key": apiKey,
                 "Content-Type": "application/pdf",
             },
-            body: buffer,
+            body: new Uint8Array(buffer),
         });
         if (!res.ok) {
             return { data: null, error: `Azure Invoice HTTP ${res.status}` };
