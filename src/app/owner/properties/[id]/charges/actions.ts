@@ -558,7 +558,7 @@ export async function extractInvoiceFromBuffer(buffer: Buffer) {
     const azureInvoice = hasMvm ? await runAzureInvoiceOCR(buffer) : { data: null, error: null };
 
     const aiRes = await extractInvoiceFields(text);
-    if (!aiRes.ok) return { ok: false, error: aiRes.error };
+    if (!aiRes.ok || !aiRes.data) return { ok: false, error: aiRes.error };
     const labeledAmount = extractAmountDueFromText(text);
     const labeledDue = extractDueDateFromText(text);
     const hasPayableLabel = /fizetend/i.test(text);
