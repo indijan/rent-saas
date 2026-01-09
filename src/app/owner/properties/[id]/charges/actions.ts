@@ -174,7 +174,7 @@ async function runOcrSpaceOCR(buffer: Buffer, filename = "invoice.pdf", mime = "
     form.append("OCREngine", engine);
     form.append("isOverlayRequired", "false");
     form.append("scale", "true");
-    form.append("file", new Blob([buffer], { type: mime }), filename);
+    form.append("file", new Blob([new Uint8Array(buffer)], { type: mime }), filename);
 
     try {
         const res = await fetch("https://api.ocr.space/parse/image", {
