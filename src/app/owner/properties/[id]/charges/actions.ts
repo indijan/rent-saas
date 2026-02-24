@@ -290,7 +290,8 @@ export async function createCharge(propertyId: string, formData: FormData) {
     const currency = String(formData.get("currency") || "HUF").trim().toUpperCase() || "HUF";
     const isRecurring = String(formData.get("recurring") || "") === "on";
     const document = formData.get("document");
-    const documentFile = document instanceof File ? document : null;
+    const rawDocumentFile = document instanceof File ? document : null;
+    const documentFile = rawDocumentFile && rawDocumentFile.size > 0 ? rawDocumentFile : null;
 
     if (!title || !due_date || amount === null) {
         return { ok: false, error: "Title, amount, due date kötelező." };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createCharge, extractInvoiceData } from "./actions";
 import { formatCurrency } from "@/lib/formatters";
@@ -11,6 +11,8 @@ type Props = {
 
 export default function CreateChargeForm({ propertyId }: Props) {
     const [error, setError] = useState<string | null>(null);
+    const [debug, setDebug] = useState<string>("idle");
+    const [clickCount, setClickCount] = useState(0);
     const [aiMessage, setAiMessage] = useState<string>("");
     const [aiBusy, setAiBusy] = useState(false);
     const [isPending, startTransition] = useTransition();
@@ -71,25 +73,40 @@ export default function CreateChargeForm({ propertyId }: Props) {
 
     function onSubmit(formData: FormData) {
         setError(null);
+        setDebug("submit started");
         startTransition(async () => {
-            const res = await createCharge(propertyId, formData);
-            if (!res.ok) {
-                setError(res.error || "Nem sikerült a mentés.");
-                return;
+            try {
+                const res = await createCharge(propertyId, formData);
+                if (!res.ok) {
+                    const msg = res.error || "ismeretlen backend hiba";
+                    setError(msg);
+                    setDebug(`server responded: not ok (${msg})`);
+                    return;
+                }
+                formRef.current?.reset();
+                setTitle("");
+                setType("RENT");
+                setAmount("");
+                setDueDate("");
+                setCurrency("HUF");
+                setAiMessage("");
+                setDebug("server responded: ok");
+                router.refresh();
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : String(err);
+                setError(`Váratlan mentési hiba: ${message}`);
+                setDebug(`exception: ${message}`);
             }
-            formRef.current?.reset();
-            setTitle("");
-            setType("RENT");
-            setAmount("");
-            setDueDate("");
-            setCurrency("HUF");
-            setAiMessage("");
-            router.refresh();
         });
     }
 
+    function handleSubmit(e: FormEvent<HTMLFormElement>) {
+        e.preventDefault();
+        onSubmit(new FormData(e.currentTarget));
+    }
+
     return (
-        <form ref={formRef} action={onSubmit} className="card space-y-3">
+        <form ref={formRef} onSubmit={handleSubmit} className="card space-y-3">
             <div className="card-title">Új díj</div>
             <div className="grid gap-3 md:grid-cols-2">
                 <input
@@ -156,10 +173,15 @@ export default function CreateChargeForm({ propertyId }: Props) {
                 type="submit"
                 className="btn btn-primary"
                 disabled={isPending}
+                onClick={() => {
+                    setClickCount((prev) => prev + 1);
+                    setDebug("button clicked");
+                }}
             >
                 {isPending ? "Mentés..." : "Létrehozás"}
             </button>
             <p className="text-xs text-gray-600">(MVP: valuta fix HUF, státusz UNPAID.)</p>
+            <p className="text-xs text-gray-600">Debug: {debug} | clicks: {clickCount}</p>
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
         </form>
     );
