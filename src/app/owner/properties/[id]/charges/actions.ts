@@ -16,7 +16,12 @@ import { extractInvoiceFields } from "@/lib/ai/invoiceExtractor";
 
 function parseAmount(value: string) {
     const cleaned = value.replace(/[^\d,.-]/g, "").replace(/\s/g, "");
-    const normalized = cleaned.replace(",", ".");
+    let normalized = cleaned;
+    if (cleaned.includes(",")) {
+        normalized = cleaned.replace(/\./g, "").replace(",", ".");
+    } else if (/^-?\d{1,3}(?:\.\d{3})+$/.test(cleaned)) {
+        normalized = cleaned.replace(/\./g, "");
+    }
     const amount = Number(normalized);
     return Number.isFinite(amount) ? amount : null;
 }
@@ -639,6 +644,46 @@ export async function markChargePaid(chargeId: string) {
         .update({
             status: "PAID",
             paid_at: new Date().toISOString(),
+        })
+        .eq("id", chargeId)
+        .eq("owner_id", user.id);
+
+    if (error) return { ok: false, error: error.message };
+    revalidatePath(`/owner/properties/${charge.property_id}/charges`);
+    return { ok: true };
+}
+
+export async function updateCharge(chargeId: string, formData: FormData) {
+    const { supabase, user } = await requireRole("OWNER");
+
+    const title = String(formData.get("title") || "").trim();
+    const amountRaw = String(formData.get("amount") || "").trim();
+    const amount = parseAmount(amountRaw);
+    const due_date = String(formData.get("due_date") || "").trim();
+    const type = String(formData.get("type") || "RENT").trim();
+    const currency = String(formData.get("currency") || "HUF").trim().toUpperCase() || "HUF";
+
+    if (!title || !due_date || amount === null) {
+        return { ok: false, error: "Title, amount, due date kötelező." };
+    }
+
+    const { data: charge, error: chargeErr } = await supabase
+        .from("charges")
+        .select("property_id")
+        .eq("id", chargeId)
+        .eq("owner_id", user.id)
+        .single();
+
+    if (chargeErr || !charge) return { ok: false, error: "Charge nem található." };
+
+    const { error } = await supabase
+        .from("charges")
+        .update({
+            title,
+            type,
+            amount,
+            currency,
+            due_date,
         })
         .eq("id", chargeId)
         .eq("owner_id", user.id);

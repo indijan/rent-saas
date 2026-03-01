@@ -5,6 +5,7 @@ import { archiveCharge, cancelCharge, deleteCharge, markChargePaid } from "./act
 import ConfirmActionForm from "./ConfirmActionForm";
 import UploadInvoice from "@/components/UploadInvoice";
 import CreateChargeForm from "./CreateChargeForm";
+import EditChargeForm from "./EditChargeForm";
 import { formatCurrency } from "@/lib/formatters";
 
 type Props = {
@@ -210,6 +211,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end">
+                                <EditChargeForm charge={c} />
                                 <UploadInvoice
                                     chargeId={c.id}
                                 />
