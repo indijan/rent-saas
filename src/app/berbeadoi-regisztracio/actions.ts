@@ -25,7 +25,8 @@ export async function submitOwnerRegistration(formData: FormData) {
     }));
 
     if (!emailRes.ok) {
-        redirect(`/berbeadoi-regisztracio?status=error&message=${encodeURIComponent(emailRes.error)}`);
+        const message = emailRes.error ?? "Az e-mail elküldése sikertelen volt.";
+        redirect(`/berbeadoi-regisztracio?status=error&message=${encodeURIComponent(message)}`);
     }
 
     redirect("/berbeadoi-regisztracio?status=success&message=Az+ig%C3%A9nyed+meg%C3%A9rkezett%2C+r%C3%B6videsen+felvessz%C3%BCk+veled+a+kapcsolatot.");
