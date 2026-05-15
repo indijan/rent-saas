@@ -653,6 +653,55 @@ export async function markChargePaid(chargeId: string) {
     return { ok: true };
 }
 
+export async function publishCharge(chargeId: string) {
+    const { supabase, user } = await requireRole("OWNER");
+
+    const { data: charge, error: chargeErr } = await supabase
+        .from("charges")
+        .select("id,property_id,tenant_id,status,title,amount,currency,due_date,properties(name)")
+        .eq("id", chargeId)
+        .eq("owner_id", user.id)
+        .single();
+
+    if (chargeErr || !charge) return { ok: false, error: "Charge nem található." };
+    if (charge.status !== "IMPORT_DRAFT") return { ok: false, error: "Csak IMPORT_DRAFT díj publikálható." };
+
+    const { error } = await supabase
+        .from("charges")
+        .update({ status: "UNPAID" })
+        .eq("id", chargeId)
+        .eq("owner_id", user.id);
+
+    if (error) return { ok: false, error: error.message };
+
+    if (charge.tenant_id) {
+        const admin = createSupabaseAdminClient();
+        const { data: tenantProfile } = await admin
+            .from("profiles")
+            .select("email")
+            .eq("id", charge.tenant_id)
+            .single();
+
+        if (tenantProfile?.email) {
+            const propertyValue = (charge as { properties?: { name: string | null }[] | { name: string | null } | null }).properties;
+            const property = Array.isArray(propertyValue) ? propertyValue[0] : propertyValue;
+            const emailPayload = renderNewChargeEmail({
+                tenantEmail: tenantProfile.email,
+                title: charge.title,
+                amount: Number(charge.amount),
+                currency: String(charge.currency || "HUF"),
+                dueDate: String(charge.due_date),
+                propertyName: property?.name ?? null,
+                count: 1,
+            });
+            await sendEmail(emailPayload);
+        }
+    }
+
+    revalidatePath(`/owner/properties/${charge.property_id}/charges`);
+    return { ok: true };
+}
+
 export async function updateCharge(chargeId: string, formData: FormData) {
     const { supabase, user } = await requireRole("OWNER");
 

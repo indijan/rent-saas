@@ -47,6 +47,7 @@ export async function GET(request: Request) {
         .from("charges")
         .select("title,type,amount,currency,due_date,status,paid_at,properties(name,address)")
         .eq("tenant_id", ctx.userId)
+        .neq("status", "IMPORT_DRAFT")
         .order("due_date", { ascending: false });
 
     if (propertyId) q = q.eq("property_id", propertyId);

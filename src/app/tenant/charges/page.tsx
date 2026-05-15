@@ -57,6 +57,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
         .from("charges")
         .select("id,title,type,amount,currency,due_date,status,paid_at,created_at,property_id,recurring_group,recurring_index,recurring_count,properties(id,name,address)", { count: "exact" })
         .eq("tenant_id", user.id)
+        .neq("status", "IMPORT_DRAFT")
         .order("due_date", { ascending: false });
 
     if (selectedPropertyId) q = q.eq("property_id", selectedPropertyId);

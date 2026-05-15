@@ -14,6 +14,7 @@ export default async function TenantChargeDetailPage({ params }: Props) {
         .select("id,title,type,amount,currency,due_date,status,paid_at,notes,properties(name,address)")
         .eq("id", id)
         .eq("tenant_id", user.id)
+        .neq("status", "IMPORT_DRAFT")
         .single();
 
     if (error || !charge) return notFound();

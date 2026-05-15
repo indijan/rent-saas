@@ -1,6 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
-import { renderImportInvoiceStatusEmail, renderNewChargeEmail } from "@/lib/email/templates";
+import { renderImportInvoiceStatusEmail } from "@/lib/email/templates";
 import { extractInvoiceFromBuffer } from "@/app/owner/properties/[id]/charges/actions";
 
 function safeFileName(value: string) {
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
             amount,
             currency,
             due_date: dueDate,
-            status: "UNPAID",
+            status: "IMPORT_DRAFT",
         })
         .select("id")
         .single();
@@ -164,7 +164,7 @@ export async function POST(request: Request) {
 
     await sendEmail(renderImportInvoiceStatusEmail({
         ownerEmail,
-        status: "SUCCESS",
+        status: "SUCCESS_DRAFT",
         fileName: file.name,
         provider,
         amount,
@@ -172,27 +172,6 @@ export async function POST(request: Request) {
         dueDate,
         propertyName: property.name ?? null,
     }));
-
-    if (property.tenant_id) {
-        const { data: tenantProfile } = await admin
-            .from("profiles")
-            .select("email")
-            .eq("id", property.tenant_id)
-            .single();
-
-        if (tenantProfile?.email) {
-            const emailPayload = renderNewChargeEmail({
-                tenantEmail: tenantProfile.email,
-                title,
-                amount,
-                currency,
-                dueDate,
-                propertyName: property.name ?? null,
-                count: 1,
-            });
-            await sendEmail(emailPayload);
-        }
-    }
 
     return new Response(JSON.stringify({ ok: true, chargeId: createdCharge.id }), {
         status: 200,

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
-import { archiveCharge, cancelCharge, deleteCharge, markChargePaid } from "./actions";
+import { archiveCharge, cancelCharge, deleteCharge, markChargePaid, publishCharge } from "./actions";
 import ConfirmActionForm from "./ConfirmActionForm";
 import UploadInvoice from "@/components/UploadInvoice";
 import CreateChargeForm from "./CreateChargeForm";
@@ -121,6 +121,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                         <option value="PAID">PAID</option>
                         <option value="ARCHIVED">ARCHIVED</option>
                         <option value="CANCELLED">CANCELLED</option>
+                        <option value="IMPORT_DRAFT">IMPORT_DRAFT</option>
                     </select>
                     <select name="type" defaultValue={typeFilter} className="select">
                         <option value="">Összes típus</option>
@@ -218,6 +219,23 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                 <div className={`status-badge status-${String(c.status).toLowerCase()}`}>
                                     {c.status}
                                 </div>
+                                <ConfirmActionForm
+                                    action={async () => {
+                                        "use server";
+                                        if (c.status !== "IMPORT_DRAFT") return;
+                                        await publishCharge(c.id);
+                                    }}
+                                    confirmMessage="Publikálod ezt a számlát a bérlő felé?"
+                                >
+                                    <button
+                                        type="submit"
+                                        className="btn btn-primary btn-sm"
+                                        disabled={c.status !== "IMPORT_DRAFT"}
+                                        title={c.status === "IMPORT_DRAFT" ? "Publikálás" : "Csak IMPORT_DRAFT publikálható"}
+                                    >
+                                        PUBLIKÁLÁS
+                                    </button>
+                                </ConfirmActionForm>
                                 <ConfirmActionForm
                                     action={async () => {
                                         "use server";

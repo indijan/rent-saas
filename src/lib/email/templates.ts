@@ -27,7 +27,7 @@ type TenantInviteInput = {
 
 type ImportInvoiceStatusInput = {
     ownerEmail: string;
-    status: "SUCCESS" | "FAILED";
+    status: "SUCCESS" | "SUCCESS_DRAFT" | "FAILED";
     provider?: string | null;
     amount?: number | null;
     currency?: string | null;
