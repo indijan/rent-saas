@@ -770,6 +770,9 @@ export async function updateCharge(chargeId: string, formData: FormData) {
         .single();
 
     if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
+    if (charge.status !== "UNPAID" && charge.status !== "IMPORT_DRAFT") {
+        return { ok: false, error: "Csak aktív vagy piszkozat státuszú díj szerkeszthető." };
+    }
 
     const { error } = await supabase
         .from("charges")
@@ -797,6 +800,7 @@ export async function cancelCharge(chargeId: string) {
         .from("charges")
         .select("property_id,status")
         .eq("id", chargeId)
+        .eq("owner_id", user.id)
         .single();
 
     if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
@@ -870,11 +874,15 @@ export async function deleteCharge(chargeId: string) {
 
     const { data: charge, error: chargeErr } = await supabase
         .from("charges")
-        .select("property_id")
+        .select("property_id,status")
         .eq("id", chargeId)
+        .eq("owner_id", user.id)
         .single();
 
     if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
+    if (charge.status !== "UNPAID" && charge.status !== "IMPORT_DRAFT" && charge.status !== "CANCELLED") {
+        return { ok: false, error: "Csak aktív, piszkozat vagy érvénytelenített díj törölhető véglegesen." };
+    }
 
     const { data: docs, error: docsErr } = await supabase
         .from("documents")

@@ -360,6 +360,9 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                 ? `Ismétlődés ${charge.recurring_index}/${charge.recurring_count}`
                                 : null;
                             const dueState = getDueState(charge.due_date, charge.status);
+                            const canEdit = charge.status === "UNPAID" || charge.status === "IMPORT_DRAFT";
+                            const canUploadInvoice = charge.status === "UNPAID" || charge.status === "IMPORT_DRAFT";
+                            const canDelete = charge.status === "UNPAID" || charge.status === "IMPORT_DRAFT" || charge.status === "CANCELLED";
 
                             return (
                                 <article
@@ -468,7 +471,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                         <div className="action-divider" />
 
                                         <div className="charge-actions-secondary">
-                                            <UploadInvoice chargeId={charge.id} />
+                                            {canUploadInvoice ? <UploadInvoice chargeId={charge.id} /> : null}
                                         </div>
 
                                         <div className="charge-actions-danger">
@@ -486,21 +489,23 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                 </ConfirmActionForm>
                                             ) : null}
 
-                                            <ConfirmActionForm
-                                                action={async () => {
-                                                    "use server";
-                                                    await deleteCharge(charge.id);
-                                                }}
-                                                confirmMessage="Biztosan sztornózod ezt a díjat? Ez a művelet végleges."
-                                            >
-                                                <button type="submit" className="btn btn-danger btn-sm">
-                                                    Sztornó
-                                                </button>
-                                            </ConfirmActionForm>
+                                            {canDelete ? (
+                                                <ConfirmActionForm
+                                                    action={async () => {
+                                                        "use server";
+                                                        await deleteCharge(charge.id);
+                                                    }}
+                                                    confirmMessage="Biztosan sztornózod ezt a díjat? Ez a művelet végleges."
+                                                >
+                                                    <button type="submit" className="btn btn-danger btn-sm">
+                                                        Sztornó
+                                                    </button>
+                                                </ConfirmActionForm>
+                                            ) : null}
                                         </div>
                                     </div>
 
-                                    <EditChargeForm charge={charge} />
+                                    {canEdit ? <EditChargeForm charge={charge} /> : null}
                                 </article>
                             );
                         })}
