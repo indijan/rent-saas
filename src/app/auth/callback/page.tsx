@@ -48,11 +48,11 @@ export default function AuthCallbackPage() {
     }, []);
 
     return (
-        <main className="min-h-screen flex items-center justify-center p-6">
-            <div className="card w-full max-w-sm space-y-3">
+        <main className="auth-shell page-enter">
+            <div className="auth-card w-full max-w-sm space-y-3">
                 <h1>Beléptetés...</h1>
                 <p className="text-sm text-gray-600">
-                    Folyamatban a fiók aktiválása.
+                    Folyamatban a fiók aktiválása vagy a jelszó-visszaállítás befejezése.
                 </p>
                 {error ? (
                     <p className="text-sm text-red-600">

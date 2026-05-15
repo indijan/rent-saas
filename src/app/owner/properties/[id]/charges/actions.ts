@@ -14,6 +14,50 @@ import path from "path";
 import { writeFile, readFile, rm } from "fs/promises";
 import { extractInvoiceFields } from "@/lib/ai/invoiceExtractor";
 
+type AzureReadLine = {
+    text: string;
+};
+
+type AzureReadPage = {
+    lines?: AzureReadLine[];
+};
+
+type AzureReadResult = {
+    status?: string;
+    analyzeResult?: {
+        readResults?: AzureReadPage[];
+    };
+};
+
+type AzureInvoiceField = {
+    valueNumber?: number | null;
+    valueCurrency?: {
+        amount?: number | null;
+        currencyCode?: string | null;
+    } | null;
+    valueString?: string | null;
+    valueDate?: string | null;
+};
+
+type AzureInvoiceDocument = {
+    fields?: Record<string, AzureInvoiceField>;
+};
+
+type AzureInvoicePollResult = {
+    status?: string;
+    analyzeResult?: {
+        documents?: AzureInvoiceDocument[];
+    };
+};
+
+type ChargeIdRow = {
+    id: string | null;
+};
+
+type DocumentPathRow = {
+    bucket_path: string | null;
+};
+
 function parseAmount(value: string) {
     const cleaned = value.replace(/[^\d,.-]/g, "").replace(/\s/g, "");
     let normalized = cleaned;
@@ -195,8 +239,8 @@ async function runOcrSpaceOCR(buffer: Buffer, filename = "invoice.pdf", mime = "
         }
         const parsedText = json?.ParsedResults?.[0]?.ParsedText;
         return { text: typeof parsedText === "string" ? parsedText.trim() : "", error: null };
-    } catch (err: any) {
-        return { text: "", error: err?.message ?? "OCR.space fetch error" };
+    } catch (err: unknown) {
+        return { text: "", error: err instanceof Error ? err.message : "OCR.space fetch error" };
     }
 }
 
@@ -229,10 +273,10 @@ async function runAzureReadOCR(buffer: Buffer) {
                 },
             });
             if (!poll.ok) return { text: "", error: `Azure OCR poll HTTP ${poll.status}` };
-            const json = await poll.json();
+            const json = await poll.json() as AzureReadResult;
             if (json?.status === "succeeded") {
-                const lines = json?.analyzeResult?.readResults?.flatMap((page: any) =>
-                    (page?.lines ?? []).map((line: any) => line.text)
+                const lines = json?.analyzeResult?.readResults?.flatMap((page) =>
+                    (page?.lines ?? []).map((line) => line.text)
                 ) ?? [];
                 return { text: lines.join("\n").trim(), error: null };
             }
@@ -241,8 +285,8 @@ async function runAzureReadOCR(buffer: Buffer) {
             }
         }
         return { text: "", error: "Azure OCR timeout" };
-    } catch (err: any) {
-        return { text: "", error: err?.message ?? "Azure OCR fetch error" };
+    } catch (err: unknown) {
+        return { text: "", error: err instanceof Error ? err.message : "Azure OCR fetch error" };
     }
 }
 
@@ -299,7 +343,7 @@ export async function createCharge(propertyId: string, formData: FormData) {
     const documentFile = rawDocumentFile && rawDocumentFile.size > 0 ? rawDocumentFile : null;
 
     if (!title || !due_date || amount === null) {
-        return { ok: false, error: "Title, amount, due date kötelező." };
+        return { ok: false, error: "A megnevezés, az összeg és az esedékesség kötelező." };
     }
     if (documentFile && documentFile.type !== "application/pdf") {
         return { ok: false, error: "Csak olvasható PDF tölthető fel." };
@@ -311,7 +355,7 @@ export async function createCharge(propertyId: string, formData: FormData) {
         .eq("id", propertyId)
         .single();
 
-    if (propErr || !property) return { ok: false, error: "Property nem található." };
+    if (propErr || !property) return { ok: false, error: "Az ingatlan nem található." };
 
     const recurringCount = isRecurring ? 12 : 1;
     const recurringGroup = isRecurring ? randomUUID() : null;
@@ -336,7 +380,9 @@ export async function createCharge(propertyId: string, formData: FormData) {
         .select("id");
 
     if (error) return { ok: false, error: error.message };
-    const createdIds = (createdCharges ?? []).map((row: any) => row.id).filter(Boolean);
+    const createdIds = ((createdCharges ?? []) as ChargeIdRow[])
+        .map((row) => row.id)
+        .filter((id): id is string => Boolean(id));
 
     if (documentFile && createdIds.length > 0) {
         const buffer = Buffer.from(await documentFile.arrayBuffer());
@@ -429,7 +475,7 @@ async function runAzureInvoiceOCR(buffer: Buffer): Promise<{ data: AzureInvoiceF
                 },
             });
             if (!poll.ok) return { data: null, error: `Azure Invoice poll HTTP ${poll.status}` };
-            const json = await poll.json();
+            const json = await poll.json() as AzureInvoicePollResult;
             if (json?.status === "succeeded") {
                 const doc = json?.analyzeResult?.documents?.[0];
                 const fields = doc?.fields ?? {};
@@ -440,23 +486,23 @@ async function runAzureInvoiceOCR(buffer: Buffer): Promise<{ data: AzureInvoiceF
                     const key = Object.keys(fields).find((k) => normalizeKey(k) === targetNorm);
                     return key ? fields[key] : null;
                 };
-                const getNumber = (field: any) =>
+                const getNumber = (field: AzureInvoiceField | null) =>
                     field?.valueNumber ?? field?.valueCurrency?.amount ?? null;
-                const getRawString = (field: any) =>
+                const getRawString = (field: AzureInvoiceField | null) =>
                     field?.valueString ?? null;
-                const getCurrency = (field: any) =>
+                const getCurrency = (field: AzureInvoiceField | null) =>
                     field?.valueCurrency?.currencyCode ?? null;
-                const getString = (field: any) =>
+                const getString = (field: AzureInvoiceField | null) =>
                     field?.valueString ?? null;
-                const getDate = (field: any) =>
+                const getDate = (field: AzureInvoiceField | null) =>
                     field?.valueDate ?? field?.valueString ?? null;
-                const parseAmount = (field: any) => {
+                const parseAmount = (field: AzureInvoiceField | null) => {
                     const numeric = getNumber(field);
                     if (Number.isFinite(numeric)) return Number(numeric);
                     const raw = getRawString(field);
                     return raw ? parseHungarianAmount(raw) : null;
                 };
-                const extractCurrency = (field: any) => {
+                const extractCurrency = (field: AzureInvoiceField | null) => {
                     const code = getCurrency(field);
                     if (code) return String(code).toUpperCase();
                     const raw = getRawString(field);
@@ -494,12 +540,12 @@ async function runAzureInvoiceOCR(buffer: Buffer): Promise<{ data: AzureInvoiceF
                 };
             }
             if (json?.status === "failed") {
-                return { data: null, error: "Azure Invoice failed" };
+                return { data: null, error: "Az Azure számlafeldolgozás sikertelen." };
             }
         }
-        return { data: null, error: "Azure Invoice timeout" };
-    } catch (err: any) {
-        return { data: null, error: err?.message ?? "Azure Invoice fetch error" };
+        return { data: null, error: "Az Azure számlafeldolgozás időtúllépéssel leállt." };
+    } catch (err: unknown) {
+        return { data: null, error: err instanceof Error ? err.message : "Azure Invoice fetch error" };
     }
 }
 
@@ -636,8 +682,8 @@ export async function markChargePaid(chargeId: string) {
         .eq("id", chargeId)
         .single();
 
-    if (chargeErr || !charge) return { ok: false, error: "Charge nem található." };
-    if (charge.status !== "UNPAID") return { ok: false, error: "Csak UNPAID díj jelölhető fizetettnek." };
+    if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
+    if (charge.status !== "UNPAID") return { ok: false, error: "Csak aktív díj jelölhető fizetettnek." };
 
     const { error } = await supabase
         .from("charges")
@@ -663,8 +709,8 @@ export async function publishCharge(chargeId: string) {
         .eq("owner_id", user.id)
         .single();
 
-    if (chargeErr || !charge) return { ok: false, error: "Charge nem található." };
-    if (charge.status !== "IMPORT_DRAFT") return { ok: false, error: "Csak IMPORT_DRAFT díj publikálható." };
+    if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
+    if (charge.status !== "IMPORT_DRAFT") return { ok: false, error: "Csak piszkozat státuszú díj publikálható." };
 
     const { error } = await supabase
         .from("charges")
@@ -713,17 +759,17 @@ export async function updateCharge(chargeId: string, formData: FormData) {
     const currency = String(formData.get("currency") || "HUF").trim().toUpperCase() || "HUF";
 
     if (!title || !due_date || amount === null) {
-        return { ok: false, error: "Title, amount, due date kötelező." };
+        return { ok: false, error: "A megnevezés, az összeg és az esedékesség kötelező." };
     }
 
     const { data: charge, error: chargeErr } = await supabase
         .from("charges")
-        .select("property_id")
+        .select("property_id,status,paid_at")
         .eq("id", chargeId)
         .eq("owner_id", user.id)
         .single();
 
-    if (chargeErr || !charge) return { ok: false, error: "Charge nem található." };
+    if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
 
     const { error } = await supabase
         .from("charges")
@@ -733,6 +779,8 @@ export async function updateCharge(chargeId: string, formData: FormData) {
             amount,
             currency,
             due_date,
+            status: charge.status,
+            paid_at: charge.paid_at,
         })
         .eq("id", chargeId)
         .eq("owner_id", user.id);
@@ -751,9 +799,9 @@ export async function cancelCharge(chargeId: string) {
         .eq("id", chargeId)
         .single();
 
-    if (chargeErr || !charge) return { ok: false, error: "Charge nem található." };
+    if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
     if (charge.status === "PAID" || charge.status === "ARCHIVED") {
-        return { ok: false, error: "Fizetett díj nem cancel-elhető." };
+        return { ok: false, error: "Fizetett vagy archivált díj nem sztornózható." };
     }
 
     const { error } = await supabase
@@ -761,6 +809,30 @@ export async function cancelCharge(chargeId: string) {
         .update({
             status: "CANCELLED",
         })
+        .eq("id", chargeId)
+        .eq("owner_id", user.id);
+
+    if (error) return { ok: false, error: error.message };
+    revalidatePath(`/owner/properties/${charge.property_id}/charges`);
+    return { ok: true };
+}
+
+export async function restoreCharge(chargeId: string) {
+    const { supabase, user } = await requireRole("OWNER");
+
+    const { data: charge, error: chargeErr } = await supabase
+        .from("charges")
+        .select("property_id,status")
+        .eq("id", chargeId)
+        .eq("owner_id", user.id)
+        .single();
+
+    if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
+    if (charge.status !== "CANCELLED") return { ok: false, error: "Csak törölt díj állítható vissza." };
+
+    const { error } = await supabase
+        .from("charges")
+        .update({ status: "UNPAID" })
         .eq("id", chargeId)
         .eq("owner_id", user.id);
 
@@ -779,8 +851,8 @@ export async function archiveCharge(chargeId: string) {
         .eq("owner_id", user.id)
         .single();
 
-    if (chargeErr || !charge) return { ok: false, error: "Charge nem található." };
-    if (charge.status !== "PAID") return { ok: false, error: "Csak PAID díj archiválható." };
+    if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
+    if (charge.status !== "PAID") return { ok: false, error: "Csak fizetett díj archiválható." };
 
     const { error } = await supabase
         .from("charges")
@@ -802,7 +874,7 @@ export async function deleteCharge(chargeId: string) {
         .eq("id", chargeId)
         .single();
 
-    if (chargeErr || !charge) return { ok: false, error: "Charge nem található." };
+    if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
 
     const { data: docs, error: docsErr } = await supabase
         .from("documents")
@@ -811,7 +883,9 @@ export async function deleteCharge(chargeId: string) {
 
     if (docsErr) return { ok: false, error: docsErr.message };
 
-    const paths = (docs ?? []).map((d: any) => d.bucket_path).filter(Boolean);
+    const paths = ((docs ?? []) as DocumentPathRow[])
+        .map((doc) => doc.bucket_path)
+        .filter((path): path is string => Boolean(path));
     if (paths.length > 0) {
         const { error: storageErr } = await supabase.storage
             .from("documents")

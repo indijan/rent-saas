@@ -12,22 +12,22 @@ export async function POST(request: Request) {
     const auth = request.headers.get("authorization");
     const token = auth?.startsWith("Bearer ") ? auth.slice("Bearer ".length) : "";
     if (!secret || token !== secret) {
-        return new Response("Unauthorized", { status: 401 });
+        return new Response("Nincs jogosultság.", { status: 401 });
     }
 
     const propertyId = process.env.IMPORT_PROPERTY_ID;
     const ownerEmail = process.env.IMPORT_OWNER_EMAIL;
     if (!propertyId || !ownerEmail) {
-        return new Response("Missing import config", { status: 500 });
+        return new Response("Hiányos importbeállítás.", { status: 500 });
     }
 
     const formData = await request.formData();
     const file = formData.get("file");
     if (!(file instanceof File)) {
-        return new Response("Missing file", { status: 400 });
+        return new Response("Hiányzik a fájl.", { status: 400 });
     }
     if (file.type !== "application/pdf") {
-        return new Response("Only PDF supported", { status: 400 });
+        return new Response("Csak PDF tölthető fel.", { status: 400 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
             dueDate,
             error: "Hiányzó kötelező mező (összeg, határidő, szolgáltató).",
         }));
-        return new Response(JSON.stringify({ ok: false, error: "Missing required fields" }), {
+        return new Response(JSON.stringify({ ok: false, error: "Hiányzó kötelező mezők." }), {
             status: 400,
             headers: { "Content-Type": "application/json" },
         });
@@ -81,9 +81,9 @@ export async function POST(request: Request) {
             amount,
             currency: data.currency ?? "HUF",
             dueDate,
-            error: "Property nem található.",
+            error: "Az ingatlan nem található.",
         }));
-        return new Response("Property not found", { status: 400 });
+        return new Response("Az ingatlan nem található.", { status: 400 });
     }
 
     const title = `Számla – ${provider} – ${dueDate}`;
@@ -113,9 +113,9 @@ export async function POST(request: Request) {
             amount,
             currency,
             dueDate,
-            error: chargeErr?.message || "Charge insert hiba.",
+            error: chargeErr?.message || "A díj létrehozása sikertelen volt.",
         }));
-        return new Response("Charge insert error", { status: 500 });
+        return new Response("A díj létrehozása sikertelen volt.", { status: 500 });
     }
 
     const safeName = safeFileName(file.name || "invoice.pdf") || "invoice.pdf";
@@ -135,7 +135,7 @@ export async function POST(request: Request) {
             dueDate,
             error: uploadErr.message,
         }));
-        return new Response("Upload failed", { status: 500 });
+        return new Response("A fájl feltöltése sikertelen volt.", { status: 500 });
     }
 
     const { error: docErr } = await admin.from("documents").insert({
@@ -159,7 +159,7 @@ export async function POST(request: Request) {
             dueDate,
             error: docErr.message,
         }));
-        return new Response("Document insert failed", { status: 500 });
+        return new Response("A dokumentum mentése sikertelen volt.", { status: 500 });
     }
 
     await sendEmail(renderImportInvoiceStatusEmail({

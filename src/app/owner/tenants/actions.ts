@@ -4,9 +4,10 @@ import { requireRole } from "@/lib/auth/requireRole";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
 import { renderTenantInviteEmail } from "@/lib/email/templates";
+import { isTenantOwnedByOwner } from "@/lib/tenantOwnership";
 
 export async function createTenant(formData: FormData) {
-    await requireRole("OWNER");
+    const { user } = await requireRole("OWNER");
 
     const full_name = String(formData.get("full_name") || "").trim();
     const email = String(formData.get("email") || "").trim().toLowerCase();
@@ -51,6 +52,11 @@ export async function createTenant(formData: FormData) {
                 role: "TENANT",
             });
         if (profileError) return { ok: false, error: profileError.message };
+
+        const { error: metadataError } = await admin.auth.admin.updateUserById(userId, {
+            app_metadata: { owner_id: user.id },
+        });
+        if (metadataError) return { ok: false, error: metadataError.message };
     }
 
     const emailPayload = renderTenantInviteEmail({
@@ -65,8 +71,11 @@ export async function createTenant(formData: FormData) {
 }
 
 export async function deleteTenant(tenantId: string) {
-    await requireRole("OWNER");
+    const { user } = await requireRole("OWNER");
     const admin = createSupabaseAdminClient();
+
+    const isOwned = await isTenantOwnedByOwner(user.id, tenantId);
+    if (!isOwned) return { ok: false, error: "Ezt a bérlőt nem kezelheted." };
 
     const { error: documentsError } = await admin
         .from("documents")

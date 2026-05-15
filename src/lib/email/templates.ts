@@ -37,6 +37,15 @@ type ImportInvoiceStatusInput = {
     error?: string | null;
 };
 
+type OwnerLeadInput = {
+    ownerEmail: string;
+    fullName: string;
+    companyName?: string | null;
+    email: string;
+    phone: string;
+    billingAddress: string;
+};
+
 export function renderNewChargeEmail(input: NewChargeInput) {
     const countText = input.count && input.count > 1 ? ` (${input.count} alkalom)` : "";
     const propertyLine = input.propertyName ? `Ingatlan: ${input.propertyName}` : "Ingatlan: -";
@@ -147,6 +156,33 @@ export function renderImportInvoiceStatusEmail(input: ImportInvoiceStatusInput) 
                 ${input.error ? `<li><b>Hiba:</b> ${input.error}</li>` : ""}
             </ul>
             <p><a href="${SITE_URL}/owner/properties">Részletek megnyitása</a></p>
+        </div>
+    `;
+
+    return { to: input.ownerEmail, subject, html, text };
+}
+
+export function renderOwnerLeadEmail(input: OwnerLeadInput) {
+    const subject = "Új bérbeadói regisztrációs igény";
+    const text = [
+        "Új bérbeadói regisztrációs igény érkezett.",
+        `Név: ${input.fullName}`,
+        input.companyName ? `Cégnév: ${input.companyName}` : null,
+        `E-mail: ${input.email}`,
+        `Telefon: ${input.phone}`,
+        `Számlázási cím: ${input.billingAddress}`,
+    ].filter(Boolean).join("\n");
+
+    const html = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+            <h2>Új bérbeadói regisztrációs igény</h2>
+            <ul>
+                <li><b>Név:</b> ${input.fullName}</li>
+                ${input.companyName ? `<li><b>Cégnév:</b> ${input.companyName}</li>` : ""}
+                <li><b>E-mail:</b> ${input.email}</li>
+                <li><b>Telefon:</b> ${input.phone}</li>
+                <li><b>Számlázási cím:</b> ${input.billingAddress}</li>
+            </ul>
         </div>
     `;
 

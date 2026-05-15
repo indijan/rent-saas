@@ -22,8 +22,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <html lang="en">
+    return (
+    <html lang="hu">
       <body
         className={`${spaceGrotesk.variable} ${fraunces.variable} antialiased`}
       >

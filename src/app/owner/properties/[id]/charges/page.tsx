@@ -1,27 +1,133 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
-import { archiveCharge, cancelCharge, deleteCharge, markChargePaid, publishCharge } from "./actions";
+import { archiveCharge, cancelCharge, deleteCharge, markChargePaid, publishCharge, restoreCharge } from "./actions";
 import ConfirmActionForm from "./ConfirmActionForm";
 import UploadInvoice from "@/components/UploadInvoice";
 import CreateChargeForm from "./CreateChargeForm";
 import EditChargeForm from "./EditChargeForm";
 import { formatCurrency } from "@/lib/formatters";
+import AppHeader from "@/components/AppHeader";
+
+type ChargeStatus = "UNPAID" | "PAID" | "ARCHIVED" | "CANCELLED" | "IMPORT_DRAFT";
+type ChargeType = "RENT" | "UTILITY" | "COMMON_COST" | "OTHER";
+
+type SearchParams = {
+    status?: string;
+    type?: string;
+    from?: string;
+    to?: string;
+    page?: string;
+};
+
+type ChargeRow = {
+    id: string;
+    title: string;
+    type: ChargeType;
+    amount: number | string;
+    currency: string | null;
+    due_date: string;
+    status: ChargeStatus;
+    paid_at: string | null;
+    created_at: string;
+    recurring_group: string | null;
+    recurring_index: number | null;
+    recurring_count: number | null;
+};
+
+type ChargeTotalsRow = {
+    amount: number | string;
+    status: ChargeStatus;
+};
+
+type DocumentRow = {
+    id: string;
+    charge_id: string;
+    bucket_path: string;
+    created_at: string;
+};
+
+type DocumentWithUrl = DocumentRow & {
+    signed_url: string;
+};
 
 type Props = {
     params: Promise<{ id: string }>;
-    searchParams?: Promise<{ status?: string; type?: string; from?: string; to?: string; page?: string }> | {
-        status?: string;
-        type?: string;
-        from?: string;
-        to?: string;
-        page?: string;
-    };
+    searchParams?: Promise<SearchParams> | SearchParams;
 };
+
+function buildQueryString(input: SearchParams) {
+    const params = new URLSearchParams();
+    if (input.status) params.set("status", input.status);
+    if (input.type) params.set("type", input.type);
+    if (input.from) params.set("from", input.from);
+    if (input.to) params.set("to", input.to);
+    if (input.page && input.page !== "1") params.set("page", input.page);
+    return params.toString();
+}
+
+function buildStatusHref(basePath: string, current: SearchParams, nextStatus: string) {
+    return `${basePath}?${buildQueryString({
+        ...current,
+        status: nextStatus,
+        page: undefined,
+    })}`;
+}
+
+function statusLabel(status: ChargeStatus) {
+    switch (status) {
+        case "IMPORT_DRAFT":
+            return "Piszkozat";
+        case "UNPAID":
+            return "Aktiv";
+        case "PAID":
+            return "Fizetett";
+        case "ARCHIVED":
+            return "Archivalt";
+        case "CANCELLED":
+            return "Torolt";
+        default:
+            return status;
+    }
+}
+
+function typeLabel(type: ChargeType) {
+    switch (type) {
+        case "RENT":
+            return "Bérleti díj";
+        case "UTILITY":
+            return "Rezsi";
+        case "COMMON_COST":
+            return "Közös költség";
+        case "OTHER":
+            return "Egyéb";
+        default:
+            return type;
+    }
+}
+
+function getDueState(dueDate: string, status: ChargeStatus) {
+    if (status === "PAID" || status === "ARCHIVED" || status === "CANCELLED") {
+        return { cardClass: "", pillClass: "due-fresh", label: "Lezárt" };
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = new Date(`${dueDate}T00:00:00`);
+    const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+        return { cardClass: " charge-overdue", pillClass: "due-overdue", label: `${Math.abs(diffDays)} napja lejárt` };
+    }
+    if (diffDays <= 5) {
+        return { cardClass: " charge-soon", pillClass: "due-soon", label: diffDays === 0 ? "Ma esedékes" : `${diffDays} napon belül esedékes` };
+    }
+    return { cardClass: " charge-fresh", pillClass: "due-fresh", label: "Rendben, még nem járt le" };
+}
 
 export default async function OwnerPropertyChargesPage({ params, searchParams }: Props) {
     const { id: propertyId } = await params;
-    const { supabase } = await requireRole("OWNER");
+    const { supabase, profile } = await requireRole("OWNER");
 
     const sp = (searchParams instanceof Promise) ? await searchParams : (searchParams ?? {});
     const statusFilter = sp.status ? String(sp.status) : "";
@@ -30,7 +136,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
     const toFilter = sp.to ? String(sp.to) : "";
     const pageParam = sp.page ? Number(sp.page) : 1;
     const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
-    const pageSize = 20;
+    const pageSize = 12;
     const rangeFrom = (page - 1) * pageSize;
     const rangeTo = rangeFrom + pageSize - 1;
 
@@ -42,18 +148,31 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
 
     if (propErr || !property) return notFound();
 
-    let q = supabase
+    let listQuery = supabase
         .from("charges")
-        .select("id,title,type,amount,currency,due_date,status,paid_at,created_at,tenant_id,recurring_group,recurring_index,recurring_count", { count: "exact" })
+        .select("id,title,type,amount,currency,due_date,status,paid_at,created_at,recurring_group,recurring_index,recurring_count", { count: "exact" })
         .eq("property_id", propertyId)
         .order("due_date", { ascending: false });
 
-    if (statusFilter) q = q.eq("status", statusFilter);
-    if (typeFilter) q = q.eq("type", typeFilter);
-    if (fromFilter) q = q.gte("due_date", fromFilter);
-    if (toFilter) q = q.lte("due_date", toFilter);
+    if (statusFilter) listQuery = listQuery.eq("status", statusFilter);
+    if (typeFilter) listQuery = listQuery.eq("type", typeFilter);
+    if (fromFilter) listQuery = listQuery.gte("due_date", fromFilter);
+    if (toFilter) listQuery = listQuery.lte("due_date", toFilter);
 
-    const { data: charges, error, count } = await q.range(rangeFrom, rangeTo);
+    const { data: charges, error, count } = await listQuery.range(rangeFrom, rangeTo);
+
+    const currentYear = new Date().getFullYear();
+    const totalsFrom = fromFilter || `${currentYear}-01-01`;
+    const totalsTo = toFilter || `${currentYear}-12-31`;
+    let totalsQuery = supabase
+        .from("charges")
+        .select("amount,status")
+        .eq("property_id", propertyId)
+        .gte("due_date", totalsFrom)
+        .lte("due_date", totalsTo);
+
+    if (typeFilter) totalsQuery = totalsQuery.eq("type", typeFilter);
+    const { data: totalsRows } = await totalsQuery;
 
     const { data: documents } = await supabase
         .from("documents")
@@ -62,7 +181,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
         .order("created_at", { ascending: false });
 
     const documentsWithUrls = await Promise.all(
-        (documents ?? []).map(async (doc: any) => {
+        ((documents ?? []) as DocumentRow[]).map(async (doc) => {
             const { data } = await supabase.storage
                 .from("documents")
                 .createSignedUrl(doc.bucket_path, 60 * 60);
@@ -70,281 +189,345 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
         })
     );
 
-    const documentsByCharge = new Map<string, { id: string; bucket_path: string; created_at: string; signed_url: string }[]>();
-    documentsWithUrls.forEach((doc: any) => {
+    const documentsByCharge = new Map<string, DocumentWithUrl[]>();
+    documentsWithUrls.forEach((doc) => {
         const list = documentsByCharge.get(doc.charge_id) ?? [];
         list.push(doc);
         documentsByCharge.set(doc.charge_id, list);
     });
 
-    const today = new Date().toISOString().slice(0, 10);
-    const dueCharges = (charges ?? []).filter((c: any) => String(c.due_date) <= today);
-    const totals = dueCharges.reduce(
-        (acc, c: any) => {
-            const amount = Number(c.amount) || 0;
-            if (c.status === "PAID" || c.status === "ARCHIVED") acc.paid += amount;
-            if (c.status === "UNPAID") acc.unpaid += amount;
-            if (c.status !== "CANCELLED") acc.total += amount;
+    const summary = ((totalsRows ?? []) as ChargeTotalsRow[]).reduce(
+        (acc, row) => {
+            const amount = Number(row.amount) || 0;
+            acc.total += row.status !== "CANCELLED" ? amount : 0;
+            acc.paid += row.status === "PAID" || row.status === "ARCHIVED" ? amount : 0;
+            acc.unpaid += row.status === "UNPAID" ? amount : 0;
+            acc.drafts += row.status === "IMPORT_DRAFT" ? 1 : 0;
+            acc.active += row.status === "UNPAID" ? 1 : 0;
+            acc.closed += row.status === "PAID" || row.status === "ARCHIVED" ? 1 : 0;
             return acc;
         },
-        { paid: 0, unpaid: 0, total: 0 }
+        { total: 0, paid: 0, unpaid: 0, drafts: 0, active: 0, closed: 0 }
     );
-    const formatMoney = (value: number) => formatCurrency(value, "HUF");
 
     if (error) {
         return (
             <main className="app-shell page-enter">
+                <AppHeader profile={profile} />
                 <div className="card space-y-2">
                     <h1>Díjak</h1>
-                <p className="mt-2 text-red-600">Hiba: {error.message}</p>
+                    <p className="mt-2 text-red-600">Hiba: {error.message}</p>
                 </div>
             </main>
         );
     }
 
+    const basePath = `/owner/properties/${propertyId}/charges`;
+    const activeQuery = {
+        status: statusFilter,
+        type: typeFilter,
+        from: fromFilter,
+        to: toFilter,
+    };
+    const totalPages = Math.max(1, Math.ceil((count ?? 0) / pageSize));
+    const formatMoney = (value: number) => formatCurrency(value, "HUF");
+    const chargeRows = (charges ?? []) as ChargeRow[];
+
     return (
         <main className="app-shell page-enter space-y-4">
-            <div className="card">
-                <Link className="link" href={`/owner/properties/${propertyId}`}>
-                    ← Ingatlan részletek
-                </Link>
-                <h1>Díjak – {property.name}</h1>
-                <p>{property.address}</p>
-            </div>
+            <AppHeader profile={profile} />
 
-            <form method="GET" className="card space-y-3">
-                <div className="card-title">Szűrők</div>
-                <div className="grid gap-3 md:grid-cols-4">
-                    <select name="status" defaultValue={statusFilter} className="select">
-                        <option value="">Összes státusz</option>
-                        <option value="UNPAID">UNPAID</option>
-                        <option value="PAID">PAID</option>
-                        <option value="ARCHIVED">ARCHIVED</option>
-                        <option value="CANCELLED">CANCELLED</option>
-                        <option value="IMPORT_DRAFT">IMPORT_DRAFT</option>
-                    </select>
-                    <select name="type" defaultValue={typeFilter} className="select">
-                        <option value="">Összes típus</option>
-                        <option value="RENT">RENT</option>
-                        <option value="UTILITY">UTILITY</option>
-                        <option value="COMMON_COST">COMMON_COST</option>
-                        <option value="OTHER">OTHER</option>
-                    </select>
-                    <input
-                        name="from"
-                        type="date"
-                        defaultValue={fromFilter}
-                        className="input"
-                    />
-                    <input
-                        name="to"
-                        type="date"
-                        defaultValue={toFilter}
-                        className="input"
-                    />
+            <section className="card section-stack">
+                <div className="section-header">
+                    <div>
+                        <div className="eyebrow">Pénzügyek és díjak</div>
+                        <Link className="link" href={`/owner/properties/${propertyId}`}>
+                            ← Vissza az ingatlanhoz
+                        </Link>
+                        <h1>Díjak</h1>
+                        <p>{property.name} · {property.address}</p>
+                    </div>
+                    <div className="muted-note">
+                        Az automatikusan importált számlák először piszkozatként jönnek létre.
+                    </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                    <button className="btn btn-primary">
-                        Szűrés
-                    </button>
+
+                <div className="kpi-grid stagger">
+                    <div className="kpi-card">
+                        <div className="kpi-label">Összes terhelés</div>
+                        <div className="kpi-value">{formatMoney(summary.total)}</div>
+                        <div className="muted-note">{totalsFrom} - {totalsTo}</div>
+                    </div>
+                    <div className="kpi-card">
+                        <div className="kpi-label">Nyitott állomány</div>
+                        <div className="kpi-value">{formatMoney(summary.unpaid)}</div>
+                        <div className="muted-note">{summary.active} aktív tétel</div>
+                    </div>
+                    <div className="kpi-card">
+                        <div className="kpi-label">Piszkozatok</div>
+                        <div className="kpi-value">{summary.drafts}</div>
+                        <div className="muted-note">publikálás előtt ellenőrizendő</div>
+                    </div>
+                    <div className="kpi-card">
+                        <div className="kpi-label">Lezárt / fizetett</div>
+                        <div className="kpi-value">{formatMoney(summary.paid)}</div>
+                        <div className="muted-note">{summary.closed} lezárt tétel</div>
+                    </div>
+                </div>
+            </section>
+
+            <section className="card section-stack">
+                <div className="section-header">
+                    <div>
+                        <div className="card-title">Szűrők és nézetek</div>
+                        <p className="muted-note">A lista lapozott, de az áttekintés a teljes időszakot számolja.</p>
+                    </div>
                     <a
                         className="btn btn-secondary"
-                        href={`/owner/properties/${propertyId}/charges/export?${new URLSearchParams({
-                            ...(statusFilter ? { status: statusFilter } : {}),
-                            ...(typeFilter ? { type: typeFilter } : {}),
-                            ...(fromFilter ? { from: fromFilter } : {}),
-                            ...(toFilter ? { to: toFilter } : {}),
-                        }).toString()}`}
+                        href={`/owner/properties/${propertyId}/charges/export?${buildQueryString(activeQuery)}`}
                     >
-                        Export Excel
+                        Exportálás CSV-be
                     </a>
                 </div>
-            </form>
+
+                <div className="nav-pills">
+                    <Link className={`pill${!statusFilter ? " pill-active" : ""}`} href={buildStatusHref(basePath, activeQuery, "")}>
+                        Összes
+                    </Link>
+                    <Link className={`pill${statusFilter === "IMPORT_DRAFT" ? " pill-active" : ""}`} href={buildStatusHref(basePath, activeQuery, "IMPORT_DRAFT")}>
+                        Piszkozatok
+                    </Link>
+                    <Link className={`pill${statusFilter === "UNPAID" ? " pill-active" : ""}`} href={buildStatusHref(basePath, activeQuery, "UNPAID")}>
+                        Aktív
+                    </Link>
+                    <Link className={`pill${statusFilter === "PAID" ? " pill-active" : ""}`} href={buildStatusHref(basePath, activeQuery, "PAID")}>
+                        Fizetett
+                    </Link>
+                    <Link className={`pill${statusFilter === "ARCHIVED" ? " pill-active" : ""}`} href={buildStatusHref(basePath, activeQuery, "ARCHIVED")}>
+                        Archivált
+                    </Link>
+                </div>
+
+                <form method="GET" className="section-stack">
+                    <div className="filter-grid">
+                        <select name="status" defaultValue={statusFilter} className="select">
+                            <option value="">Minden státusz</option>
+                            <option value="IMPORT_DRAFT">Piszkozat</option>
+                            <option value="UNPAID">Aktív</option>
+                            <option value="PAID">Fizetett</option>
+                            <option value="ARCHIVED">Archivált</option>
+                            <option value="CANCELLED">Törölt</option>
+                        </select>
+                        <select name="type" defaultValue={typeFilter} className="select">
+                            <option value="">Minden típus</option>
+                            <option value="RENT">Bérleti díj</option>
+                            <option value="UTILITY">Rezsi</option>
+                            <option value="COMMON_COST">Közös költség</option>
+                            <option value="OTHER">Egyéb</option>
+                        </select>
+                        <input name="from" type="date" defaultValue={fromFilter} className="input" />
+                        <input name="to" type="date" defaultValue={toFilter} className="input" />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <button className="btn btn-primary">Szűrés frissítése</button>
+                        <Link className="btn btn-secondary" href={basePath}>
+                            Szűrők törlése
+                        </Link>
+                    </div>
+                </form>
+            </section>
 
             <CreateChargeForm propertyId={propertyId} />
 
-            <div className="grid">
+            {chargeRows.length === 0 ? (
                 <div className="card">
-                    <div className="card-title">Összes</div>
-                    <div className="hero-kpi">{formatMoney(totals.total)} HUF</div>
-                </div>
-                <div className="card">
-                    <div className="card-title">Befizetett</div>
-                    <div className="hero-kpi">{formatMoney(totals.paid)} HUF</div>
-                </div>
-                <div className="card">
-                    <div className="card-title">Hátralék</div>
-                    <div className="hero-kpi">{formatMoney(totals.unpaid)} HUF</div>
-                </div>
-            </div>
-
-            {(!charges || charges.length === 0) ? (
-                <div className="card">
-                    <p className="card-title">Nincs még díj ehhez az ingatlanhoz.</p>
+                    <p className="card-title">Nincs megjeleníthető díj ebben a nézetben.</p>
+                    <p className="muted-note">Válts státuszt, módosíts dátumtartományt, vagy hozz létre új tételt.</p>
                 </div>
             ) : (
-                <div className="card divide-y">
-                    {charges.map((c: any) => (
-                        <div
-                            key={c.id}
-                            className={`p-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between${c.status === "ARCHIVED" ? " charge-archived" : ""}`}
-                        >
-                            <div>
-                                <div className="card-title">{c.title}</div>
-                                <div className="text-sm">
-                                    {c.type} • {formatCurrency(Number(c.amount), String(c.currency || "HUF"))} • esedékes: {c.due_date}
-                                    {c.status === "PAID" && c.paid_at ? (
-                                        <span> • fizetve: {new Date(c.paid_at).toLocaleString("hu-HU")}</span>
-                                    ) : null}
-                                </div>
-                                {documentsByCharge.get(c.id)?.length ? (
-                                    <div className="mt-2 text-xs text-gray-600">
-                                        {documentsByCharge.get(c.id)?.map((doc) => (
-                                            <div key={doc.id}>
-                                                <a className="link" href={doc.signed_url} target="_blank" rel="noreferrer">
-                                                    Dok: {doc.bucket_path.split("/").at(-1)}
-                                                </a>{" "}
-                                                • {new Date(doc.created_at).toLocaleString("hu-HU")}
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : null}
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end">
-                                <EditChargeForm charge={c} />
-                                <UploadInvoice
-                                    chargeId={c.id}
-                                />
-                                <div className={`status-badge status-${String(c.status).toLowerCase()}`}>
-                                    {c.status}
-                                </div>
-                                <ConfirmActionForm
-                                    action={async () => {
-                                        "use server";
-                                        if (c.status !== "IMPORT_DRAFT") return;
-                                        await publishCharge(c.id);
-                                    }}
-                                    confirmMessage="Publikálod ezt a számlát a bérlő felé?"
-                                >
-                                    <button
-                                        type="submit"
-                                        className="btn btn-primary btn-sm"
-                                        disabled={c.status !== "IMPORT_DRAFT"}
-                                        title={c.status === "IMPORT_DRAFT" ? "Publikálás" : "Csak IMPORT_DRAFT publikálható"}
-                                    >
-                                        PUBLIKÁLÁS
-                                    </button>
-                                </ConfirmActionForm>
-                                <ConfirmActionForm
-                                    action={async () => {
-                                        "use server";
-                                        if (c.status !== "PAID") return;
-                                        const res = await archiveCharge(c.id);
-                                        if (!res.ok) return;
-                                    }}
-                                    confirmMessage="Biztosan archiválod ezt a díjat?"
-                                >
-                                    <button
-                                        type="submit"
-                                        className="btn btn-secondary btn-sm"
-                                        disabled={c.status !== "PAID"}
-                                        title={c.status === "PAID" ? "Archiválás" : "Csak PAID díj archiválható"}
-                                    >
-                                        ARCHIVE
-                                    </button>
-                                </ConfirmActionForm>
-
-                                <ConfirmActionForm
-                                    action={async () => {
-                                        "use server";
-                                        if (c.status === "PAID" || c.status === "CANCELLED" || c.status === "ARCHIVED") return;
-                                        const res = await markChargePaid(c.id);
-                                        if (!res.ok) return;
-                                    }}
-                                    confirmMessage="Biztosan fizetettnek jelölöd ezt a díjat?"
-                                >
-                                    <button
-                                        type="submit"
-                                        className="btn btn-success btn-sm"
-                                        disabled={c.status === "PAID" || c.status === "CANCELLED" || c.status === "ARCHIVED"}
-                                        title={c.status === "PAID" || c.status === "ARCHIVED" ? "Már fizetett" : "Megjelölés fizetettnek"}
-                                    >
-                                        PAID
-                                    </button>
-                                </ConfirmActionForm>
-                                <ConfirmActionForm
-                                    action={async () => {
-                                        "use server";
-                                        if (c.status === "PAID" || c.status === "CANCELLED" || c.status === "ARCHIVED") return;
-                                        const res = await cancelCharge(c.id);
-                                        if (!res.ok) return;
-                                    }}
-                                    confirmMessage="Biztosan törlöd (cancel) ezt a díjat?"
-                                >
-                                    <button
-                                        type="submit"
-                                        className="btn btn-danger btn-sm"
-                                        disabled={c.status === "PAID" || c.status === "CANCELLED" || c.status === "ARCHIVED"}
-                                        title={c.status === "PAID" || c.status === "ARCHIVED" ? "Fizetett díj" : "Díj törlése"}
-                                    >
-                                        CANCEL
-                                    </button>
-                                </ConfirmActionForm>
-                                <ConfirmActionForm
-                                    action={async () => {
-                                        "use server";
-                                        const res = await deleteCharge(c.id);
-                                        if (!res.ok) return;
-                                    }}
-                                    confirmMessage="Biztosan végleg törlöd ezt a díjat?"
-                                >
-                                    <button
-                                        type="submit"
-                                        className="btn btn-secondary btn-sm"
-                                        title="Díj törlése"
-                                    >
-                                        DELETE
-                                    </button>
-                                </ConfirmActionForm>
-                            </div>
+                <section className="card section-stack">
+                    <div className="section-header">
+                        <div>
+                            <div className="card-title">Tétellista</div>
+                            <p className="muted-note">{count ?? chargeRows.length} tétel, oldalméret {pageSize}.</p>
                         </div>
-                    ))}
-                </div>
+                    </div>
+
+                    <div className="charge-list">
+                        {chargeRows.map((charge) => {
+                            const docList = documentsByCharge.get(charge.id) ?? [];
+                            const recurringLabel = charge.recurring_group && charge.recurring_index && charge.recurring_count
+                                ? `Ismétlődés ${charge.recurring_index}/${charge.recurring_count}`
+                                : null;
+                            const dueState = getDueState(charge.due_date, charge.status);
+
+                            return (
+                                <article
+                                    key={charge.id}
+                                    className={`charge-card${dueState.cardClass}${charge.status === "ARCHIVED" ? " charge-archived" : ""}`}
+                                >
+                                    <div className="section-header">
+                                        <div>
+                                            <div className="card-title">{charge.title}</div>
+                                            <div className="charge-meta">
+                                                <span>{typeLabel(charge.type)}</span>
+                                                <span>{formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))}</span>
+                                                <span>Esedékes: {charge.due_date}</span>
+                                                {charge.status === "PAID" && charge.paid_at ? (
+                                                    <span>Fizetve: {new Date(charge.paid_at).toLocaleDateString("hu-HU")}</span>
+                                                ) : null}
+                                                {recurringLabel ? <span>{recurringLabel}</span> : null}
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <div className={`due-pill ${dueState.pillClass}`}>
+                                                {dueState.label}
+                                            </div>
+                                            <div className={`status-badge status-${String(charge.status).toLowerCase()}`}>
+                                                {statusLabel(charge.status)}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {docList.length > 0 ? (
+                                        <div className="charge-docs">
+                                            {docList.map((doc) => (
+                                                <div key={doc.id}>
+                                                    <a className="link" href={doc.signed_url} target="_blank" rel="noreferrer">
+                                                        Dokumentum: {doc.bucket_path.split("/").at(-1)}
+                                                    </a>{" "}
+                                                    · {new Date(doc.created_at).toLocaleString("hu-HU")}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="charge-docs">
+                                            <span>Nincs kapcsolódó dokumentum.</span>
+                                        </div>
+                                    )}
+
+                                    <div className="charge-actions action-box">
+                                        <div className="charge-actions-primary">
+                                            {charge.status === "IMPORT_DRAFT" ? (
+                                                <ConfirmActionForm
+                                                    action={async () => {
+                                                        "use server";
+                                                        await publishCharge(charge.id);
+                                                    }}
+                                                confirmMessage="Publikálod ezt a díjat a bérlő felé?"
+                                            >
+                                                <button type="submit" className="btn btn-primary btn-sm">
+                                                    Publikálás
+                                                </button>
+                                                </ConfirmActionForm>
+                                            ) : null}
+
+                                            {charge.status === "UNPAID" ? (
+                                                <ConfirmActionForm
+                                                    action={async () => {
+                                                        "use server";
+                                                        await markChargePaid(charge.id);
+                                                    }}
+                                                confirmMessage="Biztosan fizetettnek jelölöd ezt a díjat?"
+                                            >
+                                                <button type="submit" className="btn btn-success btn-sm">
+                                                    Fizetettnek jelölés
+                                                </button>
+                                                </ConfirmActionForm>
+                                            ) : null}
+
+                                            {charge.status === "PAID" ? (
+                                                <ConfirmActionForm
+                                                    action={async () => {
+                                                        "use server";
+                                                        await archiveCharge(charge.id);
+                                                    }}
+                                                confirmMessage="Biztosan archiválod ezt a díjat?"
+                                            >
+                                                <button type="submit" className="btn btn-secondary btn-sm">
+                                                    Archiválás
+                                                </button>
+                                                </ConfirmActionForm>
+                                            ) : null}
+
+                                            {charge.status === "CANCELLED" ? (
+                                                <ConfirmActionForm
+                                                    action={async () => {
+                                                        "use server";
+                                                        await restoreCharge(charge.id);
+                                                    }}
+                                                confirmMessage="Visszaállítod ezt a díjat aktívra?"
+                                            >
+                                                <button type="submit" className="btn btn-success btn-sm">
+                                                    Visszaállítás
+                                                </button>
+                                                </ConfirmActionForm>
+                                            ) : null}
+                                        </div>
+
+                                        <div className="action-divider" />
+
+                                        <div className="charge-actions-secondary">
+                                            <UploadInvoice chargeId={charge.id} />
+                                        </div>
+
+                                        <div className="charge-actions-danger">
+                                            {(charge.status === "UNPAID" || charge.status === "IMPORT_DRAFT") ? (
+                                                <ConfirmActionForm
+                                                    action={async () => {
+                                                        "use server";
+                                                        await cancelCharge(charge.id);
+                                                    }}
+                                                confirmMessage="Biztosan érvényteleníted ezt a díjat?"
+                                            >
+                                                <button type="submit" className="btn btn-ghost btn-sm">
+                                                    Érvénytelenítés
+                                                </button>
+                                                </ConfirmActionForm>
+                                            ) : null}
+
+                                            <ConfirmActionForm
+                                                action={async () => {
+                                                    "use server";
+                                                    await deleteCharge(charge.id);
+                                                }}
+                                                confirmMessage="Biztosan sztornózod ezt a díjat? Ez a művelet végleges."
+                                            >
+                                                <button type="submit" className="btn btn-danger btn-sm">
+                                                    Sztornó
+                                                </button>
+                                            </ConfirmActionForm>
+                                        </div>
+                                    </div>
+
+                                    <EditChargeForm charge={charge} />
+                                </article>
+                            );
+                        })}
+                    </div>
+                </section>
             )}
 
             {count && count > pageSize ? (
-                <div className="card flex items-center justify-between">
-                    <div className="text-sm text-gray-600">
-                        Oldal: {page} / {Math.max(1, Math.ceil(count / pageSize))}
+                <div className="card section-header">
+                    <div className="muted-note">
+                        Oldal {page} / {totalPages}
                     </div>
                     <div className="flex gap-2">
                         {page > 1 ? (
                             <Link
                                 className="btn btn-secondary btn-sm"
-                                href={`?${new URLSearchParams({
-                                    ...(statusFilter ? { status: statusFilter } : {}),
-                                    ...(typeFilter ? { type: typeFilter } : {}),
-                                    ...(fromFilter ? { from: fromFilter } : {}),
-                                    ...(toFilter ? { to: toFilter } : {}),
-                                    page: String(page - 1),
-                                }).toString()}`}
+                                href={`${basePath}?${buildQueryString({ ...activeQuery, page: String(page - 1) })}`}
                             >
                                 Előző
                             </Link>
                         ) : (
                             <span className="btn btn-secondary btn-sm" aria-disabled="true">Előző</span>
                         )}
-                        {page < Math.ceil(count / pageSize) ? (
+                        {page < totalPages ? (
                             <Link
                                 className="btn btn-secondary btn-sm"
-                                href={`?${new URLSearchParams({
-                                    ...(statusFilter ? { status: statusFilter } : {}),
-                                    ...(typeFilter ? { type: typeFilter } : {}),
-                                    ...(fromFilter ? { from: fromFilter } : {}),
-                                    ...(toFilter ? { to: toFilter } : {}),
-                                    page: String(page + 1),
-                                }).toString()}`}
+                                href={`${basePath}?${buildQueryString({ ...activeQuery, page: String(page + 1) })}`}
                             >
                                 Következő
                             </Link>

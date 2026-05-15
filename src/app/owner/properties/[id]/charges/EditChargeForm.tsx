@@ -5,7 +5,7 @@ type Props = {
         id: string;
         title: string;
         type: string;
-        amount: number;
+        amount: number | string;
         currency: string | null;
         due_date: string;
     };
@@ -13,16 +13,16 @@ type Props = {
 
 export default function EditChargeForm({ charge }: Props) {
     return (
-        <details className="w-full">
+        <details className="w-full rounded-xl border border-black/10 bg-white/60 p-3">
             <summary className="btn btn-secondary btn-sm cursor-pointer">
-                Szerkesztés
+                Tétel szerkesztése
             </summary>
             <form
                 action={async (formData) => {
                     "use server";
                     await updateCharge(charge.id, formData);
                 }}
-                className="mt-3 grid gap-2 rounded-xl border border-black/10 p-3 md:grid-cols-2"
+                className="mt-3 grid gap-2 md:grid-cols-2"
             >
                 <input
                     name="title"
@@ -35,10 +35,10 @@ export default function EditChargeForm({ charge }: Props) {
                     defaultValue={charge.type}
                     className="select"
                 >
-                    <option value="RENT">RENT</option>
-                    <option value="UTILITY">UTILITY</option>
-                    <option value="COMMON_COST">COMMON_COST</option>
-                    <option value="OTHER">OTHER</option>
+                    <option value="RENT">Bérleti díj</option>
+                    <option value="UTILITY">Rezsi</option>
+                    <option value="COMMON_COST">Közös költség</option>
+                    <option value="OTHER">Egyéb</option>
                 </select>
                 <input
                     name="amount"
@@ -63,8 +63,9 @@ export default function EditChargeForm({ charge }: Props) {
                     type="submit"
                     className="btn btn-primary btn-sm"
                 >
-                    Mentés
+                    Mentés státuszmódosítás nélkül
                 </button>
+                <div className="muted-note">A mentés csak a mezőket frissíti, a státuszt nem.</div>
             </form>
         </details>
     );

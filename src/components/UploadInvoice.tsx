@@ -24,7 +24,7 @@ export default function UploadInvoice({ chargeId }: Props) {
             const { data: userRes, error: userErr } = await supabase.auth.getUser();
             if (userErr) throw userErr;
             const user = userRes.user;
-            if (!user) throw new Error("Nincs bejelentkezett user.");
+            if (!user) throw new Error("Nincs bejelentkezett felhasználó.");
 
             // Tárolási útvonal: ownerId/chargeId/timestamp-filename
             const safeName = file.name.replaceAll(" ", "_");
@@ -41,8 +41,9 @@ export default function UploadInvoice({ chargeId }: Props) {
 
             setMsg("Feltöltve ✅");
             e.target.value = ""; // reset
-        } catch (err: any) {
-            setMsg(`Hiba: ${err?.message ?? String(err)}`);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            setMsg(`Hiba: ${message}`);
         } finally {
             setBusy(false);
         }

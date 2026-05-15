@@ -4,10 +4,18 @@ import { requireRole } from "@/lib/auth/requireRole";
 import { revalidatePath } from "next/cache";
 import { assignTenantToProperty, deleteProperty, updateProperty } from "./actions";
 import DeletePropertyForm from "./DeletePropertyForm";
-import { createClient } from "@supabase/supabase-js";
 import AppHeader from "@/components/AppHeader";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { listOwnerTenantIds } from "@/lib/tenantOwnership";
 
 type Props = { params: Promise<{ id: string }> };
+
+type TenantOption = {
+    id: string;
+    email: string;
+    full_name: string | null;
+    role: string;
+};
 
 export default async function OwnerPropertyDetailPage({ params }: Props) {
     const { id } = await params;
@@ -21,46 +29,52 @@ export default async function OwnerPropertyDetailPage({ params }: Props) {
 
     if (error || !property) return notFound();
 
-    const admin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        { auth: { persistSession: false, autoRefreshToken: false } }
-    );
-
-    const { data: tenants } = await admin
-        .from("profiles")
-        .select("id,email,full_name,role")
-        .eq("role", "TENANT")
-        .order("email");
+    const admin = createSupabaseAdminClient();
+    const tenantIds = await listOwnerTenantIds(profile.id);
+    const { data: tenants } = tenantIds.length === 0
+        ? { data: [] }
+        : await admin
+            .from("profiles")
+            .select("id,email,full_name,role")
+            .in("id", tenantIds)
+            .eq("role", "TENANT")
+            .order("email");
+    const tenantOptions = (tenants ?? []) as TenantOption[];
 
     return (
         <main className="app-shell page-enter space-y-4">
             <AppHeader profile={profile} />
 
-            <div className="card">
-                <div>
-                    <Link className="link text-sm" href="/owner/properties">
-                        ← Vissza
-                    </Link>
-                    <h1 className="mt-2">{property.name}</h1>
-                    <p className="text-sm text-gray-600">{property.address}</p>
+            <section className="card section-stack">
+                <div className="section-header">
+                    <div>
+                        <Link className="link text-sm" href="/owner/properties">
+                            ← Vissza
+                        </Link>
+                        <div className="eyebrow">Ingatlan részletei</div>
+                        <h1>{property.name}</h1>
+                        <p className="text-sm text-gray-600">{property.address}</p>
+                    </div>
                 </div>
-            </div>
+            </section>
 
-            <div className="card space-y-2">
-                <div>
-                    <b>Státusz:</b>{" "}
+            <section className="card section-stack">
+                <div className="card-title">Áttekintés</div>
+                <div className="info-strip">
+                    <span>
+                        <b>Státusz:</b>{" "}
                     <span className={`status-badge status-${String(property.status).toLowerCase()}`}>
-                        {property.status}
+                        {property.status === "ACTIVE" ? "Aktív" : "Inaktív"}
+                    </span>
+                    </span>
+                    <span>
+                        <b>Bérlő:</b>{" "}
+                    {property.tenant_id
+                        ? tenantOptions.find((tenant) => tenant.id === property.tenant_id)?.email ?? "ismeretlen"
+                        : "nincs hozzárendelve"}
                     </span>
                 </div>
-                <div>
-                    <b>Tenant:</b>{" "}
-                    {property.tenant_id
-                        ? (tenants ?? []).find((t: any) => t.id === property.tenant_id)?.email ?? "ismeretlen"
-                        : "nincs"}
-                </div>
-            </div>
+            </section>
             <form
                 action={async (formData) => {
                     "use server";
@@ -69,33 +83,49 @@ export default async function OwnerPropertyDetailPage({ params }: Props) {
                     revalidatePath(`/owner/properties/${property.id}`);
                     revalidatePath(`/owner/properties/${property.id}/charges`);
                 }}
-                className="card space-y-3"
+                className="card form-shell"
             >
-                <div className="card-title">Ingatlan szerkesztése</div>
-                <div className="grid gap-3 md:grid-cols-2">
-                    <input
-                        name="name"
-                        className="input"
-                        defaultValue={property.name}
-                        required
-                    />
-                    <input
-                        name="address"
-                        className="input"
-                        defaultValue={property.address}
-                        required
-                    />
-                    <select
-                        name="status"
-                        className="select"
-                        defaultValue={property.status}
-                    >
-                        <option value="ACTIVE">ACTIVE</option>
-                        <option value="INACTIVE">INACTIVE</option>
-                    </select>
+                <div className="section-header">
+                    <div>
+                        <div className="card-title">Ingatlan szerkesztése</div>
+                        <p className="muted-note">Az alapadatok és az aktív állapot innen módosítható.</p>
+                    </div>
+                </div>
+                <div className="form-panel">
+                    <div className="form-grid">
+                        <label className="field-stack">
+                            <span className="field-label">Megnevezés</span>
+                            <input
+                                name="name"
+                                className="input"
+                                defaultValue={property.name}
+                                required
+                            />
+                        </label>
+                        <label className="field-stack">
+                            <span className="field-label">Cím</span>
+                            <input
+                                name="address"
+                                className="input"
+                                defaultValue={property.address}
+                                required
+                            />
+                        </label>
+                        <label className="field-stack">
+                            <span className="field-label">Státusz</span>
+                            <select
+                                name="status"
+                                className="select"
+                                defaultValue={property.status}
+                            >
+                                <option value="ACTIVE">Aktív</option>
+                                <option value="INACTIVE">Inaktív</option>
+                            </select>
+                        </label>
+                    </div>
                 </div>
                 <button className="btn btn-primary">
-                    Mentés
+                    Módosítás mentése
                 </button>
             </form>
             <form
@@ -106,35 +136,48 @@ export default async function OwnerPropertyDetailPage({ params }: Props) {
                     revalidatePath(`/owner/properties/${property.id}`);
                     revalidatePath(`/owner/properties/${property.id}/charges`);
                 }}
-                className="card space-y-3"
+                className="card form-shell"
             >
-                <div className="card-title">Tenant hozzárendelés</div>
-                <select
-                    name="tenant_id"
-                    className="select"
-                    required
-                    defaultValue=""
-                >
-                    <option value="" disabled>Válassz tenantot…</option>
-                    {(tenants ?? []).map((t: any) => (
-                        <option key={t.id} value={t.id}>
-                            {t.email}
-                        </option>
-                    ))}
-                </select>
+                <div className="section-header">
+                    <div>
+                        <div className="card-title">Bérlő hozzárendelése</div>
+                        <p className="muted-note">A bérlőt bármikor át tudod tenni másik ingatlanhoz is.</p>
+                    </div>
+                </div>
+                <div className="form-panel">
+                    <label className="field-stack">
+                        <span className="field-label">Válassz bérlőt</span>
+                        <select
+                            name="tenant_id"
+                            className="select"
+                            required
+                            defaultValue=""
+                        >
+                            <option value="" disabled>Válassz bérlőt...</option>
+                            {tenantOptions.map((tenant) => (
+                                <option key={tenant.id} value={tenant.id}>
+                                    {tenant.email}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                </div>
                 <button className="btn btn-primary">
-                    Hozzárendelés
+                    Bérlő hozzárendelése
                 </button>
-                <p className="text-xs text-gray-600">
-                    Tipp: a TENANT usernek már léteznie kell (Bérlők oldalon hozhatod létre).
+                <p className="muted-note">
+                    Tipp: a bérlői fióknak már léteznie kell, ezt a Bérlők oldalon tudod létrehozni.
                 </p>
             </form>
 
-            <div className="card space-y-2">
-                <Link className="link" href={`/owner/properties/${property.id}/charges`}>
-                    Díjak megnyitása →
-                </Link>
-            </div>
+            <section className="card section-stack">
+                <div className="card-title">Kapcsolódó műveletek</div>
+                <div className="charge-actions">
+                    <Link className="btn btn-primary" href={`/owner/properties/${property.id}/charges`}>
+                        Díjak megnyitása
+                    </Link>
+                </div>
+            </section>
 
             <DeletePropertyForm
                 action={async () => {

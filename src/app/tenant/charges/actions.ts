@@ -13,8 +13,8 @@ export async function archiveTenantCharge(chargeId: string) {
         .eq("tenant_id", user.id)
         .single();
 
-    if (chargeErr || !charge) return { ok: false, error: "Charge nem található." };
-    if (charge.status !== "PAID") return { ok: false, error: "Csak PAID díj archiválható." };
+    if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
+    if (charge.status !== "PAID") return { ok: false, error: "Csak fizetett díj archiválható." };
 
     const { error } = await supabase
         .from("charges")

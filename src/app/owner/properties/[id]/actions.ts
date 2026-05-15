@@ -1,12 +1,19 @@
 "use server";
 
 import { requireRole } from "@/lib/auth/requireRole";
+import { isTenantOwnedByOwner } from "@/lib/tenantOwnership";
+
+type DocumentPathRow = {
+    bucket_path: string | null;
+};
 
 export async function assignTenantToProperty(propertyId: string, formData: FormData) {
     const { supabase, user } = await requireRole("OWNER");
 
     const tenantId = String(formData.get("tenant_id") || "").trim();
-    if (!tenantId) return { ok: false, error: "Válassz ki egy tenantot." };
+    if (!tenantId) return { ok: false, error: "Válassz ki egy bérlőt." };
+    const isOwned = await isTenantOwnedByOwner(user.id, tenantId);
+    if (!isOwned) return { ok: false, error: "Ezt a bérlőt nem rendelheted az ingatlanhoz." };
 
     // Property tenant_id beállítás (csak a saját ingatlanodra)
     const { error: propErr } = await supabase
@@ -70,7 +77,9 @@ export async function deleteProperty(propertyId: string) {
 
     if (docsErr) return { ok: false, error: docsErr.message };
 
-    const paths = (docs ?? []).map((d: any) => d.bucket_path).filter(Boolean);
+    const paths = ((docs ?? []) as DocumentPathRow[])
+        .map((doc) => doc.bucket_path)
+        .filter((path): path is string => Boolean(path));
     if (paths.length > 0) {
         const { error: storageErr } = await supabase.storage
             .from("documents")

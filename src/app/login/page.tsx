@@ -8,6 +8,7 @@ export default function LoginPage() {
     const [password, setPassword] = useState("");
     const [msg, setMsg] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [resetSending, setResetSending] = useState(false);
 
     useEffect(() => {
         const run = async () => {
@@ -65,49 +66,109 @@ export default function LoginPage() {
 
         setLoading(false);
         if (error) setMsg(error.message);
-        else window.location.href = "/";
+            else window.location.href = "/dashboard";
+    }
+
+    async function onResetPassword() {
+        if (!email.trim()) {
+            setMsg("Add meg az e-mail-címed a jelszó-visszaállításhoz.");
+            return;
+        }
+
+        setMsg(null);
+        setResetSending(true);
+        const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent("/account?status=success&message=Add+meg+az+új+jelszavad.")}`;
+        const { error } = await supabaseBrowser.auth.resetPasswordForEmail(email.trim(), {
+            redirectTo,
+        });
+        setResetSending(false);
+
+        if (error) {
+            setMsg(error.message);
+            return;
+        }
+
+        setMsg("Kiküldtem a jelszó-visszaállító e-mailt.");
     }
 
     return (
-        <main className="min-h-screen flex items-center justify-center p-6">
-            <form
-                onSubmit={onLogin}
-                className="card w-full max-w-sm space-y-4"
-            >
-                <h1>Bejelentkezés</h1>
+        <main className="auth-shell page-enter">
+            <div className="auth-frame">
+                <section className="auth-hero">
+                    <div className="eyebrow">Rentapp</div>
+                    <h1>Átlátható bérbeadás, rendezett díjkezelés.</h1>
+                    <p>
+                        A tulajdonosi és bérlői felületet közös nevezőre hozzuk:
+                        mi aktív, mi közeleg, mi lejárt és mi lett már rendezve.
+                    </p>
+                    <div className="kpi-grid" style={{ marginTop: 24 }}>
+                        <div className="kpi-card" style={{ background: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.12)" }}>
+                            <div className="kpi-label" style={{ color: "rgba(239,246,255,0.72)" }}>Tulajdonosi nézet</div>
+                            <div className="kpi-value" style={{ color: "#eff6ff" }}>Díjak, ingatlanok, bérlők</div>
+                        </div>
+                        <div className="kpi-card" style={{ background: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.12)" }}>
+                            <div className="kpi-label" style={{ color: "rgba(239,246,255,0.72)" }}>Bérlői nézet</div>
+                            <div className="kpi-value" style={{ color: "#eff6ff" }}>Esedékesség, dokumentumok, állapotok</div>
+                        </div>
+                    </div>
+                </section>
 
-                <div className="space-y-2">
-                    <label className="text-sm">Email</label>
-                    <input
-                        className="input"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                    />
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-sm">Jelszó</label>
-                    <input
-                        className="input"
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                    />
-                </div>
-
-                <button
-                    className="btn btn-primary w-full"
-                    disabled={loading}
-                    type="submit"
+                <form
+                    onSubmit={onLogin}
+                    className="auth-card form-shell"
                 >
-                    {loading ? "Beléptetés..." : "Belépés"}
-                </button>
+                    <div>
+                        <div className="eyebrow">Belépés</div>
+                        <h1>Jelentkezz be</h1>
+                        <p className="muted-note">A saját szerepköröd szerinti felületre irányítunk tovább.</p>
+                    </div>
 
-                {msg ? <p className="text-sm text-red-600">{msg}</p> : null}
-            </form>
+                    <div className="form-panel">
+                        <div className="form-grid">
+                            <label className="field-stack">
+                                <span className="field-label">Email</span>
+                                <input
+                                    className="input"
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    required
+                                />
+                            </label>
+
+                            <label className="field-stack">
+                                <span className="field-label">Jelszó</span>
+                                <input
+                                    className="input"
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                />
+                            </label>
+                        </div>
+                    </div>
+
+                    <button
+                        className="btn btn-primary w-full"
+                        disabled={loading}
+                        type="submit"
+                    >
+                        {loading ? "Beléptetés..." : "Belépés"}
+                    </button>
+
+                    <button
+                        className="btn btn-secondary w-full"
+                        disabled={resetSending || loading}
+                        type="button"
+                        onClick={onResetPassword}
+                    >
+                        {resetSending ? "Küldés..." : "Elfelejtett jelszó"}
+                    </button>
+
+                    {msg ? <p className="text-sm text-red-600">{msg}</p> : null}
+                </form>
+            </div>
         </main>
     );
 }

@@ -11,8 +11,6 @@ type Props = {
 
 export default function CreateChargeForm({ propertyId }: Props) {
     const [error, setError] = useState<string | null>(null);
-    const [debug, setDebug] = useState<string>("idle");
-    const [clickCount, setClickCount] = useState(0);
     const [aiMessage, setAiMessage] = useState<string>("");
     const [aiBusy, setAiBusy] = useState(false);
     const [isPending, startTransition] = useTransition();
@@ -64,8 +62,9 @@ export default function CreateChargeForm({ propertyId }: Props) {
             if (data?.currency) setCurrency(data.currency);
             if (data?.name) setTitle(data.name);
             setAiMessage("AI kitöltés kész ✅");
-        } catch (err: any) {
-            setAiMessage(`AI hiba: ${err?.message ?? String(err)}`);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            setAiMessage(`AI hiba: ${message}`);
         } finally {
             setAiBusy(false);
         }
@@ -73,14 +72,12 @@ export default function CreateChargeForm({ propertyId }: Props) {
 
     function onSubmit(formData: FormData) {
         setError(null);
-        setDebug("submit started");
         startTransition(async () => {
             try {
                 const res = await createCharge(propertyId, formData);
                 if (!res.ok) {
                     const msg = res.error || "ismeretlen backend hiba";
                     setError(msg);
-                    setDebug(`server responded: not ok (${msg})`);
                     return;
                 }
                 formRef.current?.reset();
@@ -90,12 +87,10 @@ export default function CreateChargeForm({ propertyId }: Props) {
                 setDueDate("");
                 setCurrency("HUF");
                 setAiMessage("");
-                setDebug("server responded: ok");
                 router.refresh();
             } catch (err: unknown) {
                 const message = err instanceof Error ? err.message : String(err);
-                setError(`Váratlan mentési hiba: ${message}`);
-                setDebug(`exception: ${message}`);
+                    setError(`Váratlan mentési hiba: ${message}`);
             }
         });
     }
@@ -106,83 +101,117 @@ export default function CreateChargeForm({ propertyId }: Props) {
     }
 
     return (
-        <form ref={formRef} onSubmit={handleSubmit} className="card space-y-3">
-            <div className="card-title">Új díj</div>
-            <div className="grid gap-3 md:grid-cols-2">
-                <input
-                    name="title"
-                    placeholder="Megnevezés (pl. Januári bérleti díj)"
-                    className="input"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    required
-                />
-                <select
-                    name="type"
-                    className="select"
-                    value={type}
-                    onChange={(e) => setType(e.target.value)}
-                >
-                    <option value="RENT">RENT</option>
-                    <option value="UTILITY">UTILITY</option>
-                    <option value="COMMON_COST">COMMON_COST</option>
-                    <option value="OTHER">OTHER</option>
-                </select>
-
-                <input
-                    name="amount"
-                    placeholder="Összeg"
-                    className="input"
-                    type="text"
-                    step="0.01"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    required
-                />
-                <input
-                    name="due_date"
-                    className="input"
-                    type="date"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    required
-                />
-            </div>
-
-            <div className="grid gap-2 md:grid-cols-2">
-                <label className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                    <input type="file" name="document" accept="application/pdf" onChange={onPickFile} />
-                    <span>{aiBusy ? "AI feldolgozás..." : "PDF számla feltöltése (AI kitöltés)"}</span>
-                </label>
-                <div className="text-xs text-gray-600">
-                    {amount && currency
+        <form ref={formRef} onSubmit={handleSubmit} className="card form-shell">
+            <div className="section-header">
+                <div>
+                    <div className="eyebrow">Új tétel rögzítése</div>
+                    <div className="card-title">Új díj létrehozása</div>
+                    <p className="muted-note">Kézzel vagy PDF alapján is feltöltheted. A rögzített tétel aktív, nem fizetett státuszban jön létre.</p>
+                </div>
+                <div className="info-strip">
+                    <span>Valuta: {currency}</span>
+                    <span>{amount && currency
                         ? `Formázott összeg: ${formatCurrency(Number(amount.replace(/[^\d,.-]/g, "").replace(",", ".")), currency)}`
-                        : "Valuta formázás automatikus."}
+                        : "Az összeg itt rögtön ellenőrizhető."}</span>
                 </div>
             </div>
 
-            {aiMessage ? <p className="text-xs text-gray-600">{aiMessage}</p> : null}
+            <div className="form-panel form-shell">
+                <div className="card-title">Alapadatok</div>
+                <div className="form-grid">
+                    <label className="field-stack">
+                        <span className="field-label">Megnevezés</span>
+                        <input
+                            name="title"
+                            placeholder="Pl. Júniusi bérleti díj"
+                            className="input"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            required
+                        />
+                    </label>
+
+                    <label className="field-stack">
+                        <span className="field-label">Típus</span>
+                        <select
+                            name="type"
+                            className="select"
+                            value={type}
+                            onChange={(e) => setType(e.target.value)}
+                        >
+                            <option value="RENT">Bérleti díj</option>
+                            <option value="UTILITY">Rezsi</option>
+                            <option value="COMMON_COST">Közös költség</option>
+                            <option value="OTHER">Egyéb</option>
+                        </select>
+                    </label>
+
+                    <label className="field-stack">
+                        <span className="field-label">Összeg</span>
+                        <input
+                            name="amount"
+                            placeholder="Pl. 49 760"
+                            className="input"
+                            type="text"
+                            step="0.01"
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                            required
+                        />
+                    </label>
+
+                    <label className="field-stack">
+                        <span className="field-label">Esedékesség</span>
+                        <input
+                            name="due_date"
+                            className="input"
+                            type="date"
+                            value={dueDate}
+                            onChange={(e) => setDueDate(e.target.value)}
+                            required
+                        />
+                    </label>
+                </div>
+            </div>
+
+            <div className="form-panel form-shell">
+                <div className="card-title">AI-segített feltöltés</div>
+                <div className="form-grid">
+                    <label className="field-stack">
+                        <span className="field-label">Számla PDF</span>
+                        <input type="file" name="document" accept="application/pdf" onChange={onPickFile} />
+                    </label>
+                    <div className="field-stack">
+                        <span className="field-label">Állapot</span>
+                        <div className="info-strip">
+                            <span>{aiBusy ? "AI-feldolgozás folyamatban" : "A PDF opcionális, de automatikus kitöltéshez hasznos"}</span>
+                            <span>{aiMessage || "A szolgáltató, az összeg és a határidő automatikusan beolvasható."}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="form-panel form-shell">
+                <div className="card-title">Ismétlődés</div>
+                <label className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" name="recurring" />
+                    Ismétlődő díj 12 hónapra előre
+                </label>
+                <p className="muted-note">Tipikusan bérleti díjhoz vagy fix rezsihez hasznos.</p>
+            </div>
+
             <input type="hidden" name="currency" value={currency} />
 
-            <label className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input type="checkbox" name="recurring" />
-                Ismétlődő díj (12 hónapra előre)
-            </label>
-
-            <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={isPending}
-                onClick={() => {
-                    setClickCount((prev) => prev + 1);
-                    setDebug("button clicked");
-                }}
-            >
-                {isPending ? "Mentés..." : "Létrehozás"}
-            </button>
-            <p className="text-xs text-gray-600">(MVP: valuta fix HUF, státusz UNPAID.)</p>
-            <p className="text-xs text-gray-600">Debug: {debug} | clicks: {clickCount}</p>
-            {error ? <p className="text-sm text-red-600">{error}</p> : null}
+            <div className="charge-actions">
+                <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={isPending}
+                >
+                    {isPending ? "Mentés..." : "Díj létrehozása"}
+                </button>
+                {error ? <p className="text-sm text-red-600">{error}</p> : null}
+            </div>
         </form>
     );
 }
