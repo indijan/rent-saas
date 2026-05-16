@@ -208,6 +208,11 @@ img {
   color: var(--ink-700);
 }
 
+.todo-list {
+  display: grid;
+  gap: 12px;
+}
+
 .grid {
   display: grid;
   gap: 20px;
@@ -387,6 +392,14 @@ img {
   padding: 10px 12px;
   color: var(--ink-900);
   font-weight: 600;
+}
+
+.input-date {
+  min-height: 44px;
+}
+
+.input-date::-webkit-date-and-time-value {
+  text-align: left;
 }
 
 .input:focus,

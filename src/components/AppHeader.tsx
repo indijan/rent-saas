@@ -21,6 +21,8 @@ export default function AppHeader({ profile }: Props) {
     const navItems = (() => {
         if (profile.role === "OWNER") {
             return [
+                { href: "/owner/todo", label: "Teendők" },
+                { href: "/owner/osszefoglalo", label: "Összesítő" },
                 { href: "/owner/properties", label: "Ingatlanok" },
                 { href: "/owner/tenants", label: "Bérlők" },
                 { href: "/account", label: "Fiók" },

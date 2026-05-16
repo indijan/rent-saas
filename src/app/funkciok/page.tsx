@@ -89,7 +89,7 @@ export default async function FeaturesPage() {
                     <div>
                         <div className="card-title">Árazás és indulás</div>
                         <p className="muted-note">
-                            Az induló díj egyszerű: 3 eHUF / ingatlan / hó.
+                            A díjazás sávos: 1-3 ingatlan 3 000 Ft, 4-9 ingatlan 2 000 Ft, 10 felett 1 000 Ft / ingatlan / hó.
                         </p>
                     </div>
                     <div className="charge-actions">

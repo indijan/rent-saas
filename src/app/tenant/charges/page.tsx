@@ -261,6 +261,11 @@ export default async function TenantChargesPage({ searchParams }: Props) {
     const totalPages = Math.max(1, Math.ceil((count ?? 0) / pageSize));
     const chargeRows = (charges ?? []) as ChargeRow[];
     const formatMoney = (value: number) => formatCurrency(value, "HUF");
+    const attentionItems = chargeRows
+        .filter((charge) => charge.status === "UNPAID")
+        .map((charge) => ({ charge, dueState: getDueState(charge.due_date, charge.status) }))
+        .filter(({ dueState }) => dueState.pillClass === "due-overdue" || dueState.pillClass === "due-soon")
+        .slice(0, 3);
 
     return (
         <main className="app-shell page-enter space-y-4">
@@ -304,6 +309,29 @@ export default async function TenantChargesPage({ searchParams }: Props) {
             <section className="card section-stack">
                 <div className="section-header">
                     <div>
+                        <div className="card-title">Figyelmet igényel</div>
+                        <p className="muted-note">Itt látod a leginkább sürgős nyitott tételeket.</p>
+                    </div>
+                </div>
+                {attentionItems.length === 0 ? (
+                    <p className="muted-note">Nincs lejárt vagy közelgő nyitott díj.</p>
+                ) : (
+                    <div className="feature-list">
+                        {attentionItems.map(({ charge, dueState }) => {
+                            const property = firstProperty(charge.properties);
+                            return (
+                                <Link key={charge.id} className="feature-item" href={`/tenant/charges/${charge.id}`}>
+                                    {charge.title} · {property?.name ?? "Ingatlan"} · {formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))} · {dueState.label}
+                                </Link>
+                            );
+                        })}
+                    </div>
+                )}
+            </section>
+
+            <section className="card section-stack">
+                <div className="section-header">
+                    <div>
                         <div className="card-title">Szűrők és nézetek</div>
                         <p className="muted-note">Az áttekintés a teljes kiválasztott időszakra számol, nem csak erre az oldalra.</p>
                     </div>
@@ -329,36 +357,58 @@ export default async function TenantChargesPage({ searchParams }: Props) {
 
                 <form method="GET" className="section-stack">
                     <div className="filter-grid">
-                        <select name="property" defaultValue={selectedPropertyId} className="select">
-                            <option value="">Minden ingatlan</option>
-                            {propertyRows.map((property) => (
-                                <option key={property.id} value={property.id}>
-                                    {property.name} - {property.address}
-                                </option>
-                            ))}
-                        </select>
-                        <select name="status" defaultValue={statusFilter} className="select">
-                            <option value="">Minden státusz</option>
-                            <option value="UNPAID">Aktív</option>
-                            <option value="PAID">Fizetett</option>
-                            <option value="ARCHIVED">Archivált</option>
-                            <option value="CANCELLED">Törölt</option>
-                        </select>
-                        <select name="type" defaultValue={typeFilter} className="select">
-                            <option value="">Minden típus</option>
-                            <option value="RENT">Bérleti díj</option>
-                            <option value="UTILITY">Rezsi</option>
-                            <option value="COMMON_COST">Közös költség</option>
-                            <option value="OTHER">Egyéb</option>
-                        </select>
-                        <input name="from" type="date" defaultValue={fromFilter} className="input" />
-                        <input name="to" type="date" defaultValue={toFilter} className="input" />
+                        <label className="field-stack">
+                            <span className="field-label">Ingatlan</span>
+                            <select name="property" defaultValue={selectedPropertyId} className="select">
+                                <option value="">Minden ingatlan</option>
+                                {propertyRows.map((property) => (
+                                    <option key={property.id} value={property.id}>
+                                        {property.name} - {property.address}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="field-stack">
+                            <span className="field-label">Státusz</span>
+                            <select name="status" defaultValue={statusFilter} className="select">
+                                <option value="">Minden státusz</option>
+                                <option value="UNPAID">Aktív</option>
+                                <option value="PAID">Fizetett</option>
+                                <option value="ARCHIVED">Archivált</option>
+                                <option value="CANCELLED">Törölt</option>
+                            </select>
+                        </label>
+                        <label className="field-stack">
+                            <span className="field-label">Típus</span>
+                            <select name="type" defaultValue={typeFilter} className="select">
+                                <option value="">Minden típus</option>
+                                <option value="RENT">Bérleti díj</option>
+                                <option value="UTILITY">Rezsi</option>
+                                <option value="COMMON_COST">Közös költség</option>
+                                <option value="OTHER">Egyéb</option>
+                            </select>
+                        </label>
+                        <label className="field-stack">
+                            <span className="field-label">Dátumtól</span>
+                            <input name="from" type="date" defaultValue={fromFilter} className="input input-date" />
+                            <span className="muted-note">Ha üresen hagyod, az év elejétől számolunk.</span>
+                        </label>
+                        <label className="field-stack">
+                            <span className="field-label">Dátumig</span>
+                            <input name="to" type="date" defaultValue={toFilter} className="input input-date" />
+                            <span className="muted-note">Ha üresen hagyod, az év végéig számolunk.</span>
+                        </label>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="charge-actions">
                         <button className="btn btn-primary">Szűrés frissítése</button>
                         <Link className="btn btn-secondary" href="/tenant/charges">
                             Szűrők törlése
                         </Link>
+                        {(fromFilter || toFilter || selectedPropertyId || statusFilter || typeFilter) ? (
+                            <span className="muted-note">Aktív szűrők vannak beállítva.</span>
+                        ) : (
+                            <span className="muted-note">Nincs aktív szűrő.</span>
+                        )}
                     </div>
                 </form>
             </section>

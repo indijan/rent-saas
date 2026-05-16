@@ -41,7 +41,7 @@ export default async function HomePage() {
                 <div className="hero-panel">
                     <div className="kpi-card">
                         <div className="kpi-label">Használati díj</div>
-                        <div className="kpi-value">3 eHUF / ingatlan / hó</div>
+                        <div className="kpi-value">1 000-3 000 Ft / ingatlan / hó</div>
                     </div>
                     <div className="feature-list">
                         <div className="feature-item">Automatikus számlaimport piszkozatként, nem azonnali élesítéssel.</div>
@@ -59,6 +59,7 @@ export default async function HomePage() {
                         A rendszerben a számlák, feltöltött dokumentumok, státuszok és éves összesítők
                         ugyanott kezelhetők, külön háttérrendszeres kerülőutak nélkül.
                     </p>
+                    <p className="muted-note">Sávos díjazás: 1-3 ingatlan 3 000 Ft, 4-9 ingatlan 2 000 Ft, 10+ ingatlan 1 000 Ft / ingatlan / hó.</p>
                 </article>
                 <article className="card section-stack">
                     <div className="eyebrow">Bérlőknek</div>
