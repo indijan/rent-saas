@@ -396,10 +396,21 @@ img {
 
 .input-date {
   min-height: 44px;
+  max-width: 100%;
+  min-width: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .input-date::-webkit-date-and-time-value {
   text-align: left;
+  min-height: 1.4em;
+}
+
+.input-date::-webkit-calendar-picker-indicator {
+  opacity: 1;
 }
 
 .input:focus,

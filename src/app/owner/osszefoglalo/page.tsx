@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth/requireRole";
 import { formatCurrency } from "@/lib/formatters";
 import AppHeader from "@/components/AppHeader";
+import FilterDateInput from "@/components/FilterDateInput";
 
 type SearchParams = {
     from?: string;
@@ -121,11 +122,11 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
                     <div className="filter-grid">
                         <label className="field-stack">
                             <span className="field-label">Dátumtól</span>
-                            <input name="from" type="date" defaultValue={from} className="input input-date" />
+                            <FilterDateInput name="from" defaultValue={from} placeholder="ÉÉÉÉ-HH-NN" className="input input-date" />
                         </label>
                         <label className="field-stack">
                             <span className="field-label">Dátumig</span>
-                            <input name="to" type="date" defaultValue={to} className="input input-date" />
+                            <FilterDateInput name="to" defaultValue={to} placeholder="ÉÉÉÉ-HH-NN" className="input input-date" />
                         </label>
                     </div>
                     <div className="charge-actions">

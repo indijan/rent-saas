@@ -8,6 +8,7 @@ import CreateChargeForm from "./CreateChargeForm";
 import EditChargeForm from "./EditChargeForm";
 import { formatCurrency } from "@/lib/formatters";
 import AppHeader from "@/components/AppHeader";
+import FilterDateInput from "@/components/FilterDateInput";
 
 type ChargeStatus = "UNPAID" | "PAID" | "ARCHIVED" | "CANCELLED" | "IMPORT_DRAFT";
 type ChargeType = "RENT" | "UTILITY" | "COMMON_COST" | "OTHER";
@@ -310,29 +311,48 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
 
                 <form method="GET" className="section-stack">
                     <div className="filter-grid">
-                        <select name="status" defaultValue={statusFilter} className="select">
-                            <option value="">Minden státusz</option>
-                            <option value="IMPORT_DRAFT">Piszkozat</option>
-                            <option value="UNPAID">Aktív</option>
-                            <option value="PAID">Fizetett</option>
-                            <option value="ARCHIVED">Archivált</option>
-                            <option value="CANCELLED">Törölt</option>
-                        </select>
-                        <select name="type" defaultValue={typeFilter} className="select">
-                            <option value="">Minden típus</option>
-                            <option value="RENT">Bérleti díj</option>
-                            <option value="UTILITY">Rezsi</option>
-                            <option value="COMMON_COST">Közös költség</option>
-                            <option value="OTHER">Egyéb</option>
-                        </select>
-                        <input name="from" type="date" defaultValue={fromFilter} className="input" />
-                        <input name="to" type="date" defaultValue={toFilter} className="input" />
+                        <label className="field-stack">
+                            <span className="field-label">Státusz</span>
+                            <select name="status" defaultValue={statusFilter} className="select">
+                                <option value="">Minden státusz</option>
+                                <option value="IMPORT_DRAFT">Piszkozat</option>
+                                <option value="UNPAID">Aktív</option>
+                                <option value="PAID">Fizetett</option>
+                                <option value="ARCHIVED">Archivált</option>
+                                <option value="CANCELLED">Törölt</option>
+                            </select>
+                        </label>
+                        <label className="field-stack">
+                            <span className="field-label">Típus</span>
+                            <select name="type" defaultValue={typeFilter} className="select">
+                                <option value="">Minden típus</option>
+                                <option value="RENT">Bérleti díj</option>
+                                <option value="UTILITY">Rezsi</option>
+                                <option value="COMMON_COST">Közös költség</option>
+                                <option value="OTHER">Egyéb</option>
+                            </select>
+                        </label>
+                        <label className="field-stack">
+                            <span className="field-label">Dátumtól</span>
+                            <FilterDateInput name="from" defaultValue={fromFilter} placeholder="ÉÉÉÉ-HH-NN" className="input input-date" />
+                            <span className="muted-note">Ha üresen hagyod, az év elejétől számolunk.</span>
+                        </label>
+                        <label className="field-stack">
+                            <span className="field-label">Dátumig</span>
+                            <FilterDateInput name="to" defaultValue={toFilter} placeholder="ÉÉÉÉ-HH-NN" className="input input-date" />
+                            <span className="muted-note">Ha üresen hagyod, az év végéig számolunk.</span>
+                        </label>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="charge-actions">
                         <button className="btn btn-primary">Szűrés frissítése</button>
                         <Link className="btn btn-secondary" href={basePath}>
                             Szűrők törlése
                         </Link>
+                        {(fromFilter || toFilter || statusFilter || typeFilter) ? (
+                            <span className="muted-note">Aktív szűrők vannak beállítva.</span>
+                        ) : (
+                            <span className="muted-note">Nincs aktív szűrő.</span>
+                        )}
                     </div>
                 </form>
             </section>

@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth/requireRole";
 import { formatCurrency } from "@/lib/formatters";
 import AppHeader from "@/components/AppHeader";
 import { archiveTenantCharge } from "./actions";
+import FilterDateInput from "@/components/FilterDateInput";
 
 type ChargeStatus = "UNPAID" | "PAID" | "ARCHIVED" | "CANCELLED";
 type ChargeType = "RENT" | "UTILITY" | "COMMON_COST" | "OTHER";
@@ -390,12 +391,12 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                         </label>
                         <label className="field-stack">
                             <span className="field-label">Dátumtól</span>
-                            <input name="from" type="date" defaultValue={fromFilter} className="input input-date" />
+                            <FilterDateInput name="from" defaultValue={fromFilter} placeholder="ÉÉÉÉ-HH-NN" className="input input-date" />
                             <span className="muted-note">Ha üresen hagyod, az év elejétől számolunk.</span>
                         </label>
                         <label className="field-stack">
                             <span className="field-label">Dátumig</span>
-                            <input name="to" type="date" defaultValue={toFilter} className="input input-date" />
+                            <FilterDateInput name="to" defaultValue={toFilter} placeholder="ÉÉÉÉ-HH-NN" className="input input-date" />
                             <span className="muted-note">Ha üresen hagyod, az év végéig számolunk.</span>
                         </label>
                     </div>
