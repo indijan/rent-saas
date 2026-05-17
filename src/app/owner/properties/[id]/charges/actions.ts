@@ -353,6 +353,7 @@ export async function createCharge(propertyId: string, formData: FormData) {
         .from("properties")
         .select("id,tenant_id,name")
         .eq("id", propertyId)
+        .eq("owner_id", user.id)
         .single();
 
     if (propErr || !property) return { ok: false, error: "Az ingatlan nem található." };
@@ -680,6 +681,7 @@ export async function markChargePaid(chargeId: string) {
         .from("charges")
         .select("property_id,status")
         .eq("id", chargeId)
+        .eq("owner_id", user.id)
         .single();
 
     if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
@@ -887,7 +889,8 @@ export async function deleteCharge(chargeId: string) {
     const { data: docs, error: docsErr } = await supabase
         .from("documents")
         .select("bucket_path")
-        .eq("charge_id", chargeId);
+        .eq("charge_id", chargeId)
+        .eq("owner_id", user.id);
 
     if (docsErr) return { ok: false, error: docsErr.message };
 
@@ -904,7 +907,8 @@ export async function deleteCharge(chargeId: string) {
     const { error: docErr } = await supabase
         .from("documents")
         .delete()
-        .eq("charge_id", chargeId);
+        .eq("charge_id", chargeId)
+        .eq("owner_id", user.id);
 
     if (docErr) return { ok: false, error: docErr.message };
 

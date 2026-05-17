@@ -30,6 +30,7 @@ export default async function OwnerPropertyDetailPage({ params, searchParams }: 
         .from("properties")
         .select("id,name,address,status,created_at,tenant_id")
         .eq("id", id)
+        .eq("owner_id", profile.id)
         .single();
 
     if (error || !property) return notFound();
@@ -42,7 +43,6 @@ export default async function OwnerPropertyDetailPage({ params, searchParams }: 
             .from("profiles")
             .select("id,email,full_name,role")
             .in("id", tenantIds)
-            .eq("role", "TENANT")
             .order("email");
     const tenantOptions = (tenants ?? []) as TenantOption[];
 

@@ -19,6 +19,7 @@ export default async function OwnerPropertiesPage({ searchParams }: Props) {
     const { data: properties, error } = await supabase
         .from("properties")
         .select("id,name,address,status,created_at,tenant_id")
+        .eq("owner_id", profile.id)
         .order("created_at", { ascending: false });
 
     async function onCreate(formData: FormData) {

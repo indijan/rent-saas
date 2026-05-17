@@ -160,6 +160,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
         .from("properties")
         .select("id,name,address")
         .eq("id", propertyId)
+        .eq("owner_id", profile.id)
         .single();
 
     if (propErr || !property) return notFound();
@@ -168,6 +169,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
         .from("charges")
         .select("id,title,type,amount,currency,due_date,status,paid_at,created_at,recurring_group,recurring_index,recurring_count", { count: "exact" })
         .eq("property_id", propertyId)
+        .eq("owner_id", profile.id)
         .order("due_date", { ascending: false });
 
     if (statusFilter) listQuery = listQuery.eq("status", statusFilter);
@@ -184,6 +186,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
         .from("charges")
         .select("amount,status")
         .eq("property_id", propertyId)
+        .eq("owner_id", profile.id)
         .gte("due_date", totalsFrom)
         .lte("due_date", totalsTo);
 
@@ -194,6 +197,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
         .from("documents")
         .select("id,charge_id,bucket_path,created_at")
         .eq("property_id", propertyId)
+        .eq("owner_id", profile.id)
         .order("created_at", { ascending: false });
 
     const documentsWithUrls = await Promise.all(
