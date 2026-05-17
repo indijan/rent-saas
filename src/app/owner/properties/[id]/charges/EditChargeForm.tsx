@@ -1,3 +1,6 @@
+"use client";
+
+import { useState, useTransition, type FormEvent } from "react";
 import { updateCharge } from "./actions";
 
 type Props = {
@@ -12,18 +15,35 @@ type Props = {
 };
 
 export default function EditChargeForm({ charge }: Props) {
+    const [message, setMessage] = useState<string | null>(null);
+    const [isError, setIsError] = useState(false);
+    const [isPending, startTransition] = useTransition();
+
+    function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        setMessage(null);
+        setIsError(false);
+        const formData = new FormData(event.currentTarget);
+
+        startTransition(async () => {
+            const res = await updateCharge(charge.id, formData);
+            if (!res.ok) {
+                setIsError(true);
+                setMessage(res.error ?? "A mentés nem sikerült.");
+                return;
+            }
+
+            setIsError(false);
+            setMessage("A tétel adatai elmentve.");
+        });
+    }
+
     return (
         <details className="w-full rounded-xl border border-black/10 bg-white/60 p-3">
             <summary className="btn btn-secondary btn-sm cursor-pointer">
                 Tétel szerkesztése
             </summary>
-            <form
-                action={async (formData) => {
-                    "use server";
-                    await updateCharge(charge.id, formData);
-                }}
-                className="mt-3 grid gap-2 md:grid-cols-2"
-            >
+            <form onSubmit={handleSubmit} className="mt-3 grid gap-2 md:grid-cols-2">
                 <input
                     name="title"
                     defaultValue={charge.title}
@@ -59,13 +79,13 @@ export default function EditChargeForm({ charge }: Props) {
                     defaultValue={charge.currency || "HUF"}
                     className="input"
                 />
-                <button
-                    type="submit"
-                    className="btn btn-primary btn-sm"
-                >
-                    Mentés státuszmódosítás nélkül
+                <button type="submit" className="btn btn-primary btn-sm" disabled={isPending}>
+                    {isPending ? "Mentés..." : "Mentés státuszmódosítás nélkül"}
                 </button>
                 <div className="muted-note">A mentés csak a mezőket frissíti, a státuszt nem.</div>
+                {message ? (
+                    <div className={`text-sm ${isError ? "text-red-600" : "text-green-600"}`}>{message}</div>
+                ) : null}
             </form>
         </details>
     );

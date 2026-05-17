@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
-import { revalidatePath } from "next/cache";
 import { assignTenantToProperty, deleteProperty, updateProperty } from "./actions";
 import DeletePropertyForm from "./DeletePropertyForm";
 import AppHeader from "@/components/AppHeader";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { listOwnerTenantIds } from "@/lib/tenantOwnership";
 
-type Props = { params: Promise<{ id: string }> };
+type Props = {
+    params: Promise<{ id: string }>;
+    searchParams?: Promise<{ status?: string; message?: string }> | { status?: string; message?: string };
+};
 
 type TenantOption = {
     id: string;
@@ -17,9 +19,12 @@ type TenantOption = {
     role: string;
 };
 
-export default async function OwnerPropertyDetailPage({ params }: Props) {
+export default async function OwnerPropertyDetailPage({ params, searchParams }: Props) {
     const { id } = await params;
     const { supabase, profile } = await requireRole("OWNER");
+    const sp = searchParams instanceof Promise ? await searchParams : (searchParams ?? {});
+    const status = sp.status ? String(sp.status) : "";
+    const message = sp.message ? String(sp.message) : "";
 
     const { data: property, error } = await supabase
         .from("properties")
@@ -58,6 +63,12 @@ export default async function OwnerPropertyDetailPage({ params }: Props) {
                 </div>
             </section>
 
+            {message ? (
+                <div className={`card ${status === "error" ? "text-red-600" : "text-green-600"}`}>
+                    {message}
+                </div>
+            ) : null}
+
             <section className="card section-stack">
                 <div className="card-title">Áttekintés</div>
                 <div className="info-strip">
@@ -79,9 +90,11 @@ export default async function OwnerPropertyDetailPage({ params }: Props) {
                 action={async (formData) => {
                     "use server";
                     const res = await updateProperty(property.id, formData);
-                    if (!res.ok) return;
-                    revalidatePath(`/owner/properties/${property.id}`);
-                    revalidatePath(`/owner/properties/${property.id}/charges`);
+                    if (!res.ok) {
+                        const msg = res.error ?? "Ismeretlen hiba.";
+                        redirect(`/owner/properties/${property.id}?status=error&message=${encodeURIComponent(msg)}`);
+                    }
+                    redirect(`/owner/properties/${property.id}?status=success&message=Az+ingatlan+adatai+elmentve.`);
                 }}
                 className="card form-shell"
             >
@@ -132,9 +145,11 @@ export default async function OwnerPropertyDetailPage({ params }: Props) {
                 action={async (formData) => {
                     "use server";
                     const res = await assignTenantToProperty(property.id, formData);
-                    if (!res.ok) return;
-                    revalidatePath(`/owner/properties/${property.id}`);
-                    revalidatePath(`/owner/properties/${property.id}/charges`);
+                    if (!res.ok) {
+                        const msg = res.error ?? "Ismeretlen hiba.";
+                        redirect(`/owner/properties/${property.id}?status=error&message=${encodeURIComponent(msg)}`);
+                    }
+                    redirect(`/owner/properties/${property.id}?status=success&message=A+b%C3%A9rl%C5%91+hozz%C3%A1rendel%C3%A9se+siker%C3%BClt.`);
                 }}
                 className="card form-shell"
             >
@@ -183,9 +198,11 @@ export default async function OwnerPropertyDetailPage({ params }: Props) {
                 action={async () => {
                     "use server";
                     const res = await deleteProperty(property.id);
-                    if (!res.ok) return;
-                    revalidatePath("/owner/properties");
-                    redirect("/owner/properties");
+                    if (!res.ok) {
+                        const msg = res.error ?? "Ismeretlen hiba.";
+                        redirect(`/owner/properties/${property.id}?status=error&message=${encodeURIComponent(msg)}`);
+                    }
+                    redirect("/owner/properties?status=success&message=Az+ingatlan+t%C3%B6r%C3%B6lve+lett.");
                 }}
             />
         </main>

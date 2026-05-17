@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
 import { archiveCharge, cancelCharge, deleteCharge, markChargePaid, publishCharge, restoreCharge } from "./actions";
 import ConfirmActionForm from "./ConfirmActionForm";
@@ -19,6 +19,8 @@ type SearchParams = {
     from?: string;
     to?: string;
     page?: string;
+    notice?: string;
+    message?: string;
 };
 
 type ChargeRow = {
@@ -64,7 +66,18 @@ function buildQueryString(input: SearchParams) {
     if (input.from) params.set("from", input.from);
     if (input.to) params.set("to", input.to);
     if (input.page && input.page !== "1") params.set("page", input.page);
+    if (input.notice) params.set("notice", input.notice);
+    if (input.message) params.set("message", input.message);
     return params.toString();
+}
+
+function buildNoticeHref(basePath: string, current: SearchParams, notice: "success" | "error", message: string) {
+    return `${basePath}?${buildQueryString({
+        ...current,
+        page: undefined,
+        notice,
+        message,
+    })}`;
 }
 
 function buildStatusHref(basePath: string, current: SearchParams, nextStatus: string) {
@@ -135,6 +148,8 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
     const typeFilter = sp.type ? String(sp.type) : "";
     const fromFilter = sp.from ? String(sp.from) : "";
     const toFilter = sp.to ? String(sp.to) : "";
+    const notice = sp.notice ? String(sp.notice) : "";
+    const message = sp.message ? String(sp.message) : "";
     const pageParam = sp.page ? Number(sp.page) : 1;
     const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
     const pageSize = 12;
@@ -276,6 +291,12 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                     </div>
                 </div>
             </section>
+
+            {message ? (
+                <div className={`card ${notice === "error" ? "text-red-600" : "text-green-600"}`}>
+                    {message}
+                </div>
+            ) : null}
 
             <section className="card section-stack">
                 <div className="section-header">
@@ -435,7 +456,11 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                 <ConfirmActionForm
                                                     action={async () => {
                                                         "use server";
-                                                        await publishCharge(charge.id);
+                                                        const res = await publishCharge(charge.id);
+                                                        if (!res.ok) {
+                                                            redirect(buildNoticeHref(basePath, activeQuery, "error", res.error ?? "Ismeretlen hiba."));
+                                                        }
+                                                        redirect(buildNoticeHref(basePath, activeQuery, "success", "A díj publikálva lett."));
                                                     }}
                                                 confirmMessage="Publikálod ezt a díjat a bérlő felé?"
                                             >
@@ -449,7 +474,11 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                 <ConfirmActionForm
                                                     action={async () => {
                                                         "use server";
-                                                        await markChargePaid(charge.id);
+                                                        const res = await markChargePaid(charge.id);
+                                                        if (!res.ok) {
+                                                            redirect(buildNoticeHref(basePath, activeQuery, "error", res.error ?? "Ismeretlen hiba."));
+                                                        }
+                                                        redirect(buildNoticeHref(basePath, activeQuery, "success", "A díj fizetettként lett jelölve."));
                                                     }}
                                                 confirmMessage="Biztosan fizetettnek jelölöd ezt a díjat?"
                                             >
@@ -463,7 +492,11 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                 <ConfirmActionForm
                                                     action={async () => {
                                                         "use server";
-                                                        await archiveCharge(charge.id);
+                                                        const res = await archiveCharge(charge.id);
+                                                        if (!res.ok) {
+                                                            redirect(buildNoticeHref(basePath, activeQuery, "error", res.error ?? "Ismeretlen hiba."));
+                                                        }
+                                                        redirect(buildNoticeHref(basePath, activeQuery, "success", "A díj archiválva lett."));
                                                     }}
                                                 confirmMessage="Biztosan archiválod ezt a díjat?"
                                             >
@@ -477,7 +510,11 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                 <ConfirmActionForm
                                                     action={async () => {
                                                         "use server";
-                                                        await restoreCharge(charge.id);
+                                                        const res = await restoreCharge(charge.id);
+                                                        if (!res.ok) {
+                                                            redirect(buildNoticeHref(basePath, activeQuery, "error", res.error ?? "Ismeretlen hiba."));
+                                                        }
+                                                        redirect(buildNoticeHref(basePath, activeQuery, "success", "A díj vissza lett állítva."));
                                                     }}
                                                 confirmMessage="Visszaállítod ezt a díjat aktívra?"
                                             >
@@ -499,7 +536,11 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                 <ConfirmActionForm
                                                     action={async () => {
                                                         "use server";
-                                                        await cancelCharge(charge.id);
+                                                        const res = await cancelCharge(charge.id);
+                                                        if (!res.ok) {
+                                                            redirect(buildNoticeHref(basePath, activeQuery, "error", res.error ?? "Ismeretlen hiba."));
+                                                        }
+                                                        redirect(buildNoticeHref(basePath, activeQuery, "success", "A díj érvénytelenítve lett."));
                                                     }}
                                                 confirmMessage="Biztosan érvényteleníted ezt a díjat?"
                                             >
@@ -513,7 +554,11 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                 <ConfirmActionForm
                                                     action={async () => {
                                                         "use server";
-                                                        await deleteCharge(charge.id);
+                                                        const res = await deleteCharge(charge.id);
+                                                        if (!res.ok) {
+                                                            redirect(buildNoticeHref(basePath, activeQuery, "error", res.error ?? "Ismeretlen hiba."));
+                                                        }
+                                                        redirect(buildNoticeHref(basePath, activeQuery, "success", "A díj véglegesen törölve lett."));
                                                     }}
                                                     confirmMessage="Biztosan sztornózod ezt a díjat? Ez a művelet végleges."
                                                 >

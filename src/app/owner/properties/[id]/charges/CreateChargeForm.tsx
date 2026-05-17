@@ -11,6 +11,7 @@ type Props = {
 
 export default function CreateChargeForm({ propertyId }: Props) {
     const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
     const [aiMessage, setAiMessage] = useState<string>("");
     const [aiBusy, setAiBusy] = useState(false);
     const [isPending, startTransition] = useTransition();
@@ -72,6 +73,7 @@ export default function CreateChargeForm({ propertyId }: Props) {
 
     function onSubmit(formData: FormData) {
         setError(null);
+        setSuccess(null);
         startTransition(async () => {
             try {
                 const res = await createCharge(propertyId, formData);
@@ -87,10 +89,11 @@ export default function CreateChargeForm({ propertyId }: Props) {
                 setDueDate("");
                 setCurrency("HUF");
                 setAiMessage("");
+                setSuccess("A díj sikeresen létrejött.");
                 router.refresh();
             } catch (err: unknown) {
                 const message = err instanceof Error ? err.message : String(err);
-                    setError(`Váratlan mentési hiba: ${message}`);
+                setError(`Váratlan mentési hiba: ${message}`);
             }
         });
     }
@@ -211,6 +214,7 @@ export default function CreateChargeForm({ propertyId }: Props) {
                     {isPending ? "Mentés..." : "Díj létrehozása"}
                 </button>
                 {error ? <p className="text-sm text-red-600">{error}</p> : null}
+                {success ? <p className="text-sm text-green-600">{success}</p> : null}
             </div>
         </form>
     );

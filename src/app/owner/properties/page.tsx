@@ -1,13 +1,20 @@
 import Link from "next/link";
-import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import AppHeader from "@/components/AppHeader";
 import { createProperty } from "./actions";
 
-export default async function OwnerPropertiesPage() {
+type Props = {
+    searchParams?: Promise<{ status?: string; message?: string }> | { status?: string; message?: string };
+};
+
+export default async function OwnerPropertiesPage({ searchParams }: Props) {
     const { supabase, profile } = await requireRole("OWNER");
     const admin = createSupabaseAdminClient();
+    const sp = searchParams instanceof Promise ? await searchParams : (searchParams ?? {});
+    const status = sp.status ? String(sp.status) : "";
+    const message = sp.message ? String(sp.message) : "";
 
     const { data: properties, error } = await supabase
         .from("properties")
@@ -17,8 +24,11 @@ export default async function OwnerPropertiesPage() {
     async function onCreate(formData: FormData) {
         "use server";
         const res = await createProperty(formData);
-        if (!res.ok) return;
-        revalidatePath("/owner/properties");
+        if (!res.ok) {
+            const msg = res.error ?? "Ismeretlen hiba.";
+            redirect(`/owner/properties?status=error&message=${encodeURIComponent(msg)}`);
+        }
+        redirect("/owner/properties?status=success&message=Az+ingatlan+l%C3%A9trej%C3%B6tt.");
     }
 
     if (error) {
@@ -70,6 +80,12 @@ export default async function OwnerPropertiesPage() {
                     </div>
                 </div>
             </section>
+
+            {message ? (
+                <div className={`card ${status === "error" ? "text-red-600" : "text-green-600"}`}>
+                    {message}
+                </div>
+            ) : null}
 
             <form action={onCreate} className="card form-shell">
                 <div className="section-header">
