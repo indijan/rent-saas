@@ -20,7 +20,7 @@ export async function setActiveRoleCookie(role: AppRole) {
 }
 
 export function routeForRole(role: AppRole) {
-    if (role === "ADMIN") return "/admin/berlok";
+    if (role === "ADMIN") return "/admin/berbeadok";
     if (role === "OWNER") return "/owner/properties";
     return "/tenant/charges";
 }

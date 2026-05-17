@@ -37,7 +37,7 @@ export default function AppHeader({ profile }: Props) {
         }
         if (profile.role === "ADMIN") {
             return [
-                { href: "/admin/berlok", label: "Bérlők" },
+                { href: "/admin/berbeadok", label: "Bérbeadók" },
                 { href: "/account", label: "Fiók" },
             ];
         }
