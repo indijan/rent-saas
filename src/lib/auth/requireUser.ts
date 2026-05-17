@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveRoleCookie } from "./context";
+import { resolveAvailableRoles } from "./availableRoles";
 
 export type AppRole = "ADMIN" | "OWNER" | "TENANT";
 
@@ -17,5 +19,20 @@ export async function requireUser() {
 
     if (error || !profile) redirect("/login");
 
-    return { supabase, user, profile: profile as { id: string; email: string; role: AppRole; full_name: string | null } };
+    const resolvedRoles = await resolveAvailableRoles(user.id, profile.role as AppRole);
+
+    const cookieRole = await getActiveRoleCookie();
+    const activeRole = cookieRole && resolvedRoles.includes(cookieRole)
+        ? cookieRole
+        : (resolvedRoles.includes(profile.role as AppRole) ? profile.role as AppRole : resolvedRoles[0]);
+
+    return {
+        supabase,
+        user,
+        profile: {
+            ...(profile as { id: string; email: string; role: AppRole; full_name: string | null }),
+            role: activeRole,
+            available_roles: resolvedRoles,
+        },
+    };
 }

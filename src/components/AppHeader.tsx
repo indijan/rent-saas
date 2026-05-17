@@ -9,6 +9,7 @@ type Profile = {
     role: AppRole;
     full_name: string | null;
     email: string;
+    available_roles?: AppRole[];
 };
 
 type Props = {
@@ -86,6 +87,11 @@ export default function AppHeader({ profile }: Props) {
                         {item.label}
                     </Link>
                 ))}
+                {(profile.available_roles?.length ?? 0) > 1 ? (
+                    <Link className="pill" href="/valassz-nezetet" onClick={() => setMenuOpen(false)}>
+                        Nézetváltás
+                    </Link>
+                ) : null}
             </nav>
         </header>
     );

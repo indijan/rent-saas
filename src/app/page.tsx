@@ -1,24 +1,9 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import PublicHeader from "@/components/PublicHeader";
 import Link from "next/link";
+import { getSignedInDashboardHref } from "@/lib/auth/getDashboardHref";
 
 export default async function HomePage() {
-    const supabase = await createSupabaseServerClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    let dashboardHref: string | null = null;
-
-    if (user) {
-        const { data: profile } = await supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", user.id)
-            .single();
-
-        if (profile?.role === "ADMIN") dashboardHref = "/admin/berlok";
-        if (profile?.role === "OWNER") dashboardHref = "/owner/properties";
-        if (profile?.role === "TENANT") dashboardHref = "/tenant/charges";
-    }
+    const dashboardHref = await getSignedInDashboardHref();
 
     return (
         <main className="app-shell page-enter space-y-4">

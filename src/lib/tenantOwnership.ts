@@ -10,6 +10,21 @@ type AuthUserWithOwnerMeta = {
 export async function listOwnerTenantIds(ownerId: string) {
     const admin = createSupabaseAdminClient();
     const ids = new Set<string>();
+    try {
+        const { data: memberships, error } = await admin
+            .from("tenant_memberships")
+            .select("user_id")
+            .eq("owner_id", ownerId);
+        if (error) throw error;
+
+        (memberships ?? []).forEach((membership) => {
+            const userId = membership.user_id as string | null;
+            if (userId) ids.add(userId);
+        });
+    } catch {
+        // A tábla migráció előtt még nem biztos, hogy létezik.
+    }
+
     let page = 1;
     const perPage = 200;
 
@@ -44,4 +59,47 @@ export async function listOwnerTenantIds(ownerId: string) {
 export async function isTenantOwnedByOwner(ownerId: string, tenantId: string) {
     const ids = await listOwnerTenantIds(ownerId);
     return ids.includes(tenantId);
+}
+
+export async function listAllTenantIds() {
+    const admin = createSupabaseAdminClient();
+    const ids = new Set<string>();
+
+    try {
+        const { data: memberships, error } = await admin
+            .from("tenant_memberships")
+            .select("user_id");
+        if (error) throw error;
+
+        (memberships ?? []).forEach((membership) => {
+            const userId = membership.user_id as string | null;
+            if (userId) ids.add(userId);
+        });
+    } catch {
+        // A tábla migráció előtt még nem biztos, hogy létezik.
+    }
+
+    const { data: properties, error: propertiesError } = await admin
+        .from("properties")
+        .select("tenant_id")
+        .not("tenant_id", "is", null);
+    if (propertiesError) throw propertiesError;
+
+    (properties ?? []).forEach((property) => {
+        const tenantId = property.tenant_id as string | null;
+        if (tenantId) ids.add(tenantId);
+    });
+
+    const { data: charges, error: chargesError } = await admin
+        .from("charges")
+        .select("tenant_id")
+        .not("tenant_id", "is", null);
+    if (chargesError) throw chargesError;
+
+    (charges ?? []).forEach((charge) => {
+        const tenantId = charge.tenant_id as string | null;
+        if (tenantId) ids.add(tenantId);
+    });
+
+    return Array.from(ids);
 }

@@ -1,31 +1,14 @@
 import Link from "next/link";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import PublicHeader from "@/components/PublicHeader";
 import { submitOwnerRegistration } from "./actions";
+import { getSignedInDashboardHref } from "@/lib/auth/getDashboardHref";
 
 type Props = {
     searchParams?: Promise<{ status?: string; message?: string }> | { status?: string; message?: string };
 };
 
-async function getDashboardHref() {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-    if (!profile) return null;
-    if (profile.role === "ADMIN") return "/admin/berlok";
-    if (profile.role === "OWNER") return "/owner/properties";
-    return "/tenant/charges";
-}
-
 export default async function OwnerRegistrationPage({ searchParams }: Props) {
-    const dashboardHref = await getDashboardHref();
+    const dashboardHref = await getSignedInDashboardHref();
     const sp = (searchParams instanceof Promise) ? await searchParams : (searchParams ?? {});
     const status = sp.status ? String(sp.status) : "";
     const message = sp.message ? String(sp.message) : "";

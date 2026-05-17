@@ -1,21 +1,13 @@
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth/requireUser";
+import { routeForRole } from "@/lib/auth/context";
 
 export default async function DashboardPage() {
-    const supabase = await createSupabaseServerClient();
+    const { profile } = await requireUser();
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) redirect("/login");
+    if (profile.available_roles.length > 1) {
+        redirect("/valassz-nezetet");
+    }
 
-    const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-    if (error || !profile) redirect("/login");
-
-    if (profile.role === "ADMIN") redirect("/admin/berlok");
-    if (profile.role === "OWNER") redirect("/owner/properties");
-    redirect("/tenant/charges");
+    redirect(routeForRole(profile.role));
 }

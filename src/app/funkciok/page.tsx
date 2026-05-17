@@ -1,23 +1,6 @@
 import Link from "next/link";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import PublicHeader from "@/components/PublicHeader";
-
-async function getDashboardHref() {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-    if (!profile) return null;
-    if (profile.role === "ADMIN") return "/admin/berlok";
-    if (profile.role === "OWNER") return "/owner/properties";
-    return "/tenant/charges";
-}
+import { getSignedInDashboardHref } from "@/lib/auth/getDashboardHref";
 
 const ownerFeatures = [
     "Ingatlanok, bérlők és díjak kezelése egy felületen.",
@@ -35,7 +18,7 @@ const tenantFeatures = [
 ];
 
 export default async function FeaturesPage() {
-    const dashboardHref = await getDashboardHref();
+    const dashboardHref = await getSignedInDashboardHref();
 
     return (
         <main className="app-shell page-enter space-y-4">

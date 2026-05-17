@@ -26,6 +26,9 @@ export default async function AccountPage({ searchParams }: Props) {
                     <div className="info-strip">
                         <span>E-mail: {profile.email}</span>
                         <span>Szerepkör: {profile.role === "OWNER" ? "Tulajdonos" : profile.role === "TENANT" ? "Bérlő" : "Admin"}</span>
+                        {(profile.available_roles?.length ?? 0) > 1 ? (
+                            <span>Elérhető nézetek: {profile.available_roles?.map((role) => role === "OWNER" ? "Tulajdonos" : role === "TENANT" ? "Bérlő" : "Admin").join(", ")}</span>
+                        ) : null}
                     </div>
                 </div>
             </section>

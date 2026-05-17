@@ -1,9 +1,22 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolveAvailableRoles } from "@/lib/auth/availableRoles";
+import type { AppRole } from "@/lib/auth/requireUser";
 
 type UserContext = {
     supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
     userId: string;
+};
+
+type TenantChargeExportRow = {
+    title: string | null;
+    type: string | null;
+    amount: number | string | null;
+    currency: string | null;
+    due_date: string | null;
+    status: string | null;
+    paid_at: string | null;
+    properties?: { name: string | null; address: string | null }[] | { name: string | null; address: string | null } | null;
 };
 
 async function requireTenant(): Promise<UserContext | NextResponse> {
@@ -17,7 +30,12 @@ async function requireTenant(): Promise<UserContext | NextResponse> {
         .eq("id", user.id)
         .single();
 
-    if (error || profile?.role !== "TENANT") {
+    if (error || !profile?.role) {
+        return new NextResponse("Forbidden", { status: 403 });
+    }
+
+    const roles = await resolveAvailableRoles(user.id, profile.role as AppRole);
+    if (!roles.includes("TENANT")) {
         return new NextResponse("Forbidden", { status: 403 });
     }
 
@@ -71,9 +89,11 @@ export async function GET(request: Request) {
         "paid_at",
     ];
 
-    const rows = (data ?? []).map((row: any) => ([
-        row.properties?.name ?? "",
-        row.properties?.address ?? "",
+    const rows = ((data ?? []) as TenantChargeExportRow[]).map((row) => {
+        const property = Array.isArray(row.properties) ? row.properties[0] : row.properties;
+        return [
+        property?.name ?? "",
+        property?.address ?? "",
         row.title ?? "",
         row.type ?? "",
         row.amount ?? "",
@@ -81,7 +101,8 @@ export async function GET(request: Request) {
         row.due_date ?? "",
         row.status ?? "",
         row.paid_at ?? "",
-    ]));
+    ];
+    });
 
     const csv = [
         headers.map(escapeCsv).join(","),

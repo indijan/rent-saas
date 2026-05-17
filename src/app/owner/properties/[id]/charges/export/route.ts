@@ -1,9 +1,22 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolveAvailableRoles } from "@/lib/auth/availableRoles";
+import type { AppRole } from "@/lib/auth/requireUser";
 
 type UserContext = {
     supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
     userId: string;
+};
+
+type OwnerChargeExportRow = {
+    title: string | null;
+    type: string | null;
+    amount: number | string | null;
+    currency: string | null;
+    due_date: string | null;
+    status: string | null;
+    paid_at: string | null;
+    tenant_id: string | null;
 };
 
 async function requireOwner(): Promise<UserContext | NextResponse> {
@@ -17,7 +30,12 @@ async function requireOwner(): Promise<UserContext | NextResponse> {
         .eq("id", user.id)
         .single();
 
-    if (error || profile?.role !== "OWNER") {
+    if (error || !profile?.role) {
+        return new NextResponse("Forbidden", { status: 403 });
+    }
+
+    const roles = await resolveAvailableRoles(user.id, profile.role as AppRole);
+    if (!roles.includes("OWNER")) {
         return new NextResponse("Forbidden", { status: 403 });
     }
 
@@ -86,7 +104,7 @@ export async function GET(
         "tenant_id",
     ];
 
-    const rows = (data ?? []).map((row: any) => ([
+    const rows = ((data ?? []) as OwnerChargeExportRow[]).map((row) => ([
         property.name ?? "",
         property.address ?? "",
         row.title ?? "",

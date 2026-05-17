@@ -24,7 +24,6 @@ export default async function OwnerTenantsPage({ searchParams }: Props) {
             .from("profiles")
             .select("id,email,full_name,created_at")
             .in("id", tenantIds)
-            .eq("role", "TENANT")
             .order("created_at", { ascending: false });
 
     if (error) {

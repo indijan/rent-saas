@@ -23,6 +23,7 @@ type TenantInviteInput = {
     tenantEmail: string;
     tenantName?: string | null;
     inviteLink: string;
+    existingAccount?: boolean;
 };
 
 type ImportInvoiceStatusInput = {
@@ -109,8 +110,10 @@ export function renderTenantInviteEmail(input: TenantInviteInput) {
     const nameLine = input.tenantName ? `Szia ${input.tenantName},` : "Szia,";
     const text = [
         nameLine,
-        "Létrehoztuk a bérlői fiókodat.",
-        "Az aktiváláshoz nyisd meg az alábbi meghívó linket, ezzel belépsz:",
+        input.existingAccount ? "Bérlői hozzáférést kaptál egy meglévő fiókhoz." : "Létrehoztuk a bérlői fiókodat.",
+        input.existingAccount
+            ? "A belépéshez nyisd meg az alábbi linket, és válaszd a bérlői nézetet:"
+            : "Az aktiváláshoz nyisd meg az alábbi meghívó linket, ezzel belépsz:",
         input.inviteLink,
         `Jelszó beállítása belépés után: ${SITE_URL}/account`,
     ].join("\n");
@@ -118,9 +121,9 @@ export function renderTenantInviteEmail(input: TenantInviteInput) {
     const html = `
         <div style="font-family: Arial, sans-serif; line-height: 1.5;">
             <p>${nameLine}</p>
-            <p>Létrehoztuk a bérlői fiókodat.</p>
+            <p>${input.existingAccount ? "Bérlői hozzáférést kaptál egy meglévő fiókhoz." : "Létrehoztuk a bérlői fiókodat."}</p>
             <p>
-                Az aktiváláshoz nyisd meg ezt a meghívó linket, ezzel belépsz:
+                ${input.existingAccount ? "A belépéshez nyisd meg ezt a linket, majd válaszd a bérlői nézetet:" : "Az aktiváláshoz nyisd meg ezt a meghívó linket, ezzel belépsz:"}
                 <br />
                 <a href="${input.inviteLink}">Meghívó link megnyitása</a>
             </p>

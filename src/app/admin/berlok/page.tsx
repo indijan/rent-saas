@@ -1,16 +1,20 @@
 import { requireRole } from "@/lib/auth/requireRole";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import AppHeader from "@/components/AppHeader";
+import { listAllTenantIds } from "@/lib/tenantOwnership";
 
 export default async function AdminTenantsPage() {
     const { profile } = await requireRole("ADMIN");
     const admin = createSupabaseAdminClient();
+    const tenantIds = await listAllTenantIds();
 
-    const { data: tenants, error } = await admin
-        .from("profiles")
-        .select("id,email,full_name,created_at")
-        .eq("role", "TENANT")
-        .order("created_at", { ascending: false });
+    const { data: tenants, error } = tenantIds.length === 0
+        ? { data: [], error: null }
+        : await admin
+            .from("profiles")
+            .select("id,email,full_name,created_at")
+            .in("id", tenantIds)
+            .order("created_at", { ascending: false });
 
     if (error) {
         return (
