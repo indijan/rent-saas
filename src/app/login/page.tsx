@@ -81,7 +81,7 @@ export default function LoginPage() {
 
         setMsg(null);
         setResetSending(true);
-        const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || window.location.origin).replace(/\/$/, "");
+        const siteUrl = window.location.origin.replace(/\/$/, "");
         const redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent("/account?status=success&message=Add+meg+az+új+jelszavad.")}`;
         const { error } = await supabaseBrowser.auth.resetPasswordForEmail(email.trim(), {
             redirectTo,
