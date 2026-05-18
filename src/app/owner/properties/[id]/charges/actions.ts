@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/requireRole";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
-import { renderNewChargeEmail } from "@/lib/email/templates";
+import { renderFriendlyArrearsReminderEmail, renderNewChargeEmail } from "@/lib/email/templates";
 import pdfParse from "pdf-parse";
 import { execFile } from "child_process";
 import { promisify } from "util";
@@ -13,42 +13,6 @@ import { tmpdir } from "os";
 import path from "path";
 import { writeFile, readFile, rm } from "fs/promises";
 import { extractInvoiceFields } from "@/lib/ai/invoiceExtractor";
-
-type AzureReadLine = {
-    text: string;
-};
-
-type AzureReadPage = {
-    lines?: AzureReadLine[];
-};
-
-type AzureReadResult = {
-    status?: string;
-    analyzeResult?: {
-        readResults?: AzureReadPage[];
-    };
-};
-
-type AzureInvoiceField = {
-    valueNumber?: number | null;
-    valueCurrency?: {
-        amount?: number | null;
-        currencyCode?: string | null;
-    } | null;
-    valueString?: string | null;
-    valueDate?: string | null;
-};
-
-type AzureInvoiceDocument = {
-    fields?: Record<string, AzureInvoiceField>;
-};
-
-type AzureInvoicePollResult = {
-    status?: string;
-    analyzeResult?: {
-        documents?: AzureInvoiceDocument[];
-    };
-};
 
 type ChargeIdRow = {
     id: string | null;
@@ -75,10 +39,6 @@ function safeFileName(value: string) {
 }
 
 const execFileAsync = promisify(execFile);
-
-function sleep(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function normalizeDiacritics(value: string) {
     return value.normalize("NFD").replace(/\p{Diacritic}/gu, "");
@@ -196,24 +156,6 @@ function extractDueDateFromText(text: string) {
     return null;
 }
 
-async function runTesseractOCR(buffer: Buffer) {
-    const tmpBase = path.join(tmpdir(), `rent-saas-ocr-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    const inputPath = `${tmpBase}.pdf`;
-    const outputBase = `${tmpBase}-out`;
-    const outputTxt = `${outputBase}.txt`;
-    try {
-        await writeFile(inputPath, buffer);
-        await execFileAsync("tesseract", [inputPath, outputBase, "-l", "hun+eng", "--dpi", "300"]);
-        const text = await readFile(outputTxt, "utf8");
-        return text.trim();
-    } catch {
-        return "";
-    } finally {
-        await rm(inputPath, { force: true });
-        await rm(outputTxt, { force: true });
-    }
-}
-
 async function runOcrSpaceOCR(buffer: Buffer, filename = "invoice.pdf", mime = "application/pdf", engine = "2") {
     const apiKey = process.env.OCR_SPACE_API_KEY;
     if (!apiKey) return { text: "", error: "OCR_SPACE_API_KEY nincs beállítva." };
@@ -241,52 +183,6 @@ async function runOcrSpaceOCR(buffer: Buffer, filename = "invoice.pdf", mime = "
         return { text: typeof parsedText === "string" ? parsedText.trim() : "", error: null };
     } catch (err: unknown) {
         return { text: "", error: err instanceof Error ? err.message : "OCR.space fetch error" };
-    }
-}
-
-async function runAzureReadOCR(buffer: Buffer) {
-    const endpoint = process.env.AZURE_OCR_ENDPOINT;
-    const apiKey = process.env.AZURE_OCR_KEY;
-    if (!endpoint || !apiKey) return { text: "", error: "Azure OCR nincs beállítva." };
-
-    const url = `${endpoint.replace(/\/$/, "")}/formrecognizer/documentModels/prebuilt-read:analyze?api-version=2023-07-31`;
-    try {
-        const res = await fetch(url, {
-            method: "POST",
-            headers: {
-                "Ocp-Apim-Subscription-Key": apiKey,
-                "Content-Type": "application/pdf",
-            },
-            body: new Uint8Array(buffer),
-        });
-        if (!res.ok) {
-            return { text: "", error: `Azure OCR HTTP ${res.status}` };
-        }
-        const opLocation = res.headers.get("operation-location");
-        if (!opLocation) return { text: "", error: "Azure OCR operation-location hiányzik." };
-
-        for (let i = 0; i < 12; i += 1) {
-            await sleep(1000);
-            const poll = await fetch(opLocation, {
-                headers: {
-                    "Ocp-Apim-Subscription-Key": apiKey,
-                },
-            });
-            if (!poll.ok) return { text: "", error: `Azure OCR poll HTTP ${poll.status}` };
-            const json = await poll.json() as AzureReadResult;
-            if (json?.status === "succeeded") {
-                const lines = json?.analyzeResult?.readResults?.flatMap((page) =>
-                    (page?.lines ?? []).map((line) => line.text)
-                ) ?? [];
-                return { text: lines.join("\n").trim(), error: null };
-            }
-            if (json?.status === "failed") {
-                return { text: "", error: "Azure OCR failed" };
-            }
-        }
-        return { text: "", error: "Azure OCR timeout" };
-    } catch (err: unknown) {
-        return { text: "", error: err instanceof Error ? err.message : "Azure OCR fetch error" };
     }
 }
 
@@ -439,117 +335,6 @@ export async function createCharge(propertyId: string, formData: FormData) {
     return { ok: true };
 }
 
-type AzureInvoiceFields = {
-    name: string | null;
-    amount: number | null;
-    currency: string | null;
-    due_date: string | null;
-};
-
-async function runAzureInvoiceOCR(buffer: Buffer): Promise<{ data: AzureInvoiceFields | null; error: string | null; debugFields?: string[] }> {
-    const endpoint = process.env.AZURE_OCR_ENDPOINT;
-    const apiKey = process.env.AZURE_OCR_KEY;
-    if (!endpoint || !apiKey) return { data: null, error: "Azure OCR nincs beállítva." };
-
-    const modelId = process.env.AZURE_OCR_MODEL_ID?.trim() || "prebuilt-invoice";
-    const url = `${endpoint.replace(/\/$/, "")}/formrecognizer/documentModels/${modelId}:analyze?api-version=2023-07-31`;
-    try {
-        const res = await fetch(url, {
-            method: "POST",
-            headers: {
-                "Ocp-Apim-Subscription-Key": apiKey,
-                "Content-Type": "application/pdf",
-            },
-            body: new Uint8Array(buffer),
-        });
-        if (!res.ok) {
-            return { data: null, error: `Azure Invoice HTTP ${res.status}` };
-        }
-        const opLocation = res.headers.get("operation-location");
-        if (!opLocation) return { data: null, error: "Azure Invoice operation-location hiányzik." };
-
-        for (let i = 0; i < 12; i += 1) {
-            await sleep(1000);
-            const poll = await fetch(opLocation, {
-                headers: {
-                    "Ocp-Apim-Subscription-Key": apiKey,
-                },
-            });
-            if (!poll.ok) return { data: null, error: `Azure Invoice poll HTTP ${poll.status}` };
-            const json = await poll.json() as AzureInvoicePollResult;
-            if (json?.status === "succeeded") {
-                const doc = json?.analyzeResult?.documents?.[0];
-                const fields = doc?.fields ?? {};
-                const normalizeKey = (value: string) =>
-                    normalizeDiacritics(value).toLowerCase().replace(/\s+/g, " ").trim();
-                const getFieldByName = (target: string) => {
-                    const targetNorm = normalizeKey(target);
-                    const key = Object.keys(fields).find((k) => normalizeKey(k) === targetNorm);
-                    return key ? fields[key] : null;
-                };
-                const getNumber = (field: AzureInvoiceField | null) =>
-                    field?.valueNumber ?? field?.valueCurrency?.amount ?? null;
-                const getRawString = (field: AzureInvoiceField | null) =>
-                    field?.valueString ?? null;
-                const getCurrency = (field: AzureInvoiceField | null) =>
-                    field?.valueCurrency?.currencyCode ?? null;
-                const getString = (field: AzureInvoiceField | null) =>
-                    field?.valueString ?? null;
-                const getDate = (field: AzureInvoiceField | null) =>
-                    field?.valueDate ?? field?.valueString ?? null;
-                const parseAmount = (field: AzureInvoiceField | null) => {
-                    const numeric = getNumber(field);
-                    if (Number.isFinite(numeric)) return Number(numeric);
-                    const raw = getRawString(field);
-                    return raw ? parseHungarianAmount(raw) : null;
-                };
-                const extractCurrency = (field: AzureInvoiceField | null) => {
-                    const code = getCurrency(field);
-                    if (code) return String(code).toUpperCase();
-                    const raw = getRawString(field);
-                    return raw && /Ft|HUF/i.test(raw) ? "HUF" : null;
-                };
-
-                const vendorName = fields?.VendorName?.valueString
-                    ?? getString(getFieldByName("Szolgáltató neve"))
-                    ?? getString(getFieldByName("Szolgaltato neve"))
-                    ?? null;
-                const amountDue = parseAmount(fields?.AmountDue)
-                    ?? parseAmount(getFieldByName("Fizetendő összeg"))
-                    ?? parseAmount(getFieldByName("Fizetendo osszeg"))
-                    ?? null;
-                const invoiceTotal = parseAmount(fields?.InvoiceTotal) ?? null;
-                const currency = extractCurrency(fields?.AmountDue)
-                    ?? extractCurrency(getFieldByName("Fizetendő összeg"))
-                    ?? extractCurrency(fields?.InvoiceTotal)
-                    ?? null;
-                const dueDateRaw = getDate(fields?.DueDate)
-                    ?? getDate(getFieldByName("Fizetési határidő"))
-                    ?? getDate(getFieldByName("Fizetesi hatarido"))
-                    ?? null;
-                const dueDate = dueDateRaw ? normalizeDateValue(String(dueDateRaw)) : null;
-                return {
-                    data: {
-                        name: vendorName,
-                        amount: Number.isFinite(amountDue) ? Number(amountDue)
-                            : (Number.isFinite(invoiceTotal) ? Number(invoiceTotal) : null),
-                        currency: currency ? String(currency).toUpperCase() : null,
-                        due_date: dueDate ? String(dueDate) : null,
-                    },
-                    debugFields: Object.keys(fields),
-                    error: null,
-                };
-            }
-            if (json?.status === "failed") {
-                return { data: null, error: "Az Azure számlafeldolgozás sikertelen." };
-            }
-        }
-        return { data: null, error: "Az Azure számlafeldolgozás időtúllépéssel leállt." };
-    } catch (err: unknown) {
-        return { data: null, error: err instanceof Error ? err.message : "Azure Invoice fetch error" };
-    }
-}
-
 export async function extractInvoiceData(formData: FormData) {
     await requireRole("OWNER");
 
@@ -608,14 +393,10 @@ export async function extractInvoiceFromBuffer(buffer: Buffer) {
         };
     }
 
-    const azureInvoice = hasMvm ? await runAzureInvoiceOCR(buffer) : { data: null, error: null };
-
     const aiRes = await extractInvoiceFields(text);
     if (!aiRes.ok || !aiRes.data) return { ok: false, error: aiRes.error };
     const labeledAmount = extractAmountDueFromText(text);
     const labeledDue = extractDueDateFromText(text);
-    const hasPayableLabel = /fizetend/i.test(text);
-    const hasMiho = /mih[őo]/i.test(text) || /miskolci\s+h[oő]szolg[aá]ltat[oó]/i.test(text);
     const hasTelekom = /telekom/i.test(text);
     const aiAmountSafe = Number.isFinite(aiRes.data.amount ?? NaN) ? (aiRes.data.amount as number) : null;
     const merged = {
@@ -625,26 +406,11 @@ export async function extractInvoiceFromBuffer(buffer: Buffer) {
         name: aiRes.data.name,
         type: aiRes.data.type,
     };
-    const azureAmount = (azureInvoice.data?.amount !== null && azureInvoice.data?.amount !== undefined)
-        ? azureInvoice.data.amount
-        : null;
     const labeledAmountSafe = (labeledAmount !== null && labeledAmount !== undefined && labeledAmount !== 0)
         ? labeledAmount
         : null;
-    if (azureInvoice.data) {
-        const modelId = process.env.AZURE_OCR_MODEL_ID ?? "prebuilt-invoice";
-        const isCustomModel = modelId !== "prebuilt-invoice";
-        const trustedAzureAmount = (hasMvm && isCustomModel)
-            ? azureAmount
-            : ((!hasMvm && !hasMiho && hasPayableLabel) ? azureAmount : null);
-        merged.amount = labeledAmountSafe ?? aiAmountSafe ?? trustedAzureAmount ?? merged.amount;
-        merged.currency = azureInvoice.data.currency ?? merged.currency;
-        merged.due_date = labeledDue ?? azureInvoice.data.due_date ?? merged.due_date;
-        merged.name = azureInvoice.data.name ?? merged.name;
-    } else {
-        merged.amount = labeledAmountSafe ?? aiAmountSafe ?? merged.amount;
-        merged.due_date = labeledDue ?? merged.due_date;
-    }
+    merged.amount = labeledAmountSafe ?? aiAmountSafe ?? merged.amount;
+    merged.due_date = labeledDue ?? merged.due_date;
     if (hasTelekom) {
         merged.name = "Magyar Telekom";
     }
@@ -659,14 +425,8 @@ export async function extractInvoiceFromBuffer(buffer: Buffer) {
                 ocrUsed,
                 ocrProvider,
                 ocrError,
-                azureInvoice: Boolean(azureInvoice.data),
-                azureInvoiceError: azureInvoice.error ?? null,
-                azureModelId: process.env.AZURE_OCR_MODEL_ID ?? "prebuilt-invoice",
-                azureFields: azureInvoice.debugFields ?? null,
                 amounts: {
                     labeled: labeledAmountSafe,
-                    azure: azureAmount,
-                    azureTrusted: hasPayableLabel ? azureAmount : null,
                     ai: aiRes.data.amount ?? null,
                 },
             }
@@ -699,6 +459,61 @@ export async function markChargePaid(chargeId: string) {
     if (error) return { ok: false, error: error.message };
     revalidatePath(`/owner/properties/${charge.property_id}/charges`);
     return { ok: true };
+}
+
+export async function sendManualChargeReminder(chargeId: string) {
+    const { supabase, user, profile } = await requireRole("OWNER");
+
+    const { data: charge, error: chargeErr } = await supabase
+        .from("charges")
+        .select("id,property_id,tenant_id,status,title,amount,currency,due_date,properties(name)")
+        .eq("id", chargeId)
+        .eq("owner_id", user.id)
+        .single();
+
+    if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
+    if (charge.status !== "UNPAID") return { ok: false, error: "Csak aktív díjhoz küldhető emlékeztető." };
+    if (!charge.tenant_id) return { ok: false, error: "Ehhez a díjhoz nincs bérlő hozzárendelve." };
+
+    const admin = createSupabaseAdminClient();
+    const { data: tenantProfile, error: tenantError } = await admin
+        .from("profiles")
+        .select("email,full_name")
+        .eq("id", charge.tenant_id)
+        .single();
+
+    if (tenantError || !tenantProfile?.email) {
+        return { ok: false, error: "A bérlő e-mail-címe nem érhető el." };
+    }
+
+    const propertyValue = (charge as { properties?: { name: string | null }[] | { name: string | null } | null }).properties;
+    const property = Array.isArray(propertyValue) ? propertyValue[0] : propertyValue;
+    const payload = renderFriendlyArrearsReminderEmail({
+        tenantEmail: tenantProfile.email,
+        tenantName: tenantProfile.full_name ?? null,
+        title: charge.title,
+        amount: Number(charge.amount),
+        currency: String(charge.currency || "HUF"),
+        dueDate: String(charge.due_date),
+        propertyName: property?.name ?? null,
+    });
+
+    const emailResult = await sendEmail(payload);
+    if (!emailResult.ok) {
+        return { ok: false, error: emailResult.error ?? "Az emlékeztető e-mail küldése nem sikerült." };
+    }
+
+    const { error } = await supabase
+        .from("charges")
+        .update({ manual_reminder_sent_at: new Date().toISOString() })
+        .eq("id", chargeId)
+        .eq("owner_id", user.id);
+
+    if (error) return { ok: false, error: error.message };
+
+    revalidatePath(`/owner/properties/${charge.property_id}/charges`);
+    revalidatePath("/owner/todo");
+    return { ok: true, ownerName: profile.full_name ?? profile.email };
 }
 
 export async function publishCharge(chargeId: string) {

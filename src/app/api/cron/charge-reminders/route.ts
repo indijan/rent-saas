@@ -1,6 +1,23 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
-import { renderReminderEmail } from "@/lib/email/templates";
+import { renderOwnerOverdueCheckEmail, renderReminderEmail } from "@/lib/email/templates";
+
+type ReminderChargeRow = {
+    id: string;
+    title: string;
+    amount: number | string;
+    currency: string;
+    due_date: string;
+    owner_id: string;
+    tenant_id: string;
+    properties?: { name: string | null }[] | { name: string | null } | null;
+};
+
+type TenantProfileRow = {
+    id: string;
+    email: string | null;
+    full_name: string | null;
+};
 
 export async function POST(request: Request) {
     const secret = process.env.CRON_SECRET;
@@ -17,10 +34,13 @@ export async function POST(request: Request) {
     const target = new Date();
     target.setDate(target.getDate() + 2);
     const targetDate = target.toISOString().slice(0, 10);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayDate = today.toISOString().slice(0, 10);
 
-    const { data: charges, error } = await admin
+    const { data: dueSoonCharges, error } = await admin
         .from("charges")
-        .select("id,title,amount,currency,due_date,tenant_id,properties(name)")
+        .select("id,title,amount,currency,due_date,owner_id,tenant_id,properties(name)")
         .eq("status", "UNPAID")
         .eq("due_date", targetDate)
         .is("reminder_sent_at", null)
@@ -30,38 +50,57 @@ export async function POST(request: Request) {
         return new Response(error.message, { status: 500 });
     }
 
+    const { data: overdueCharges, error: overdueError } = await admin
+        .from("charges")
+        .select("id,title,amount,currency,due_date,owner_id,tenant_id,properties(name)")
+        .eq("status", "UNPAID")
+        .lt("due_date", todayDate)
+        .is("overdue_check_sent_at", null)
+        .not("tenant_id", "is", null);
+
+    if (overdueError) {
+        return new Response(overdueError.message, { status: 500 });
+    }
+
     const tenantIds = Array.from(
-        new Set((charges ?? []).map((c: any) => c.tenant_id).filter(Boolean))
+        new Set(
+            ([...(dueSoonCharges ?? []), ...(overdueCharges ?? [])] as ReminderChargeRow[])
+                .map((charge) => charge.tenant_id)
+                .filter(Boolean)
+        )
     );
     const { data: profiles } = await admin
         .from("profiles")
-        .select("id,email")
+        .select("id,email,full_name")
         .in("id", tenantIds);
 
-    const emailByTenant = new Map<string, string>();
-    (profiles ?? []).forEach((p: any) => {
-        if (p.email) emailByTenant.set(p.id, p.email);
+    const emailByTenant = new Map<string, { email: string; full_name: string | null }>();
+    (profiles ?? [] as TenantProfileRow[]).forEach((p) => {
+        if (p.email) emailByTenant.set(p.id, { email: p.email, full_name: p.full_name ?? null });
     });
 
-    type ChargeWithProperty = {
-        id: string;
-        title: string;
-        amount: number | string;
-        currency: string;
-        due_date: string;
-        tenant_id: string;
-        properties?: { name: string | null }[] | { name: string | null } | null;
-    };
-    const chargeIds: string[] = [];
-    for (const charge of (charges ?? []) as ChargeWithProperty[]) {
-        const tenantEmail = emailByTenant.get(charge.tenant_id);
-        if (!tenantEmail) continue;
+    const ownerIds = Array.from(
+        new Set((overdueCharges ?? [] as ReminderChargeRow[]).map((charge) => charge.owner_id).filter(Boolean))
+    );
+    const { data: ownerProfiles } = ownerIds.length > 0
+        ? await admin.from("profiles").select("id,email,full_name").in("id", ownerIds)
+        : { data: [] as TenantProfileRow[] };
+    const emailByOwner = new Map<string, { email: string; full_name: string | null }>();
+    (ownerProfiles ?? [] as TenantProfileRow[]).forEach((p) => {
+        if (p.email) emailByOwner.set(p.id, { email: p.email, full_name: p.full_name ?? null });
+    });
+
+    const reminderIds: string[] = [];
+    const overdueCheckIds: string[] = [];
+    for (const charge of (dueSoonCharges ?? []) as ReminderChargeRow[]) {
+        const tenantProfile = emailByTenant.get(charge.tenant_id);
+        if (!tenantProfile) continue;
 
         const propertyName = Array.isArray(charge.properties)
             ? charge.properties[0]?.name ?? null
             : charge.properties?.name ?? null;
         const payload = renderReminderEmail({
-            tenantEmail,
+            tenantEmail: tenantProfile.email,
             title: charge.title,
             amount: Number(charge.amount),
             currency: charge.currency,
@@ -69,17 +108,46 @@ export async function POST(request: Request) {
             propertyName,
         });
         await sendEmail(payload);
-        chargeIds.push(charge.id);
+        reminderIds.push(charge.id);
     }
 
-    if (chargeIds.length > 0) {
+    for (const charge of (overdueCharges ?? []) as ReminderChargeRow[]) {
+        const ownerProfile = emailByOwner.get(charge.owner_id);
+        if (!ownerProfile) continue;
+        const tenantProfile = emailByTenant.get(charge.tenant_id);
+
+        const propertyName = Array.isArray(charge.properties)
+            ? charge.properties[0]?.name ?? null
+            : charge.properties?.name ?? null;
+        const payload = renderOwnerOverdueCheckEmail({
+            ownerEmail: ownerProfile.email,
+            ownerName: ownerProfile.full_name,
+            tenantName: tenantProfile?.full_name ?? null,
+            title: charge.title,
+            amount: Number(charge.amount),
+            currency: charge.currency,
+            dueDate: charge.due_date,
+            propertyName,
+        });
+        await sendEmail(payload);
+        overdueCheckIds.push(charge.id);
+    }
+
+    if (reminderIds.length > 0) {
         await admin
             .from("charges")
             .update({ reminder_sent_at: new Date().toISOString() })
-            .in("id", chargeIds);
+            .in("id", reminderIds);
     }
 
-    return new Response(JSON.stringify({ ok: true, sent: chargeIds.length }), {
+    if (overdueCheckIds.length > 0) {
+        await admin
+            .from("charges")
+            .update({ overdue_check_sent_at: new Date().toISOString() })
+            .in("id", overdueCheckIds);
+    }
+
+    return new Response(JSON.stringify({ ok: true, dueSoonSent: reminderIds.length, overdueCheckSent: overdueCheckIds.length }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
     });

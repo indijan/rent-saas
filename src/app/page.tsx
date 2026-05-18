@@ -28,10 +28,15 @@ export default async function HomePage() {
                         <div className="kpi-label">Használati díj</div>
                         <div className="kpi-value">1 000-3 000 Ft / ingatlan / hó</div>
                     </div>
+                    <div className="kpi-card">
+                        <div className="kpi-label">Indulás</div>
+                        <div className="kpi-value">1 hónap ingyenes próbaidő</div>
+                    </div>
                     <div className="feature-list">
-                        <div className="feature-item">Automatikus számlaimport piszkozatként, nem azonnali élesítéssel.</div>
-                        <div className="feature-item">Tulajdonosi és bérlői nézet ugyanazzal a státuszlogikával.</div>
-                        <div className="feature-item">Mobilra igazított kezelés, egyértelmű akciókkal.</div>
+                        <div className="feature-item">AI-segített számlaimport emberi jóváhagyással, nem kontroll nélküli automatizmussal.</div>
+                        <div className="feature-item">Privát Rentapp e-mail-címre küldött számlákból automatikus draft készülhet.</div>
+                        <div className="feature-item">Nem kell fejben tartani a teendőket, a rendszer jelzi a közelgő és lejárt ügyeket.</div>
+                        <div className="feature-item">Mobilra igazított kezelés, egy gombnyomásos alap műveletekkel.</div>
                     </div>
                 </div>
             </section>
@@ -44,7 +49,7 @@ export default async function HomePage() {
                         A rendszerben a számlák, feltöltött dokumentumok, státuszok és éves összesítők
                         ugyanott kezelhetők, külön háttérrendszeres kerülőutak nélkül.
                     </p>
-                    <p className="muted-note">Sávos díjazás: 1-3 ingatlan 3 000 Ft, 4-9 ingatlan 2 000 Ft, 10+ ingatlan 1 000 Ft / ingatlan / hó.</p>
+                    <p className="muted-note">Sávos díjazás mellett 1 hónap ingyenes próbaidővel indulhatsz.</p>
                 </article>
                 <article className="card section-stack">
                     <div className="eyebrow">Bérlőknek</div>

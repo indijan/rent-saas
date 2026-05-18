@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth/requireUser";
-import { logout, updatePassword, updateProfile } from "./actions";
+import { deleteProfile, logout, requestTenantProfileDeletion, updatePassword, updateProfile } from "./actions";
 import AppHeader from "@/components/AppHeader";
 
 type Props = {
@@ -11,6 +11,7 @@ export default async function AccountPage({ searchParams }: Props) {
     const sp = (searchParams instanceof Promise) ? await searchParams : (searchParams ?? {});
     const status = sp.status ? String(sp.status) : "";
     const message = sp.message ? String(sp.message) : "";
+    const tenantOnly = profile.role === "TENANT" && (profile.available_roles?.length ?? 0) === 1;
 
     return (
         <main className="app-shell page-enter space-y-4">
@@ -96,6 +97,47 @@ export default async function AccountPage({ searchParams }: Props) {
                     Kijelentkezés
                 </button>
             </form>
+
+            <section className="card form-shell">
+                <div className="card-title">Dokumentumok letöltése</div>
+                <p className="muted-note">
+                    Egy gombbal le tudod tölteni a profilodhoz tartozó dokumentumokat ZIP-ben.
+                </p>
+                <a className="btn btn-secondary" href="/api/account/documents/export">
+                    Dokumentumok letöltése
+                </a>
+            </section>
+
+            {tenantOnly ? (
+                <form action={requestTenantProfileDeletion} className="card form-shell">
+                    <div className="card-title">Profil törlési kérelem</div>
+                    <p className="muted-note">
+                        Bérlőként közvetlen törlés helyett törlési kérelmet tudsz küldeni a bérbeadódnak.
+                    </p>
+                    <button type="submit" className="btn btn-danger">
+                        Törlési kérelem küldése
+                    </button>
+                </form>
+            ) : (
+                <form action={deleteProfile} className="card form-shell">
+                    <div className="card-title">Profil végleges törlése</div>
+                    <p className="muted-note">
+                        Ez a művelet törli a fiókodat és az ownerként hozzád tartozó dokumentumokat is. Nem visszavonható.
+                    </p>
+                    <label className="field-stack">
+                        <span className="field-label">Megerősítés</span>
+                        <input
+                            name="confirmation"
+                            className="input"
+                            placeholder="Írd be pontosan: DELETE"
+                            required
+                        />
+                    </label>
+                    <button type="submit" className="btn btn-danger">
+                        Profil végleges törlése
+                    </button>
+                </form>
+            )}
         </main>
     );
 }

@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { createCharge, extractInvoiceData } from "./actions";
+import { createCharge } from "./actions";
 import { formatCurrency } from "@/lib/formatters";
 
 type Props = {
@@ -12,8 +13,6 @@ type Props = {
 export default function CreateChargeForm({ propertyId }: Props) {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
-    const [aiMessage, setAiMessage] = useState<string>("");
-    const [aiBusy, setAiBusy] = useState(false);
     const [isPending, startTransition] = useTransition();
     const formRef = useRef<HTMLFormElement | null>(null);
     const router = useRouter();
@@ -22,54 +21,6 @@ export default function CreateChargeForm({ propertyId }: Props) {
     const [amount, setAmount] = useState("");
     const [dueDate, setDueDate] = useState("");
     const [currency, setCurrency] = useState("HUF");
-
-    async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        setAiMessage("");
-        setAiBusy(true);
-        setError(null);
-
-        try {
-            const fd = new FormData();
-            fd.append("document", file);
-            const res = await extractInvoiceData(fd);
-            if (!res.ok) {
-                setAiMessage(res.error || "AI feldolgozás sikertelen.");
-                return;
-            }
-
-            if (!res.ok || !("data" in res)) {
-                setAiMessage(res.error || "AI feldolgozás sikertelen.");
-                return;
-            }
-            const data = res.data;
-            const hasAny =
-                data?.amount !== null && data?.amount !== undefined ||
-                Boolean(data?.due_date) ||
-                Boolean(data?.type) ||
-                Boolean(data?.currency) ||
-                Boolean(data?.name);
-            if (!hasAny) {
-                setAiMessage("AI nem talált kitölthető adatot a PDF-ben.");
-                return;
-            }
-            if (data?.amount !== null && data?.amount !== undefined) {
-                setAmount(String(data.amount));
-            }
-            if (data?.due_date) setDueDate(data.due_date);
-            if (data?.type) setType(data.type);
-            if (data?.currency) setCurrency(data.currency);
-            if (data?.name) setTitle(data.name);
-            setAiMessage("AI kitöltés kész ✅");
-        } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : String(err);
-            setAiMessage(`AI hiba: ${message}`);
-        } finally {
-            setAiBusy(false);
-        }
-    }
 
     function onSubmit(formData: FormData) {
         setError(null);
@@ -88,7 +39,6 @@ export default function CreateChargeForm({ propertyId }: Props) {
                 setAmount("");
                 setDueDate("");
                 setCurrency("HUF");
-                setAiMessage("");
                 setSuccess("A díj sikeresen létrejött.");
                 router.refresh();
             } catch (err: unknown) {
@@ -178,19 +128,15 @@ export default function CreateChargeForm({ propertyId }: Props) {
             </div>
 
             <div className="form-panel form-shell">
-                <div className="card-title">AI-segített feltöltés</div>
-                <div className="form-grid">
-                    <label className="field-stack">
-                        <span className="field-label">Számla PDF</span>
-                        <input type="file" name="document" accept="application/pdf" onChange={onPickFile} />
-                    </label>
-                    <div className="field-stack">
-                        <span className="field-label">Állapot</span>
-                        <div className="info-strip">
-                            <span>{aiBusy ? "AI-feldolgozás folyamatban" : "A PDF opcionális, de automatikus kitöltéshez hasznos"}</span>
-                            <span>{aiMessage || "A szolgáltató, az összeg és a határidő automatikusan beolvasható."}</span>
-                        </div>
-                    </div>
+                <div className="card-title">PDF import</div>
+                <div className="info-strip">
+                    <span>A PDF alapú számlaimport most már külön ingestion folyon keresztül megy.</span>
+                    <span>Ha számlából akarsz draftot készíteni, azt az Importok oldalon indítsd.</span>
+                </div>
+                <div className="charge-actions">
+                    <Link className="btn btn-secondary" href="/owner/importok">
+                        Importok megnyitása
+                    </Link>
                 </div>
             </div>
 

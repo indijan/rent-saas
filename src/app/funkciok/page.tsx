@@ -3,16 +3,22 @@ import PublicHeader from "@/components/PublicHeader";
 import { getSignedInDashboardHref } from "@/lib/auth/getDashboardHref";
 
 const ownerFeatures = [
-    "Ingatlanok, bérlők és díjak kezelése egy felületen.",
+    "Ingatlanok, bérlők és díjak kezelése egyetlen felületen.",
     "Automatikus számlaimport piszkozatként, kézi ellenőrzés és publikálás előtt.",
+    "AI-segített dokumentumfeldolgozás emberi jóváhagyási ponttal.",
+    "Egyszerű számlafeltöltés PDF-ből vagy a saját Rentappos e-mail-címre küldve.",
+    "Menedzsment nézet teendőkkel, elmaradásokkal és egygombos alap műveletekkel.",
+    "Emailes értesítések közelgő határidőről, plusz külön baráti emlékeztető nyitott díjra.",
     "Dokumentumfeltöltés és számlamellékletek megőrzése charge szinten.",
-    "Esedékesség szerinti vizuális jelzés: rendben, közelgő, lejárt.",
     "Éves összesítők és szűrhető díjlista nem az aktuális lapból, hanem a teljes időszakból.",
+    "Nem kell fejben tartani a teendőket, a rendszer összegyűjti őket.",
 ];
 
 const tenantFeatures = [
     "Áttekinthető saját díjlista lejárati állapotokkal.",
     "Kapcsolódó számladokumentumok megnyitása egy helyről.",
+    "Közelgő és lejárt tételek tiszta vizuális jelzése.",
+    "Baráti emailes értesítések, ha egy díj nyitott marad.",
     "Archiválás a rendezett tételeken, tiszta történettel.",
     "Konzisztens mobilnézet és egyszerű, közérthető státuszok minden képernyőn.",
 ];
@@ -31,12 +37,12 @@ export default async function FeaturesPage() {
                         <h1>Mit tud a Rentapp?</h1>
                         <p>
                             A bérbeadói és a bérlői felületet közös nevezőre hozzuk:
-                            ugyanazok a státuszok, ugyanaz a logika, kevesebb félreértés.
+                            ugyanazok a státuszok, ugyanaz a logika, kevesebb félreértés és kevesebb fejben tartott adminisztráció.
                         </p>
                     </div>
                     <div className="info-strip">
                         <span>Az automatikus import nem élesedik magától.</span>
-                        <span>A publikálás és a szerkesztés a bérbeadó kezében marad.</span>
+                        <span>A publikálás, a szerkesztés és a végső kontroll a bérbeadó kezében marad.</span>
                     </div>
                 </div>
             </section>
@@ -72,7 +78,7 @@ export default async function FeaturesPage() {
                     <div>
                         <div className="card-title">Árazás és indulás</div>
                         <p className="muted-note">
-                            A díjazás sávos: 1-3 ingatlan 3 000 Ft, 4-9 ingatlan 2 000 Ft, 10 felett 1 000 Ft / ingatlan / hó.
+                            A díjazás sávos: 1-3 ingatlan 3 000 Ft, 4-9 ingatlan 2 000 Ft, 10 felett 1 000 Ft / ingatlan / hó, induláskor 1 hónap ingyenes próbaidővel.
                         </p>
                     </div>
                     <div className="charge-actions">

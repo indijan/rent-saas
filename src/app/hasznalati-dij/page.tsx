@@ -18,6 +18,7 @@ export default async function PricingPage() {
                             A rendszer díja az ingatlanok számával csökkenő sávokban működik.
                             Nincs külön bérlői díj, a bérlői hozzáférés az ingatlan kezelésének része.
                         </p>
+                        <p className="muted-note">Az indulás 1 hónap ingyenes próbaidővel történik.</p>
                     </div>
                 </div>
                 <div className="kpi-grid stagger">
@@ -37,6 +38,10 @@ export default async function PricingPage() {
                         <div className="kpi-label">Elszámolás alapja</div>
                         <div className="kpi-value">ingatlan / hó</div>
                     </div>
+                    <div className="kpi-card">
+                        <div className="kpi-label">Próbaidő</div>
+                        <div className="kpi-value">1 hónap ingyen</div>
+                    </div>
                 </div>
             </section>
 
@@ -46,6 +51,7 @@ export default async function PricingPage() {
                     <div className="feature-item">Tulajdonosi felület ingatlanokhoz, bérlőkhöz és díjakhoz.</div>
                     <div className="feature-item">Bérlői felület dokumentumokkal és státuszkövetéssel.</div>
                     <div className="feature-item">Automatikus számlaimport piszkozatmódban, kézi kontrollal.</div>
+                    <div className="feature-item">Emailes értesítések a közelgő és nyitott tételek kezeléséhez.</div>
                     <div className="feature-item">Mobilbarát kezelőfelület és egységes admin logika.</div>
                     <div className="feature-item">A bérlői hozzáférés minden csomagban benne van, külön díj nélkül.</div>
                 </div>

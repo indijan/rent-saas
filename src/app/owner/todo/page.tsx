@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
 import { formatCurrency } from "@/lib/formatters";
 import AppHeader from "@/components/AppHeader";
+import { markChargePaid, sendManualChargeReminder } from "@/app/owner/properties/[id]/charges/actions";
 
 type ChargeTodoRow = {
     id: string;
@@ -32,8 +34,15 @@ function getDayDiff(dateValue: string) {
     return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-export default async function OwnerTodoPage() {
+type Props = {
+    searchParams?: Promise<{ status?: string; message?: string }> | { status?: string; message?: string };
+};
+
+export default async function OwnerTodoPage({ searchParams }: Props) {
     const { supabase, user, profile } = await requireRole("OWNER");
+    const sp = (searchParams instanceof Promise) ? await searchParams : (searchParams ?? {});
+    const status = sp.status ? String(sp.status) : "";
+    const message = sp.message ? String(sp.message) : "";
 
     const [{ data: charges, error: chargeError }, { data: properties, error: propertyError }] = await Promise.all([
         supabase
@@ -106,19 +115,63 @@ export default async function OwnerTodoPage() {
                 </div>
             </section>
 
+            {message ? (
+                <div className={`card ${status === "error" ? "text-red-600" : "text-green-600"}`}>
+                    {message}
+                </div>
+            ) : null}
+
             <section className="grid">
                 <article className="card section-stack">
                     <div className="card-title">Lejárt, nyitott tételek</div>
                     {overdueCharges.length === 0 ? (
                         <p className="muted-note">Nincs lejárt, nyitott tétel.</p>
                     ) : (
-                        <div className="feature-list">
+                        <div className="charge-list">
                             {overdueCharges.slice(0, 6).map((charge) => {
                                 const property = firstProperty(charge.properties);
                                 return (
-                                    <Link key={charge.id} className="feature-item" href={`/owner/properties/${charge.property_id}/charges`}>
-                                        {charge.title} · {property?.name ?? "Ingatlan nélkül"} · {formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))} · {Math.abs(getDayDiff(charge.due_date))} napja lejárt
-                                    </Link>
+                                    <article key={charge.id} className="charge-card">
+                                        <div className="section-header">
+                                            <div>
+                                                <div className="card-title">{charge.title}</div>
+                                                <div className="charge-meta">
+                                                    <span>{property?.name ?? "Ingatlan nélkül"}</span>
+                                                    <span>{formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))}</span>
+                                                    <span>{Math.abs(getDayDiff(charge.due_date))} napja lejárt</span>
+                                                </div>
+                                            </div>
+                                            <div className="charge-actions">
+                                                <form
+                                                    action={async () => {
+                                                        "use server";
+                                                        const res = await markChargePaid(charge.id);
+                                                        if (!res.ok) {
+                                                            redirect(`/owner/todo?status=error&message=${encodeURIComponent(res.error ?? "Ismeretlen hiba.")}`);
+                                                        }
+                                                        redirect("/owner/todo?status=success&message=A+t%C3%A9tel+fizetettre+lett+%C3%A1ll%C3%ADtva.");
+                                                    }}
+                                                >
+                                                    <button className="btn btn-primary btn-sm" type="submit">Befizetett</button>
+                                                </form>
+                                                <form
+                                                    action={async () => {
+                                                        "use server";
+                                                        const res = await sendManualChargeReminder(charge.id);
+                                                        if (!res.ok) {
+                                                            redirect(`/owner/todo?status=error&message=${encodeURIComponent(res.error ?? "Ismeretlen hiba.")}`);
+                                                        }
+                                                        redirect("/owner/todo?status=success&message=Bar%C3%A1ti+eml%C3%A9keztet%C5%91+elk%C3%BCldve.");
+                                                    }}
+                                                >
+                                                    <button className="btn btn-secondary btn-sm" type="submit">Baráti emlékeztető</button>
+                                                </form>
+                                                <Link className="btn btn-ghost btn-sm" href={`/owner/properties/${charge.property_id}/charges`}>
+                                                    Részletek
+                                                </Link>
+                                            </div>
+                                        </div>
+                                    </article>
                                 );
                             })}
                         </div>

@@ -19,6 +19,27 @@ type ReminderInput = {
     propertyName?: string | null;
 };
 
+type OwnerOverdueCheckInput = {
+    ownerEmail: string;
+    ownerName?: string | null;
+    tenantName?: string | null;
+    title: string;
+    amount: number;
+    currency: string;
+    dueDate: string;
+    propertyName?: string | null;
+};
+
+type FriendlyArrearsReminderInput = {
+    tenantEmail: string;
+    tenantName?: string | null;
+    title: string;
+    amount: number;
+    currency: string;
+    dueDate: string;
+    propertyName?: string | null;
+};
+
 type TenantInviteInput = {
     tenantEmail: string;
     tenantName?: string | null;
@@ -52,6 +73,13 @@ type OwnerLeadInput = {
     email: string;
     phone: string;
     billingAddress: string;
+};
+
+type TenantDeletionRequestInput = {
+    ownerEmail: string;
+    ownerName?: string | null;
+    tenantName?: string | null;
+    tenantEmail: string;
 };
 
 export function renderNewChargeEmail(input: NewChargeInput) {
@@ -104,6 +132,74 @@ export function renderReminderEmail(input: ReminderInput) {
                 <li><b>Megnevezés:</b> ${input.title}</li>
                 <li><b>Összeg:</b> ${input.amount} ${input.currency}</li>
                 <li><b>Esedékes:</b> ${input.dueDate}</li>
+            </ul>
+            <p><a href="${SITE_URL}/tenant/charges">Részletek megnyitása</a></p>
+        </div>
+    `;
+
+    return { to: input.tenantEmail, subject, html, text };
+}
+
+export function renderOwnerOverdueCheckEmail(input: OwnerOverdueCheckInput) {
+    const nameLine = input.ownerName ? `Szia ${input.ownerName},` : "Szia,";
+    const propertyLine = input.propertyName ? `Ingatlan: ${input.propertyName}` : "Ingatlan: -";
+    const subject = "Lejárt, nyitott díj ellenőrzése szükséges";
+    const text = [
+        nameLine,
+        "A rendszerben az alábbi díj lejártként és továbbra is nyitottként szerepel.",
+        input.tenantName ? `Bérlő: ${input.tenantName}` : null,
+        "Ha a bérlő már fizetett, állítsd át a státuszt befizetettre. Ha még nem, a rendszerből egy gombnyomással tudsz baráti emlékeztetőt küldeni.",
+        propertyLine,
+        `Megnevezés: ${input.title}`,
+        `Összeg: ${input.amount} ${input.currency}`,
+        `Esedékesség: ${input.dueDate}`,
+        `Teendők: ${SITE_URL}/owner/todo`,
+    ].filter(Boolean).join("\n");
+
+    const html = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+            <p>${nameLine}</p>
+            <p>A rendszerben az alábbi díj lejártként és továbbra is nyitottként szerepel.</p>
+            <p>Ha a bérlő már fizetett, állítsd át a státuszt befizetettre. Ha még nem, a rendszerből egy gombnyomással tudsz baráti emlékeztetőt küldeni.</p>
+            ${input.tenantName ? `<p><b>Bérlő:</b> ${input.tenantName}</p>` : ""}
+            <p>${propertyLine}</p>
+            <ul>
+                <li><b>Megnevezés:</b> ${input.title}</li>
+                <li><b>Összeg:</b> ${input.amount} ${input.currency}</li>
+                <li><b>Esedékesség:</b> ${input.dueDate}</li>
+            </ul>
+            <p><a href="${SITE_URL}/owner/todo">Teendők megnyitása</a></p>
+        </div>
+    `;
+
+    return { to: input.ownerEmail, subject, html, text };
+}
+
+export function renderFriendlyArrearsReminderEmail(input: FriendlyArrearsReminderInput) {
+    const nameLine = input.tenantName ? `Szia ${input.tenantName},` : "Szia,";
+    const propertyLine = input.propertyName ? `Ingatlan: ${input.propertyName}` : "Ingatlan: -";
+    const subject = "Baráti emlékeztető a nyitott díjról";
+    const text = [
+        nameLine,
+        "Baráti emlékeztetőként írunk, mert az alábbi díj még nyitottként szerepel a rendszerben.",
+        "Ha közben rendezted, kérünk jelezd a bérbeadódnak. Ha még nem, a részleteket a rendszerben is eléred.",
+        propertyLine,
+        `Megnevezés: ${input.title}`,
+        `Összeg: ${input.amount} ${input.currency}`,
+        `Lejárat: ${input.dueDate}`,
+        `Részletek: ${SITE_URL}/tenant/charges`,
+    ].join("\n");
+
+    const html = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+            <p>${nameLine}</p>
+            <p>Baráti emlékeztetőként írunk, mert az alábbi díj még nyitottként szerepel a rendszerben.</p>
+            <p>Ha közben rendezted, kérünk jelezd a bérbeadódnak. Ha még nem, a részleteket a rendszerben is eléred.</p>
+            <p>${propertyLine}</p>
+            <ul>
+                <li><b>Megnevezés:</b> ${input.title}</li>
+                <li><b>Összeg:</b> ${input.amount} ${input.currency}</li>
+                <li><b>Lejárat:</b> ${input.dueDate}</li>
             </ul>
             <p><a href="${SITE_URL}/tenant/charges">Részletek megnyitása</a></p>
         </div>
@@ -222,6 +318,31 @@ export function renderOwnerLeadEmail(input: OwnerLeadInput) {
                 <li><b>Telefon:</b> ${input.phone}</li>
                 <li><b>Számlázási cím:</b> ${input.billingAddress}</li>
             </ul>
+        </div>
+    `;
+
+    return { to: input.ownerEmail, subject, html, text };
+}
+
+export function renderTenantDeletionRequestEmail(input: TenantDeletionRequestInput) {
+    const ownerName = input.ownerName ? `Szia ${input.ownerName},` : "Szia,";
+    const tenantLabel = input.tenantName ? `${input.tenantName} (${input.tenantEmail})` : input.tenantEmail;
+    const subject = "Bérlői profil törlési kérelem";
+    const text = [
+        ownerName,
+        "Egy bérlő profil törlési kérelmet küldött.",
+        `Bérlő: ${tenantLabel}`,
+        "Kérünk ellenőrizd, hogy minden nyitott ügy le van-e zárva, és utána egyeztess vele a törlésről.",
+    ].join("\n");
+
+    const html = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+            <p>${ownerName}</p>
+            <p>Egy bérlő profil törlési kérelmet küldött.</p>
+            <ul>
+                <li><b>Bérlő:</b> ${tenantLabel}</li>
+            </ul>
+            <p>Kérünk ellenőrizd, hogy minden nyitott ügy le van-e zárva, és utána egyeztess vele a törlésről.</p>
         </div>
     `;
 
