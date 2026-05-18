@@ -82,7 +82,7 @@ export default function LoginPage() {
         setMsg(null);
         setResetSending(true);
         const siteUrl = window.location.origin.replace(/\/$/, "");
-        const redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent("/account?status=success&message=Add+meg+az+új+jelszavad.")}`;
+        const redirectTo = `${siteUrl}/auth/recover?next=${encodeURIComponent("/account?status=success&message=Add+meg+az+új+jelszavad.")}`;
         const { error } = await supabaseBrowser.auth.resetPasswordForEmail(email.trim(), {
             redirectTo,
         });
