@@ -9,6 +9,10 @@ export default function LoginPage() {
     const [msg, setMsg] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [resetSending, setResetSending] = useState(false);
+    const queryMessage = typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("message")
+        : null;
+    const displayMessage = msg ?? (queryMessage ? decodeURIComponent(queryMessage) : null);
 
     useEffect(() => {
         const run = async () => {
@@ -77,7 +81,8 @@ export default function LoginPage() {
 
         setMsg(null);
         setResetSending(true);
-        const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent("/account?status=success&message=Add+meg+az+új+jelszavad.")}`;
+        const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || window.location.origin).replace(/\/$/, "");
+        const redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent("/account?status=success&message=Add+meg+az+új+jelszavad.")}`;
         const { error } = await supabaseBrowser.auth.resetPasswordForEmail(email.trim(), {
             redirectTo,
         });
@@ -166,7 +171,7 @@ export default function LoginPage() {
                         {resetSending ? "Küldés..." : "Elfelejtett jelszó"}
                     </button>
 
-                    {msg ? <p className="text-sm text-red-600">{msg}</p> : null}
+                    {displayMessage ? <p className="text-sm text-red-600">{displayMessage}</p> : null}
                 </form>
             </div>
         </main>
