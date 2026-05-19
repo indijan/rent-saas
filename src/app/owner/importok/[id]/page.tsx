@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
 import AppHeader from "@/components/AppHeader";
 import { finalizeIngestionReview, reprocessIngestion, saveSupplierProfileFromIngestion } from "../actions";
+import { createDocumentSignedUrl } from "@/lib/documentStorage";
 
 type Props = {
     params: Promise<{ id: string }>;
@@ -101,10 +102,12 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
     const normalized = (ingestionRow.normalized_data ?? {}) as Record<string, unknown>;
     const extracted = (ingestionRow.extracted_data ?? {}) as Record<string, unknown>;
     const selectedPropertyId = asString(normalized.property_id);
-    const { data: previewData } = await supabase.storage
-        .from("documents")
-        .createSignedUrl(ingestionRow.storage_key, 60 * 60);
-    const previewUrl = previewData?.signedUrl ?? "";
+    let previewUrl = "";
+    try {
+        previewUrl = await createDocumentSignedUrl(ingestionRow.storage_key, 60 * 60);
+    } catch {
+        previewUrl = "";
+    }
 
     return (
         <main className="app-shell page-enter space-y-4">

@@ -105,6 +105,21 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
                             <span>Egyedi bejövő cím: {mailbox.email_address}</span>
                             <span>Csak draft jön létre, publikálni később lehet.</span>
                         </div>
+                        <div className="form-panel">
+                            <div className="section-stack">
+                                <div className="card-title">Hogyan működik az e-mailes import?</div>
+                                <p className="muted-note">
+                                    Ha PDF számlát küldesz erre a címre, a rendszer ingestion rekordot készít, megpróbálja feldolgozni a számlát,
+                                    és ha elég biztos az eredmény, draft díjat hoz létre.
+                                </p>
+                                <div className="feature-list">
+                                    <div className="feature-item">Bejövő cím: <strong>{mailbox.email_address}</strong></div>
+                                    <div className="feature-item">Több ingatlannál a rendszer elsődlegesen a számla szövegéből, különösen az ingatlan címéből próbál egyeztetni, és ezt egészíti ki az email tárgya, a feladó, az ingatlan neve, címe és a mentett aliasok alapján.</div>
+                                    <div className="feature-item">Ha csak egy ingatlan van, automatikusan azt választja.</div>
+                                    <div className="feature-item">Ha nem biztos az egyezés, az import ellenőrzendő státuszba kerül, és neked kell jóváhagynod.</div>
+                                </div>
+                            </div>
+                        </div>
                         <form
                             action={async () => {
                                 "use server";

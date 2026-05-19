@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth/requireUser";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
 import { renderTenantDeletionRequestEmail } from "@/lib/email/templates";
+import { removeDocumentObjects } from "@/lib/documentStorage";
 
 export async function logout() {
     const supabase = await createSupabaseServerClient();
@@ -81,7 +82,7 @@ export async function deleteProfile(formData: FormData) {
     });
 
     if (paths.size > 0) {
-        await admin.storage.from("documents").remove(Array.from(paths));
+        await removeDocumentObjects(Array.from(paths));
     }
 
     await admin.from("property_import_aliases").delete().eq("owner_id", user.id);

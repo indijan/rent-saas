@@ -10,6 +10,7 @@ import { renderImportInvoiceStatusEmail } from "@/lib/email/templates";
 import { rotateInboundMailbox } from "@/lib/inboundMailboxes";
 import { findOwnerSupplierProfile, issuerFingerprint } from "@/lib/supplierProfiles";
 import { processStoredIngestion } from "@/lib/ingestionProcessing";
+import { getConfiguredStorageBucketName, removeDocumentObjects, uploadDocumentObject } from "@/lib/documentStorage";
 
 function safeFileName(value: string) {
     return value.replaceAll(" ", "_").replace(/[^a-zA-Z0-9._-]/g, "");
@@ -147,11 +148,9 @@ export async function createManualIngestion(formData: FormData) {
     const safeName = safeFileName(documentFile.name || "invoice.pdf") || "invoice.pdf";
     const storageKey = `${user.id}/ingestions/${ingestionId}/${Date.now()}-${safeName}`;
 
-    const { error: uploadError } = await supabase.storage
-        .from("documents")
-        .upload(storageKey, buffer, { contentType: documentFile.type, upsert: false });
-
-    if (uploadError) {
+    try {
+        await uploadDocumentObject(storageKey, buffer, documentFile.type);
+    } catch {
         return { ok: false, error: "A dokumentum feltöltése nem sikerült." };
     }
 
@@ -162,13 +161,13 @@ export async function createManualIngestion(formData: FormData) {
             owner_id: user.id,
             source_type: "UPLOAD",
             source_attachment_name: documentFile.name,
-            storage_bucket: "documents",
+            storage_bucket: getConfiguredStorageBucketName(),
             storage_key: storageKey,
             status: "RECEIVED",
         });
 
     if (ingestionInsertError) {
-        await supabase.storage.from("documents").remove([storageKey]);
+        await removeDocumentObjects([storageKey]);
         return { ok: false, error: ingestionInsertError.message };
     }
 
@@ -195,6 +194,7 @@ export async function createManualIngestion(formData: FormData) {
         charge_type: extraction.data.type || "OTHER",
         property_id: property.id,
         property_name: property.name,
+        document_text: extraction.text,
     };
 
     if (normalized.issuer_name) {

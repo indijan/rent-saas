@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, Space_Grotesk } from "next/font/google";
 import AuthRecoveryListener from "@/components/AuthRecoveryListener";
+import SupportChatWidget from "@/components/SupportChatWidget";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -30,6 +31,7 @@ export default function RootLayout({
       >
         <AuthRecoveryListener />
         {children}
+        <SupportChatWidget />
       </body>
     </html>
   );

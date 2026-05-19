@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getActiveRoleCookie } from "@/lib/auth/context";
 import { resolveAvailableRoles } from "@/lib/auth/availableRoles";
 import { buildZip } from "@/lib/zip";
+import { downloadDocumentObject } from "@/lib/documentStorage";
 
 function safeFileName(value: string) {
     return value.replaceAll(" ", "_").replace(/[^a-zA-Z0-9._-]/g, "");
@@ -51,21 +52,18 @@ export async function GET() {
         const bucketPath = doc.bucket_path as string | null;
         if (!bucketPath) continue;
 
-        const { data: file, error: downloadError } = await admin.storage
-            .from("documents")
-            .download(bucketPath);
-
-        if (downloadError || !file) {
+        try {
+            const fileBuffer = await downloadDocumentObject(bucketPath);
+            const fileName = bucketPath.split("/").at(-1) || `document-${index}.pdf`;
+            const safeName = `${String(index).padStart(3, "0")}-${safeFileName(fileName)}`;
+            entries.push({
+                name: safeName,
+                content: fileBuffer,
+            });
+            index += 1;
+        } catch {
             continue;
         }
-
-        const fileName = bucketPath.split("/").at(-1) || `document-${index}.pdf`;
-        const safeName = `${String(index).padStart(3, "0")}-${safeFileName(fileName)}`;
-        entries.push({
-            name: safeName,
-            content: Buffer.from(await file.arrayBuffer()),
-        });
-        index += 1;
     }
 
     if (entries.length === 0) {

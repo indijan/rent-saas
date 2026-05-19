@@ -5,6 +5,7 @@ import { renderImportInvoiceStatusEmail } from "@/lib/email/templates";
 import { findOwnerSupplierProfile } from "@/lib/supplierProfiles";
 import { suggestOwnerPropertyForIngestion } from "@/lib/propertyMatching";
 import { extractInvoiceFromBuffer } from "@/app/owner/properties/[id]/charges/actions";
+import { downloadDocumentObject } from "@/lib/documentStorage";
 
 type IngestionRecord = {
     id: string;
@@ -105,24 +106,22 @@ export async function processStoredIngestion(ingestionId: string) {
         .eq("id", ingestionRow.owner_id)
         .maybeSingle();
 
-    const { data: fileData, error: downloadError } = await admin.storage
-        .from(ingestionRow.storage_bucket)
-        .download(ingestionRow.storage_key);
-
-    if (downloadError || !fileData) {
+    let buffer: Buffer;
+    try {
+        buffer = await downloadDocumentObject(ingestionRow.storage_key);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "A dokumentum letöltése nem sikerült.";
         await admin
             .from("document_ingestions")
             .update({
                 status: "FAILED",
-                error_message: downloadError?.message || "A dokumentum letöltése nem sikerült.",
+                error_message: message,
                 processed_at: new Date().toISOString(),
             })
             .eq("id", ingestionId)
             .eq("owner_id", ingestionRow.owner_id);
-        return { ok: false as const, error: downloadError?.message || "A dokumentum letöltése nem sikerült." };
+        return { ok: false as const, error: message };
     }
-
-    const buffer = Buffer.from(await fileData.arrayBuffer());
     const extraction = await extractInvoiceFromBuffer(buffer);
 
     if (!extraction.ok || !extraction.data) {
@@ -187,6 +186,7 @@ export async function processStoredIngestion(ingestionId: string) {
             sourceEmailSubject: ingestionRow.source_email_subject,
             sourceEmailFrom: ingestionRow.source_email_from,
             propertyHint: normalized.property_hint,
+            documentText: extraction.text,
         });
 
         if (suggestedProperty) {

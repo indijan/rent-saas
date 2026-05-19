@@ -10,7 +10,7 @@ Javasolt flow:
 4. a Lambda:
    - letölti az `.eml` fájlt
    - kiveszi a PDF csatolmányokat
-   - feltölti őket a Supabase `documents` bucketbe
+   - feltölti őket a Cloudflare R2 `rentapp` bucketbe
    - meghívja a Rentapp `/api/inbound/process` endpointját
 
 ## Fájlok
@@ -20,13 +20,15 @@ Javasolt flow:
 ## Szükséges package-ek a Lambda csomaghoz
 
 ```bash
-npm install @aws-sdk/client-s3 @supabase/supabase-js postal-mime
+npm install @aws-sdk/client-s3 postal-mime
 ```
 
 ## Szükséges environment változók
 
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `R2_ACCOUNT_ID`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_BUCKET`
 - `RENTAPP_INBOUND_API_URL`
 - `RENTAPP_INBOUND_PROCESS_SECRET`
 
@@ -43,7 +45,7 @@ A Lambda ezt a body-t küldi a Rentapp backendnek:
   "attachments": [
     {
       "fileName": "invoice.pdf",
-      "storageBucket": "documents",
+      "storageBucket": "rentapp",
       "storageKey": "inbound-email/....pdf",
       "contentType": "application/pdf"
     }

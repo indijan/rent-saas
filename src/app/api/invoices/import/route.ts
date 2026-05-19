@@ -1,6 +1,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
 import { renderImportInvoiceStatusEmail } from "@/lib/email/templates";
+import { removeDocumentObjects, uploadDocumentObject } from "@/lib/documentStorage";
 import { extractInvoiceFromBuffer } from "@/app/owner/properties/[id]/charges/actions";
 
 function safeFileName(value: string) {
@@ -120,10 +121,9 @@ export async function POST(request: Request) {
 
     const safeName = safeFileName(file.name || "invoice.pdf") || "invoice.pdf";
     const path = `${property.owner_id}/${createdCharge.id}/${Date.now()}-${safeName}`;
-    const { error: uploadErr } = await admin.storage
-        .from("documents")
-        .upload(path, buffer, { contentType: file.type, upsert: false });
-    if (uploadErr) {
+    try {
+        await uploadDocumentObject(path, buffer, file.type);
+    } catch (error) {
         await admin.from("charges").delete().eq("id", createdCharge.id);
         await sendEmail(renderImportInvoiceStatusEmail({
             ownerEmail,
@@ -133,7 +133,7 @@ export async function POST(request: Request) {
             amount,
             currency,
             dueDate,
-            error: uploadErr.message,
+            error: error instanceof Error ? error.message : "A fájl feltöltése sikertelen volt.",
         }));
         return new Response("A fájl feltöltése sikertelen volt.", { status: 500 });
     }
@@ -147,7 +147,7 @@ export async function POST(request: Request) {
         type: "INVOICE",
     });
     if (docErr) {
-        await admin.storage.from("documents").remove([path]);
+        await removeDocumentObjects([path]);
         await admin.from("charges").delete().eq("id", createdCharge.id);
         await sendEmail(renderImportInvoiceStatusEmail({
             ownerEmail,

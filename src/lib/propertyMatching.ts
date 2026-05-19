@@ -88,6 +88,7 @@ export async function suggestOwnerPropertyForIngestion(input: {
     sourceEmailSubject?: string | null;
     sourceEmailFrom?: string | null;
     propertyHint?: string | null;
+    documentText?: string | null;
 }) : Promise<PropertyMatchResult> {
     const admin = createSupabaseAdminClient();
     const [{ data: properties, error }, { data: aliases, error: aliasError }] = await Promise.all([
@@ -128,6 +129,7 @@ export async function suggestOwnerPropertyForIngestion(input: {
         input.sourceEmailSubject ?? "",
         input.sourceEmailFrom ?? "",
         input.propertyHint ?? "",
+        input.documentText ?? "",
     ].join(" "));
 
     if (!haystack) {

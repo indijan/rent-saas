@@ -6,6 +6,7 @@ import { requireRole } from "@/lib/auth/requireRole";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
 import { renderFriendlyArrearsReminderEmail, renderNewChargeEmail } from "@/lib/email/templates";
+import { removeDocumentObjects, uploadDocumentObject } from "@/lib/documentStorage";
 import pdfParse from "pdf-parse";
 import { execFile } from "child_process";
 import { promisify } from "util";
@@ -285,11 +286,9 @@ export async function createCharge(propertyId: string, formData: FormData) {
         const buffer = Buffer.from(await documentFile.arrayBuffer());
         const safeName = safeFileName(documentFile.name || "invoice.pdf") || "invoice.pdf";
         const path = `${user.id}/${createdIds[0]}/${Date.now()}-${safeName}`;
-        const { error: upErr } = await supabase.storage
-            .from("documents")
-            .upload(path, buffer, { contentType: documentFile.type, upsert: false });
-
-        if (upErr) {
+        try {
+            await uploadDocumentObject(path, buffer, documentFile.type);
+        } catch {
             await supabase.from("charges").delete().in("id", createdIds);
             return { ok: false, error: "Dokumentum feltöltés sikertelen, a díj nem jött létre." };
         }
@@ -304,7 +303,7 @@ export async function createCharge(propertyId: string, formData: FormData) {
         });
 
         if (docErr) {
-            await supabase.storage.from("documents").remove([path]);
+            await removeDocumentObjects([path]);
             await supabase.from("charges").delete().in("id", createdIds);
             return { ok: false, error: "Dokumentum mentés sikertelen, a díj nem jött létre." };
         }
@@ -417,6 +416,7 @@ export async function extractInvoiceFromBuffer(buffer: Buffer) {
     return {
         ok: true,
         data: merged,
+        text,
         debug: process.env.AI_DEBUG === "true"
             ? {
                 pages: pdf.numpages ?? null,

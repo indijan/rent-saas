@@ -4,6 +4,7 @@ import { formatCurrency } from "@/lib/formatters";
 import AppHeader from "@/components/AppHeader";
 import { archiveTenantCharge } from "./actions";
 import FilterDateInput from "@/components/FilterDateInput";
+import { createDocumentSignedUrl } from "@/lib/documentStorage";
 
 type ChargeStatus = "UNPAID" | "PAID" | "ARCHIVED" | "CANCELLED";
 type ChargeType = "RENT" | "UTILITY" | "COMMON_COST" | "OTHER";
@@ -214,10 +215,12 @@ export default async function TenantChargesPage({ searchParams }: Props) {
 
     const documentsWithUrls = await Promise.all(
         ((documents ?? []) as DocumentRow[]).map(async (doc) => {
-            const { data } = await supabase.storage
-                .from("documents")
-                .createSignedUrl(doc.bucket_path, 60 * 60);
-            return { ...doc, signed_url: data?.signedUrl ?? "" };
+            try {
+                const signedUrl = await createDocumentSignedUrl(doc.bucket_path, 60 * 60);
+                return { ...doc, signed_url: signedUrl };
+            } catch {
+                return { ...doc, signed_url: "" };
+            }
         })
     );
 

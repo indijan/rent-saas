@@ -2,6 +2,7 @@
 
 import { requireRole } from "@/lib/auth/requireRole";
 import { isTenantOwnedByOwner } from "@/lib/tenantOwnership";
+import { removeDocumentObjects } from "@/lib/documentStorage";
 
 type DocumentPathRow = {
     bucket_path: string | null;
@@ -81,10 +82,11 @@ export async function deleteProperty(propertyId: string) {
         .map((doc) => doc.bucket_path)
         .filter((path): path is string => Boolean(path));
     if (paths.length > 0) {
-        const { error: storageErr } = await supabase.storage
-            .from("documents")
-            .remove(paths);
-        if (storageErr) return { ok: false, error: storageErr.message };
+        try {
+            await removeDocumentObjects(paths);
+        } catch (error) {
+            return { ok: false, error: error instanceof Error ? error.message : "A dokumentumok törlése nem sikerült." };
+        }
     }
 
     const { error: docDeleteErr } = await supabase

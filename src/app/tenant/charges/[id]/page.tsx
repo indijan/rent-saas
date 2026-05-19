@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
 import { formatCurrency } from "@/lib/formatters";
+import { createDocumentSignedUrl } from "@/lib/documentStorage";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -56,10 +57,12 @@ export default async function TenantChargeDetailPage({ params }: Props) {
 
     const documentsWithUrls = await Promise.all(
         ((documents ?? []) as ChargeDocument[]).map(async (doc) => {
-            const { data } = await supabase.storage
-                .from("documents")
-                .createSignedUrl(doc.bucket_path, 60 * 60);
-            return { ...doc, signed_url: data?.signedUrl ?? "" };
+            try {
+                const signedUrl = await createDocumentSignedUrl(doc.bucket_path, 60 * 60);
+                return { ...doc, signed_url: signedUrl };
+            } catch {
+                return { ...doc, signed_url: "" };
+            }
         })
     );
 

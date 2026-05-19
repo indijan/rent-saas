@@ -1,9 +1,15 @@
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import PostalMime from "postal-mime";
-import { createClient } from "@supabase/supabase-js";
 
 const s3 = new S3Client({});
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const r2 = new S3Client({
+  region: "auto",
+  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+  },
+});
 
 function sanitizeFileName(value) {
   return String(value || "attachment.pdf")
@@ -24,20 +30,15 @@ async function loadRawEmail(bucket, key) {
   return streamToBuffer(response.Body);
 }
 
-async function uploadAttachmentToSupabase({ messageId, fileName, contentType, content }) {
+async function uploadAttachmentToR2({ messageId, fileName, contentType, content }) {
   const safeName = sanitizeFileName(fileName);
   const storageKey = `inbound-email/${messageId}/${Date.now()}-${safeName}`;
-
-  const { error } = await supabase.storage
-    .from("documents")
-    .upload(storageKey, content, {
-      contentType: contentType || "application/pdf",
-      upsert: false,
-    });
-
-  if (error) {
-    throw new Error(`Supabase feltöltési hiba: ${error.message}`);
-  }
+  await r2.send(new PutObjectCommand({
+    Bucket: process.env.R2_BUCKET,
+    Key: storageKey,
+    Body: content,
+    ContentType: contentType || "application/pdf",
+  }));
 
   return storageKey;
 }
@@ -102,7 +103,7 @@ export async function handler(event) {
         ? attachment.content
         : Buffer.from(attachment.content);
 
-      const storageKey = await uploadAttachmentToSupabase({
+      const storageKey = await uploadAttachmentToR2({
         messageId: parsed.messageId || key.replaceAll("/", "_"),
         fileName,
         contentType,
@@ -111,7 +112,7 @@ export async function handler(event) {
 
       attachments.push({
         fileName,
-        storageBucket: "documents",
+        storageBucket: process.env.R2_BUCKET,
         storageKey,
         contentType: "application/pdf",
       });

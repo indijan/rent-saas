@@ -11,7 +11,7 @@ export type InboundMailboxRow = {
 };
 
 function buildRandomLocalPart() {
-    return `in-${randomBytes(9).toString("hex")}`;
+    return `szamla-${randomBytes(3).toString("hex")}`;
 }
 
 function getInboundDomain() {

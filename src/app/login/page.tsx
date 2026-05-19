@@ -3,6 +3,30 @@
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
+function humanizeAuthError(message: string) {
+    const normalized = message.trim().toLowerCase();
+
+    if (
+        normalized === "failed"
+        || normalized.includes("invalid login credentials")
+        || normalized.includes("invalid_credentials")
+        || normalized.includes("email not found")
+        || normalized.includes("invalid email or password")
+    ) {
+        return "Hibás e-mail-cím vagy jelszó.";
+    }
+
+    if (normalized.includes("email not confirmed")) {
+        return "Az e-mail-cím még nincs megerősítve.";
+    }
+
+    if (normalized.includes("too many requests")) {
+        return "Túl sok próbálkozás történt. Próbáld meg kicsit később.";
+    }
+
+    return message;
+}
+
 export default function LoginPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -69,7 +93,7 @@ export default function LoginPage() {
         }
 
         setLoading(false);
-        if (error) setMsg(error.message);
+        if (error) setMsg(humanizeAuthError(error.message));
             else window.location.href = "/dashboard";
     }
 
@@ -89,7 +113,7 @@ export default function LoginPage() {
         setResetSending(false);
 
         if (error) {
-            setMsg(error.message);
+            setMsg(humanizeAuthError(error.message));
             return;
         }
 
