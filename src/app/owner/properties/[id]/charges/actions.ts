@@ -88,6 +88,20 @@ function parseHungarianAmount(raw: string | null) {
     return Number.isFinite(value) ? value : null;
 }
 
+function extractAmountCandidates(raw: string) {
+    const matches = raw.match(/\d{1,3}(?:[ .]\d{3})+(?:,\d{1,2})?\s*(?:Ft|HUF)?|\d+(?:,\d{1,2})?\s*(?:Ft|HUF)/gi) ?? [];
+    const values = matches
+        .map((match) => parseHungarianAmount(match))
+        .filter((value): value is number => value !== null && value > 0);
+    return Array.from(new Set(values));
+}
+
+function pickBestAmount(candidates: number[]) {
+    if (candidates.length === 0) return null;
+    const preferred = candidates.filter((value) => value >= 100);
+    return Math.max(...(preferred.length > 0 ? preferred : candidates));
+}
+
 function normalizeDateValue(raw: string | null) {
     if (!raw) return null;
     const trimmed = raw.trim();
@@ -111,24 +125,37 @@ function extractAmountDueFromText(text: string) {
             const line = list[i];
             const match = line.match(/(?:Fizetendo\s+osszeg|Fizetendo|Osszesen|Vegosszeg|Brutto\s+vegosszeg|Brutto\s+osszeg)\s*[:\s]*([0-9 .,-]+(?:Ft|HUF)?)/i);
             if (match?.[1]) {
-                return parseHungarianAmount(match[1]);
+                const value = pickBestAmount(extractAmountCandidates(match[1]));
+                if (value !== null) return value;
             }
             if (amountLabelPattern.test(line) && list[i + 1]) {
-                const valMatch = list[i + 1].match(/([0-9 .,-]+(?:Ft|HUF)?)/i);
-                if (valMatch?.[1]) return parseHungarianAmount(valMatch[1]);
-                const rawMatch = rawLines[i + 1]?.match(/([0-9 .,-]+(?:Ft|HUF)?)/i);
-                if (rawMatch?.[1]) return parseHungarianAmount(rawMatch[1]);
+                const nearbyCandidates = [
+                    ...extractAmountCandidates(list[i + 1] || ""),
+                    ...extractAmountCandidates(rawLines[i + 1] || ""),
+                ];
+                const nearbyValue = pickBestAmount(nearbyCandidates);
+                if (nearbyValue !== null) return nearbyValue;
             }
             if (amountLabelPattern.test(line) && rawLines[i]) {
-                const rawLineMatch = rawLines[i].match(/([0-9 .,-]+(?:Ft|HUF)?)/i);
-                if (rawLineMatch?.[1]) return parseHungarianAmount(rawLineMatch[1]);
+                const rawLineValue = pickBestAmount(extractAmountCandidates(rawLines[i]));
+                if (rawLineValue !== null) return rawLineValue;
             }
         }
     }
 
     const keywordWindowMatch = text.match(/(?:fizetend[oő]|összesen|végösszeg|bruttó)[\s\S]{0,80}?([0-9]{1,3}(?:[ .]\d{3})+(?:,\d{1,2})?\s*(?:Ft|HUF)?)/i);
     if (keywordWindowMatch?.[1]) {
-        return parseHungarianAmount(keywordWindowMatch[1]);
+        const keywordValue = pickBestAmount(extractAmountCandidates(keywordWindowMatch[1]));
+        if (keywordValue !== null) return keywordValue;
+    }
+
+    const globalKeywordValues = Array.from(
+        text.matchAll(/(?:fizetend[oő]|összesen|végösszeg|bruttó)[\s\S]{0,120}?((?:\d{1,3}(?:[ .]\d{3})+(?:,\d{1,2})?|\d+(?:,\d{1,2})?)\s*(?:Ft|HUF)?)/gi),
+        (match) => match[1]
+    ).flatMap((chunk) => extractAmountCandidates(chunk));
+    const globalKeywordValue = pickBestAmount(globalKeywordValues);
+    if (globalKeywordValue !== null) {
+        return globalKeywordValue;
     }
 
     return null;

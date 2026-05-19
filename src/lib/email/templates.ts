@@ -70,28 +70,38 @@ type ImportInvoiceStatusInput = {
     openUrl?: string | null;
     publishUrl?: string | null;
     reviewUrl?: string | null;
+    chargeUrl?: string | null;
 };
 
 function renderActionButtons(actions: Array<{ label: string; href: string; primary?: boolean }>) {
     if (actions.length === 0) return "";
     return `
-        <div style="margin-top: 20px; display: flex; gap: 12px; flex-wrap: wrap;">
-            ${actions.map((action) => `
-                <a
-                    href="${action.href}"
-                    style="
-                        display:inline-block;
-                        padding:12px 18px;
-                        border-radius:999px;
-                        text-decoration:none;
-                        font-weight:700;
-                        ${action.primary
-                            ? "background:#2563eb;color:#ffffff;"
-                            : "background:#ffffff;color:#1f2937;border:1px solid rgba(18,24,31,0.12);"}
-                    "
-                >${action.label}</a>
-            `).join("")}
-        </div>
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:20px;">
+            <tr>
+                ${actions.map((action) => `
+                    <td style="padding:0 12px 12px 0;">
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                            <tr>
+                                <td style="border-radius:999px;${action.primary ? "background:#2563eb;" : "background:#ffffff;border:1px solid rgba(18,24,31,0.12);"}">
+                                    <a
+                                        href="${action.href}"
+                                        style="
+                                            display:inline-block;
+                                            padding:12px 18px;
+                                            border-radius:999px;
+                                            text-decoration:none;
+                                            font-weight:700;
+                                            white-space:nowrap;
+                                            ${action.primary ? "color:#ffffff;" : "color:#1f2937;"}
+                                        "
+                                    >${action.label}</a>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                `).join("")}
+            </tr>
+        </table>
     `;
 }
 
@@ -316,7 +326,8 @@ export function renderImportInvoiceStatusEmail(input: ImportInvoiceStatusInput) 
 
     const actionButtons = renderActionButtons([
         input.publishUrl ? { label: "Jónak tűnik, mehet", href: input.publishUrl, primary: true } : null,
-        input.reviewUrl ? { label: "Nem jó, szerkesztem", href: input.reviewUrl } : null,
+        input.chargeUrl ? { label: "Megnyitom a piszkozatot", href: input.chargeUrl } : null,
+        input.reviewUrl ? { label: input.status === "FAILED" ? "Megnyitom az importot" : "Nem jó, szerkesztem", href: input.reviewUrl } : null,
         { label: "Importok megnyitása", href: input.openUrl || `${SITE_URL}/owner/importok` },
     ].filter(Boolean) as Array<{ label: string; href: string; primary?: boolean }>);
 

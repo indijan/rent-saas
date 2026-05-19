@@ -331,6 +331,7 @@ export async function processStoredIngestion(ingestionId: string) {
             propertyName: property.name,
             openUrl: `${SITE_URL}/owner/importok`,
             reviewUrl: `${SITE_URL}/owner/importok/${ingestionId}`,
+            chargeUrl: `${SITE_URL}/owner/properties/${property.id}/charges/${draftResult.chargeId}`,
             publishUrl: `${SITE_URL}/email-action?token=${encodeURIComponent(createEmailActionToken("charge_publish", draftResult.chargeId))}`,
         }));
     }

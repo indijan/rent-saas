@@ -77,7 +77,8 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
             .select("id,source_type,source_attachment_name,storage_key,status,error_message,created_charge_id,extracted_data,normalized_data,confidence,created_at")
             .eq("id", id)
             .eq("owner_id", user.id)
-            .single(),
+            .limit(1)
+            .maybeSingle(),
         supabase
             .from("properties")
             .select("id,name,address")
