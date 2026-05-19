@@ -32,11 +32,12 @@ export default function AddressAutocompleteField({
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const [results, setResults] = useState<AddressSuggestion[]>([]);
+    const [manualOverride, setManualOverride] = useState(false);
 
     useEffect(() => {
         const controller = new AbortController();
 
-        if (query.trim().length < 3 || selected) {
+        if (query.trim().length < 3 || selected || manualOverride) {
             setResults([]);
             setBusy(false);
             return () => controller.abort();
@@ -71,7 +72,7 @@ export default function AddressAutocompleteField({
             controller.abort();
             window.clearTimeout(timeout);
         };
-    }, [query, selected]);
+    }, [query, selected, manualOverride]);
 
     useEffect(() => {
         function handleClick(event: MouseEvent) {
@@ -97,6 +98,7 @@ export default function AddressAutocompleteField({
             <span className="field-label">{label}</span>
             <input type="hidden" name={name} value={query} />
             <input type="hidden" name={validationName} value={selected ? "1" : "0"} />
+            <input type="hidden" name="address_manual_override" value={manualOverride ? "1" : "0"} />
             <input
                 className="input"
                 placeholder={placeholder}
@@ -107,10 +109,12 @@ export default function AddressAutocompleteField({
                 onChange={(event) => {
                     setQuery(event.target.value);
                     setSelected(false);
-                    setOpen(true);
+                    if (!manualOverride) {
+                        setOpen(true);
+                    }
                 }}
                 onFocus={() => {
-                    if (results.length > 0) {
+                    if (!manualOverride && results.length > 0) {
                         setOpen(true);
                     }
                 }}
@@ -119,9 +123,23 @@ export default function AddressAutocompleteField({
             <div className="address-field-feedback">
                 {busy ? <span className="muted-note">Címek keresése...</span> : null}
                 {!busy && selected && query ? <span className="muted-note text-green-600">Kiválasztott cím.</span> : null}
-                {!busy && !selected && query.length >= 3 ? <span className="muted-note">Válassz a listából egy pontos címet.</span> : null}
+                {!busy && !selected && !manualOverride && query.length >= 3 ? <span className="muted-note">Válassz a listából egy pontos címet.</span> : null}
+                {!busy && manualOverride ? <span className="muted-note">Kézi címmegadás engedélyezve. Használd albetét vagy hiányzó cím esetén.</span> : null}
                 {error ? <span className="text-sm text-red-600">{error}</span> : null}
             </div>
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                    type="checkbox"
+                    checked={manualOverride}
+                    onChange={(event) => {
+                        const next = event.target.checked;
+                        setManualOverride(next);
+                        setOpen(false);
+                        setResults([]);
+                    }}
+                />
+                A cím nincs a listában, kézzel adom meg
+            </label>
             {open && results.length > 0 ? (
                 <div id={listId} className="address-suggestions" role="listbox">
                     {results.map((suggestion) => (

@@ -9,11 +9,12 @@ export async function createProperty(formData: FormData) {
     const name = String(formData.get("name") || "").trim();
     const address = String(formData.get("address") || "").trim();
     const addressSelected = String(formData.get("address_selected") || "0") === "1";
+    const addressManualOverride = String(formData.get("address_manual_override") || "0") === "1";
 
     if (!name || !address) {
         return { ok: false, error: "Név és cím kötelező." };
     }
-    if (process.env.GEOAPIFY_API_KEY && !addressSelected) {
+    if (process.env.GEOAPIFY_API_KEY && !addressSelected && !addressManualOverride) {
         return { ok: false, error: "Válassz ki egy pontos címet a listából." };
     }
 
