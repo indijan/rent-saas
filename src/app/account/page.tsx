@@ -1,17 +1,29 @@
 import { requireUser } from "@/lib/auth/requireUser";
 import { deleteProfile, logout, requestTenantProfileDeletion, updatePassword, updateProfile } from "./actions";
 import AppHeader from "@/components/AppHeader";
+import PendingSubmitButton from "@/components/PendingSubmitButton";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { listTenantProperties } from "@/lib/propertyTenants";
 
 type Props = {
     searchParams?: Promise<{ status?: string; message?: string }> | { status?: string; message?: string };
 };
 
 export default async function AccountPage({ searchParams }: Props) {
-    const { profile } = await requireUser();
+    const { user, profile } = await requireUser();
     const sp = (searchParams instanceof Promise) ? await searchParams : (searchParams ?? {});
     const status = sp.status ? String(sp.status) : "";
     const message = sp.message ? String(sp.message) : "";
     const tenantOnly = profile.role === "TENANT" && (profile.available_roles?.length ?? 0) === 1;
+    const admin = createSupabaseAdminClient();
+    const tenantProperties = tenantOnly ? await listTenantProperties(user.id) : [];
+    const { data: pendingExitRequests } = tenantOnly
+        ? await admin
+            .from("tenant_exit_requests")
+            .select("property_id,status,properties(name,address)")
+            .eq("tenant_id", user.id)
+            .eq("status", "PENDING")
+        : { data: [] };
 
     return (
         <main className="app-shell page-enter space-y-4">
@@ -54,9 +66,7 @@ export default async function AccountPage({ searchParams }: Props) {
                         />
                     </label>
                 </div>
-                <button type="submit" className="btn btn-primary">
-                    Név mentése
-                </button>
+                <PendingSubmitButton className="btn btn-primary" label="Név mentése" pendingLabel="Mentés..." />
             </form>
 
             <form action={updatePassword} className="card form-shell">
@@ -85,17 +95,13 @@ export default async function AccountPage({ searchParams }: Props) {
                         </label>
                     </div>
                 </div>
-                <button type="submit" className="btn btn-primary">
-                    Jelszó mentése
-                </button>
+                <PendingSubmitButton className="btn btn-primary" label="Jelszó mentése" pendingLabel="Mentés..." />
             </form>
 
             <form action={logout} className="card form-shell">
                 <div className="card-title">Munkamenet</div>
                 <p className="muted-note">Ha közösen használt gépen dolgozol, érdemes kijelentkezni a végén.</p>
-                <button type="submit" className="btn btn-secondary">
-                    Kijelentkezés
-                </button>
+                <PendingSubmitButton className="btn btn-secondary" label="Kijelentkezés" pendingLabel="Kilépés..." />
             </form>
 
             <section className="card form-shell">
@@ -109,15 +115,73 @@ export default async function AccountPage({ searchParams }: Props) {
             </section>
 
             {tenantOnly ? (
-                <form action={requestTenantProfileDeletion} className="card form-shell">
-                    <div className="card-title">Profil törlési kérelem</div>
-                    <p className="muted-note">
-                        Bérlőként közvetlen törlés helyett törlési kérelmet tudsz küldeni a bérbeadódnak.
-                    </p>
-                    <button type="submit" className="btn btn-danger">
-                        Törlési kérelem küldése
-                    </button>
-                </form>
+                <>
+                    <section className="card form-shell">
+                        <div className="card-title">Aktív ingatlan-hozzárendelések</div>
+                        {tenantProperties.length === 0 ? (
+                            <p className="muted-note">Nincs aktív hozzárendelésed. A végleges törlés már engedélyezett.</p>
+                        ) : (
+                            <div className="charge-list">
+                                {tenantProperties.map((property) => (
+                                    <div key={property.id} className="charge-card">
+                                        <div className="card-title">{property.name}</div>
+                                        <div className="text-sm text-gray-600">{property.address}</div>
+                                        <div className="muted-note">
+                                            Bérbeadó: {property.owner_name || property.owner_email || "ismeretlen"}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </section>
+
+                    <section className="card form-shell">
+                        <div className="card-title">Kilépési kérelmek</div>
+                        {(pendingExitRequests ?? []).length === 0 ? (
+                            <p className="muted-note">Még nincs függő kilépési kérelmed.</p>
+                        ) : (
+                            <div className="charge-list">
+                                {(pendingExitRequests ?? []).map((request) => {
+                                    const property = Array.isArray(request.properties) ? request.properties[0] : request.properties;
+                                    return (
+                                        <div key={request.property_id} className="charge-card">
+                                            <div className="card-title">{property?.name || "Ingatlan"}</div>
+                                            {property?.address ? <div className="text-sm text-gray-600">{property.address}</div> : null}
+                                            <div className="muted-note">Jóváhagyásra vár</div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </section>
+
+                    {tenantProperties.length > 0 ? (
+                        <form action={requestTenantProfileDeletion} className="card form-shell">
+                            <div className="card-title">Kilépési kérelmek küldése</div>
+                            <p className="muted-note">
+                                A végleges törlés előtt minden ingatlanról le kell kerülnöd. A kérelmet az adott bérbeadó hagyja jóvá.
+                            </p>
+                            <PendingSubmitButton className="btn btn-danger" label="Kilépési kérelmek küldése" pendingLabel="Küldés..." />
+                        </form>
+                    ) : (
+                        <form action={deleteProfile} className="card form-shell">
+                            <div className="card-title">Profil végleges törlése</div>
+                            <p className="muted-note">
+                                Mivel már nincs aktív ingatlan-hozzárendelésed, a bérlői fiókot végleg törölheted. A dokumentumok megmaradnak a bérbeadónál.
+                            </p>
+                            <label className="field-stack">
+                                <span className="field-label">Megerősítés</span>
+                                <input
+                                    name="confirmation"
+                                    className="input"
+                                    placeholder="Írd be pontosan: DELETE"
+                                    required
+                                />
+                            </label>
+                            <PendingSubmitButton className="btn btn-danger" label="Profil végleges törlése" pendingLabel="Törlés..." />
+                        </form>
+                    )}
+                </>
             ) : (
                 <form action={deleteProfile} className="card form-shell">
                     <div className="card-title">Profil végleges törlése</div>
@@ -133,9 +197,7 @@ export default async function AccountPage({ searchParams }: Props) {
                             required
                         />
                     </label>
-                    <button type="submit" className="btn btn-danger">
-                        Profil végleges törlése
-                    </button>
+                    <PendingSubmitButton className="btn btn-danger" label="Profil végleges törlése" pendingLabel="Törlés..." />
                 </form>
             )}
         </main>

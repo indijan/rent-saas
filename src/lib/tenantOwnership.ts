@@ -53,6 +53,21 @@ export async function listOwnerTenantIds(ownerId: string) {
         if (tenantId) ids.add(tenantId);
     });
 
+    try {
+        const { data: propertyTenants, error: propertyTenantError } = await admin
+            .from("property_tenants")
+            .select("tenant_id")
+            .eq("owner_id", ownerId);
+        if (propertyTenantError) throw propertyTenantError;
+
+        (propertyTenants ?? []).forEach((row) => {
+            const tenantId = row.tenant_id as string | null;
+            if (tenantId) ids.add(tenantId);
+        });
+    } catch {
+        // A tábla migráció előtt még nem biztos, hogy létezik.
+    }
+
     return Array.from(ids);
 }
 
@@ -89,6 +104,20 @@ export async function listAllTenantIds() {
         const tenantId = property.tenant_id as string | null;
         if (tenantId) ids.add(tenantId);
     });
+
+    try {
+        const { data: propertyTenants, error: propertyTenantError } = await admin
+            .from("property_tenants")
+            .select("tenant_id");
+        if (propertyTenantError) throw propertyTenantError;
+
+        (propertyTenants ?? []).forEach((row) => {
+            const tenantId = row.tenant_id as string | null;
+            if (tenantId) ids.add(tenantId);
+        });
+    } catch {
+        // A tábla migráció előtt még nem biztos, hogy létezik.
+    }
 
     const { data: charges, error: chargesError } = await admin
         .from("charges")

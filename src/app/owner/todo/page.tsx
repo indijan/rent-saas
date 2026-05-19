@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
 import { formatCurrency } from "@/lib/formatters";
 import AppHeader from "@/components/AppHeader";
+import PendingSubmitButton from "@/components/PendingSubmitButton";
 import { markChargePaid, sendManualChargeReminder } from "@/app/owner/properties/[id]/charges/actions";
 
 type ChargeTodoRow = {
@@ -70,11 +71,20 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
 
     const chargeRows = (charges ?? []) as ChargeTodoRow[];
     const propertyRows = (properties ?? []) as PropertyTodoRow[];
+    const propertyIds = propertyRows.map((property) => property.id);
+    const { data: propertyTenantRows } = propertyIds.length === 0
+        ? { data: [] as Array<{ property_id: string }> }
+        : await supabase
+            .from("property_tenants")
+            .select("property_id")
+            .in("property_id", propertyIds)
+            .eq("owner_id", user.id);
+    const assignedPropertyIds = new Set((propertyTenantRows ?? []).map((row) => row.property_id as string).filter(Boolean));
 
     const overdueCharges = chargeRows.filter((charge) => charge.status === "UNPAID" && getDayDiff(charge.due_date) < 0);
     const upcomingCharges = chargeRows.filter((charge) => charge.status === "UNPAID" && getDayDiff(charge.due_date) >= 0 && getDayDiff(charge.due_date) <= 5);
     const importDrafts = chargeRows.filter((charge) => charge.status === "IMPORT_DRAFT");
-    const unassignedProperties = propertyRows.filter((property) => !property.tenant_id && property.status === "ACTIVE");
+    const unassignedProperties = propertyRows.filter((property) => !assignedPropertyIds.has(property.id) && !property.tenant_id && property.status === "ACTIVE");
     const showUnassignedProperties = propertyRows.length >= 10;
 
     const totalTodoCount = overdueCharges.length + upcomingCharges.length + importDrafts.length + (showUnassignedProperties ? unassignedProperties.length : 0);
@@ -153,7 +163,11 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                                                         redirect("/owner/todo?status=success&message=A+t%C3%A9tel+fizetettre+lett+%C3%A1ll%C3%ADtva.");
                                                     }}
                                                 >
-                                                    <button className="btn btn-primary btn-sm" type="submit">Befizetett</button>
+                                                    <PendingSubmitButton
+                                                        className="btn btn-primary btn-sm"
+                                                        label="Befizetett"
+                                                        pendingLabel="Mentés..."
+                                                    />
                                                 </form>
                                                 <form
                                                     action={async () => {
@@ -165,7 +179,11 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                                                         redirect("/owner/todo?status=success&message=Bar%C3%A1ti+eml%C3%A9keztet%C5%91+elk%C3%BCldve.");
                                                     }}
                                                 >
-                                                    <button className="btn btn-secondary btn-sm" type="submit">Baráti emlékeztető</button>
+                                                    <PendingSubmitButton
+                                                        className="btn btn-secondary btn-sm"
+                                                        label="Baráti emlékeztető"
+                                                        pendingLabel="Küldés..."
+                                                    />
                                                 </form>
                                                 <Link className="btn btn-ghost btn-sm" href={`/owner/properties/${charge.property_id}/charges`}>
                                                     Részletek

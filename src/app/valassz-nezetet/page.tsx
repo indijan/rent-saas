@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/requireUser";
 import { chooseRole } from "./actions";
+import PendingSubmitButton from "@/components/PendingSubmitButton";
 
 export default async function RoleChooserPage() {
     const { profile } = await requireUser();
@@ -21,17 +22,17 @@ export default async function RoleChooserPage() {
                 <div className="charge-actions">
                     {profile.available_roles.includes("OWNER") ? (
                         <form action={async () => { "use server"; await chooseRole("OWNER"); }}>
-                            <button className="btn btn-primary w-full" type="submit">Belépés bérbeadóként</button>
+                            <PendingSubmitButton className="btn btn-primary w-full" label="Belépés bérbeadóként" pendingLabel="Betöltés..." />
                         </form>
                     ) : null}
                     {profile.available_roles.includes("TENANT") ? (
                         <form action={async () => { "use server"; await chooseRole("TENANT"); }}>
-                            <button className="btn btn-secondary w-full" type="submit">Belépés bérlőként</button>
+                            <PendingSubmitButton className="btn btn-secondary w-full" label="Belépés bérlőként" pendingLabel="Betöltés..." />
                         </form>
                     ) : null}
                     {profile.available_roles.includes("ADMIN") ? (
                         <form action={async () => { "use server"; await chooseRole("ADMIN"); }}>
-                            <button className="btn btn-secondary w-full" type="submit">Belépés adminként</button>
+                            <PendingSubmitButton className="btn btn-secondary w-full" label="Belépés adminként" pendingLabel="Betöltés..." />
                         </form>
                     ) : null}
                 </div>

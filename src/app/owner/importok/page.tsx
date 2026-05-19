@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
 import AppHeader from "@/components/AppHeader";
-import { getOrCreateInboundMailbox } from "@/lib/inboundMailboxes";
+import { getOrCreateInboundMailbox, getSharedInboundEmail } from "@/lib/inboundMailboxes";
 import { createManualIngestion, rotateOwnerInboundMailbox } from "./actions";
 import ImportSubmitButton from "./ImportSubmitButton";
 
@@ -54,6 +54,7 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
     const ingestionId = sp.ingestionId ? String(sp.ingestionId) : "";
 
     const mailbox = await getOrCreateInboundMailbox(user.id);
+    const usingSharedInbox = mailbox.email_address === getSharedInboundEmail();
 
     const [{ data: properties, error: propertyError }, { data: ingestions, error: ingestionError }] = await Promise.all([
         supabase
@@ -94,7 +95,7 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
                         <div className="eyebrow">Számlaimport</div>
                         <h1>Importok</h1>
                         <p>
-                            Ide érkeznek majd az ownerenkénti egyedi e-mail-címre küldött számlák,
+                            Ide érkeznek a számlák e-mailből,
                             és innen tudsz most kézzel is PDF-et feltölteni draft készítéshez.
                         </p>
                         <div className="mt-3">
@@ -105,7 +106,7 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
                     </div>
                     <div className="section-stack items-start">
                         <div className="info-strip">
-                            <span>Egyedi bejövő cím: {mailbox.email_address}</span>
+                            <span>{usingSharedInbox ? "Közös bejövő cím" : "Bejövő cím"}: {mailbox.email_address}</span>
                             <span>Csak draft jön létre, publikálni később lehet.</span>
                         </div>
                         <div className="form-panel">
@@ -117,30 +118,37 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
                                 </p>
                                 <div className="feature-list">
                                     <div className="feature-item">Bejövő cím: <strong>{mailbox.email_address}</strong></div>
+                                    {usingSharedInbox ? (
+                                        <div className="feature-item">A közös címről érkező számláknál a rendszer először a feladót, utána a számla tartalmát használja a bérbeadó azonosítására.</div>
+                                    ) : null}
                                     <div className="feature-item">Több ingatlannál a rendszer elsődlegesen a számla szövegéből, különösen az ingatlan címéből próbál egyeztetni, és ezt egészíti ki az email tárgya, a feladó, az ingatlan neve, címe és a mentett aliasok alapján.</div>
                                     <div className="feature-item">Ha csak egy ingatlan van, automatikusan azt választja.</div>
                                     <div className="feature-item">Ha nem biztos az egyezés, az import ellenőrzendő státuszba kerül, és neked kell jóváhagynod.</div>
                                 </div>
                             </div>
                         </div>
-                        <form
-                            action={async () => {
-                                "use server";
-                                const res = await rotateOwnerInboundMailbox();
-                                if (!res.ok) {
-                                    const msg = res.error ?? "Ismeretlen hiba.";
-                                    redirect(`/owner/importok?status=error&message=${encodeURIComponent(msg)}`);
-                                }
-                                redirect("/owner/importok?status=success&message=A+bej%C3%B6v%C5%91+e-mail-c%C3%ADm+lecser%C3%A9lve.");
-                            }}
-                        >
-                            <button className="btn btn-ghost btn-sm" type="submit">
-                                E-mail-cím cseréje
-                            </button>
-                        </form>
-                        <p className="muted-note">
-                            Élesítés előtt érdemes lecserélni a címet. A korábbi cím utána nem fog többé importot fogadni.
-                        </p>
+                        {!usingSharedInbox ? (
+                            <>
+                                <form
+                                    action={async () => {
+                                        "use server";
+                                        const res = await rotateOwnerInboundMailbox();
+                                        if (!res.ok) {
+                                            const msg = res.error ?? "Ismeretlen hiba.";
+                                            redirect(`/owner/importok?status=error&message=${encodeURIComponent(msg)}`);
+                                        }
+                                        redirect("/owner/importok?status=success&message=A+bej%C3%B6v%C5%91+e-mail-c%C3%ADm+lecser%C3%A9lve.");
+                                    }}
+                                >
+                                    <button className="btn btn-ghost btn-sm" type="submit">
+                                        E-mail-cím cseréje
+                                    </button>
+                                </form>
+                                <p className="muted-note">
+                                    Élesítés előtt érdemes lecserélni a címet. A korábbi cím utána nem fog többé importot fogadni.
+                                </p>
+                            </>
+                        ) : null}
                     </div>
                 </div>
             </section>

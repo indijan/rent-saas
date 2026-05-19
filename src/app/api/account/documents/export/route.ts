@@ -4,6 +4,7 @@ import { getActiveRoleCookie } from "@/lib/auth/context";
 import { resolveAvailableRoles } from "@/lib/auth/availableRoles";
 import { buildZip } from "@/lib/zip";
 import { downloadDocumentObject } from "@/lib/documentStorage";
+import { listTenantPropertyIds } from "@/lib/propertyTenants";
 
 function safeFileName(value: string) {
     return value.replaceAll(" ", "_").replace(/[^a-zA-Z0-9._-]/g, "");
@@ -37,8 +38,12 @@ export async function GET() {
         .select("bucket_path,created_at")
         .order("created_at", { ascending: false });
 
+    const tenantPropertyIds = activeRole === "TENANT" && availableRoles.length === 1
+        ? await listTenantPropertyIds(user.id)
+        : [];
+
     const { data: documents, error } = activeRole === "TENANT" && availableRoles.length === 1
-        ? await docsQuery.eq("tenant_id", user.id)
+        ? await docsQuery.in("property_id", tenantPropertyIds.length > 0 ? tenantPropertyIds : ["00000000-0000-0000-0000-000000000000"])
         : await docsQuery.eq("owner_id", user.id);
 
     if (error) {

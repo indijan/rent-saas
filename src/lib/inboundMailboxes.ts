@@ -1,6 +1,8 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { randomBytes } from "crypto";
 
+const DEFAULT_SHARED_INBOUND_EMAIL = "szamla@in.rentapp.hu";
+
 export type InboundMailboxRow = {
     id: string;
     owner_id: string;
@@ -9,6 +11,10 @@ export type InboundMailboxRow = {
     is_active: boolean;
     created_at: string;
 };
+
+export function getSharedInboundEmail() {
+    return (process.env.INBOUND_SHARED_EMAIL || DEFAULT_SHARED_INBOUND_EMAIL).trim().toLowerCase();
+}
 
 function buildRandomLocalPart() {
     return `szamla-${randomBytes(3).toString("hex")}`;
@@ -83,6 +89,19 @@ async function updateMailbox(ownerId: string) {
 }
 
 export async function getOrCreateInboundMailbox(ownerId: string) {
+    const sharedEmail = getSharedInboundEmail();
+    if (sharedEmail) {
+        const localPart = sharedEmail.split("@")[0] || "szamla";
+        return {
+            id: `shared-${ownerId}`,
+            owner_id: ownerId,
+            local_part: localPart,
+            email_address: sharedEmail,
+            is_active: true,
+            created_at: new Date(0).toISOString(),
+        } satisfies InboundMailboxRow;
+    }
+
     const admin = createSupabaseAdminClient();
     const { data: existing, error: existingError } = await admin
         .from("inbound_mailboxes")
@@ -97,6 +116,10 @@ export async function getOrCreateInboundMailbox(ownerId: string) {
 }
 
 export async function rotateInboundMailbox(ownerId: string) {
+    if (getSharedInboundEmail()) {
+        return getOrCreateInboundMailbox(ownerId);
+    }
+
     const existing = await getOrCreateInboundMailbox(ownerId);
     if (!existing) {
         throw new Error("A bejövő postafiók nem található.");

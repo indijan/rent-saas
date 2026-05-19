@@ -78,15 +78,19 @@ export default function LoginPage() {
         setMsg(null);
         setLoading(true);
 
+        const normalizedEmail = email.trim().toLowerCase();
+
+        await supabaseBrowser.auth.signOut();
+
         let { error } = await supabaseBrowser.auth.signInWithPassword({
-            email,
+            email: normalizedEmail,
             password,
         });
 
-        if (error?.message?.toLowerCase().includes("refresh token")) {
+        if (error) {
             await supabaseBrowser.auth.signOut();
             const retry = await supabaseBrowser.auth.signInWithPassword({
-                email,
+                email: normalizedEmail,
                 password,
             });
             error = retry.error;

@@ -1,5 +1,13 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { processStoredIngestion } from "@/lib/ingestionProcessing";
+import { downloadDocumentObject } from "@/lib/documentStorage";
+import { extractInvoiceFromBuffer } from "@/app/owner/properties/[id]/charges/actions";
+import { renderUnknownInboundInvoiceEmail } from "@/lib/email/templates";
+import { sendEmail } from "@/lib/email/resend";
+import { createInboundApprovalToken } from "@/lib/inboundApprovalTokens";
+import { suggestPropertyAcrossOwnersForIngestion } from "@/lib/propertyMatching";
+import { getOrCreateInboundMailbox, getSharedInboundEmail } from "@/lib/inboundMailboxes";
+import { resolveAvailableRoles } from "@/lib/auth/availableRoles";
 
 type InboundAttachment = {
     fileName: string;
@@ -16,6 +24,79 @@ type InboundProcessPayload = {
     subject?: string;
     attachments: InboundAttachment[];
 };
+
+type MailboxLookup = {
+    ownerId: string;
+    emailAddress: string;
+    isShared: boolean;
+};
+
+function normalizeSenderEmail(value: string | undefined) {
+    const raw = String(value || "").trim().toLowerCase();
+    if (!raw) return "";
+    const match = raw.match(/<([^>]+)>/);
+    return (match?.[1] || raw).trim();
+}
+
+async function resolveOwnerMailbox(admin: ReturnType<typeof createSupabaseAdminClient>, recipient: string, from: string): Promise<MailboxLookup | null> {
+    const { data: directMailbox } = await admin
+        .from("inbound_mailboxes")
+        .select("owner_id,email_address,is_active")
+        .eq("email_address", recipient)
+        .maybeSingle();
+
+    if (directMailbox?.is_active) {
+        return {
+            ownerId: directMailbox.owner_id as string,
+            emailAddress: directMailbox.email_address as string,
+            isShared: false,
+        };
+    }
+
+    const sharedEmail = getSharedInboundEmail();
+    if (!sharedEmail || recipient !== sharedEmail) {
+        return null;
+    }
+
+    const senderEmail = normalizeSenderEmail(from);
+    if (!senderEmail) {
+        return {
+            ownerId: "",
+            emailAddress: sharedEmail,
+            isShared: true,
+        };
+    }
+
+    const { data: senderProfile } = await admin
+        .from("profiles")
+        .select("id,email,role")
+        .eq("email", senderEmail)
+        .maybeSingle();
+
+    if (!senderProfile) {
+        return {
+            ownerId: "",
+            emailAddress: sharedEmail,
+            isShared: true,
+        };
+    }
+
+    const roles = await resolveAvailableRoles(senderProfile.id as string, senderProfile.role as "ADMIN" | "OWNER" | "TENANT");
+    if (!roles.includes("OWNER")) {
+        return {
+            ownerId: "",
+            emailAddress: sharedEmail,
+            isShared: true,
+        };
+    }
+
+    const mailbox = await getOrCreateInboundMailbox(senderProfile.id as string);
+    return {
+        ownerId: senderProfile.id as string,
+        emailAddress: mailbox.email_address,
+        isShared: true,
+    };
+}
 
 export async function POST(request: Request) {
     const secret = process.env.INBOUND_PROCESS_SECRET;
@@ -36,16 +117,8 @@ export async function POST(request: Request) {
     }
 
     const admin = createSupabaseAdminClient();
-    const { data: mailbox, error: mailboxError } = await admin
-        .from("inbound_mailboxes")
-        .select("owner_id,email_address,is_active")
-        .eq("email_address", recipient)
-        .maybeSingle();
-
-    if (mailboxError) {
-        return new Response(mailboxError.message, { status: 500 });
-    }
-    if (!mailbox || !mailbox.is_active) {
+    const mailbox = await resolveOwnerMailbox(admin, recipient, body.from || "");
+    if (!mailbox) {
         return new Response("A postafiók nem található vagy inaktív.", { status: 404 });
     }
 
@@ -79,7 +152,7 @@ export async function POST(request: Request) {
         let existingQuery = admin
             .from("document_ingestions")
             .select("id,source_attachment_name,status")
-            .eq("owner_id", mailbox.owner_id)
+            .eq("owner_id", mailbox.ownerId || "00000000-0000-0000-0000-000000000000")
             .eq("source_type", "EMAIL")
             .eq("storage_key", storageKey);
 
@@ -102,10 +175,45 @@ export async function POST(request: Request) {
             continue;
         }
 
+        let ownerId = mailbox.ownerId;
+        let presetPropertyId: string | null = attachment.propertyId || null;
+        let pendingApproval = false;
+
+        if (!ownerId && mailbox.isShared) {
+            try {
+                const buffer = await downloadDocumentObject(storageKey);
+                const extraction = await extractInvoiceFromBuffer(buffer);
+                const suggested = await suggestPropertyAcrossOwnersForIngestion({
+                    attachmentName: fileName,
+                    sourceEmailSubject: body.subject,
+                    sourceEmailFrom: body.from,
+                    propertyHint: attachment.propertyId || null,
+                    documentText: extraction.ok ? extraction.text : "",
+                });
+
+                if (suggested?.ownerId) {
+                    ownerId = suggested.ownerId;
+                    presetPropertyId = suggested.property.id;
+                    pendingApproval = true;
+                }
+            } catch {
+                // Ha a fallback felismerés sem megy, lent visszaadunk egy áttekinthető skip reason-t.
+            }
+        }
+
+        if (!ownerId) {
+            processed.push({
+                fileName,
+                skipped: true,
+                reason: "A rendszer nem tudta beazonosítani a bérbeadót a feladó vagy a számla alapján.",
+            });
+            continue;
+        }
+
         const { data: created, error: insertError } = await admin
             .from("document_ingestions")
             .insert({
-                owner_id: mailbox.owner_id,
+                owner_id: ownerId,
                 source_type: "EMAIL",
                 source_message_id: body.messageId || null,
                 source_email_from: body.from || null,
@@ -113,8 +221,8 @@ export async function POST(request: Request) {
                 source_attachment_name: fileName,
                 storage_bucket: attachment.storageBucket || "documents",
                 storage_key: storageKey,
-                normalized_data: attachment.propertyId ? { property_id: attachment.propertyId } : {},
-                status: "RECEIVED",
+                normalized_data: presetPropertyId ? { property_id: presetPropertyId } : {},
+                status: pendingApproval ? "NEEDS_REVIEW" : "RECEIVED",
             })
             .select("id,source_attachment_name,status")
             .single();
@@ -123,7 +231,7 @@ export async function POST(request: Request) {
             const { data: concurrentExisting, error: concurrentError } = await admin
                 .from("document_ingestions")
                 .select("id,source_attachment_name,status")
-                .eq("owner_id", mailbox.owner_id)
+                .eq("owner_id", ownerId)
                 .eq("source_type", "EMAIL")
                 .eq("storage_key", storageKey)
                 .maybeSingle();
@@ -146,6 +254,47 @@ export async function POST(request: Request) {
         }
 
         createdIngestions.push(created);
+        if (pendingApproval) {
+            const { data: ownerProfile } = await admin
+                .from("profiles")
+                .select("email,full_name")
+                .eq("id", ownerId)
+                .maybeSingle();
+
+            const { data: property } = presetPropertyId
+                ? await admin
+                    .from("properties")
+                    .select("name")
+                    .eq("id", presetPropertyId)
+                    .maybeSingle()
+                : { data: null };
+
+            if (ownerProfile?.email) {
+                const approveToken = createInboundApprovalToken("approve", created.id);
+                const rejectToken = createInboundApprovalToken("reject", created.id);
+                const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu";
+
+                await sendEmail(renderUnknownInboundInvoiceEmail({
+                    ownerEmail: ownerProfile.email,
+                    ownerName: ownerProfile.full_name ?? null,
+                    sourceEmailFrom: body.from || null,
+                    fileName,
+                    propertyName: property?.name ?? null,
+                    approveUrl: `${siteUrl}/email-inbound-action?token=${encodeURIComponent(approveToken)}`,
+                    rejectUrl: `${siteUrl}/email-inbound-action?token=${encodeURIComponent(rejectToken)}`,
+                    reviewUrl: `${siteUrl}/owner/importok/${created.id}`,
+                }));
+            }
+
+            processed.push({
+                id: created.id,
+                fileName,
+                skipped: false,
+                reason: "A feladó nem volt ismert, ezért a rendszer jóváhagyást kért a feltételezett bérbeadótól.",
+            });
+            continue;
+        }
+
         processed.push({
             id: created.id,
             fileName,

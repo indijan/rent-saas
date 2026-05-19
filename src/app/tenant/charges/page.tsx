@@ -5,6 +5,9 @@ import AppHeader from "@/components/AppHeader";
 import { archiveTenantCharge } from "./actions";
 import FilterDateInput from "@/components/FilterDateInput";
 import { createDocumentSignedUrl } from "@/lib/documentStorage";
+import PendingSubmitButton from "@/components/PendingSubmitButton";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { listTenantPropertyIds } from "@/lib/propertyTenants";
 
 type ChargeStatus = "UNPAID" | "PAID" | "ARCHIVED" | "CANCELLED";
 type ChargeType = "RENT" | "UTILITY" | "COMMON_COST" | "OTHER";
@@ -140,7 +143,9 @@ function firstProperty(value: ChargeProperty | ChargeProperty[] | null | undefin
 }
 
 export default async function TenantChargesPage({ searchParams }: Props) {
-    const { supabase, user, profile } = await requireRole("TENANT");
+    const { user, profile } = await requireRole("TENANT");
+    const admin = createSupabaseAdminClient();
+    const propertyIds = await listTenantPropertyIds(user.id);
 
     const sp = (searchParams instanceof Promise) ? await searchParams : (searchParams ?? {});
     const selectedPropertyId = sp.property ? String(sp.property) : "";
@@ -154,11 +159,14 @@ export default async function TenantChargesPage({ searchParams }: Props) {
     const rangeFrom = (page - 1) * pageSize;
     const rangeTo = rangeFrom + pageSize - 1;
 
-    const { data: properties, error: propErr } = await supabase
-        .from("properties")
-        .select("id,name,address,status")
-        .eq("tenant_id", user.id)
-        .order("created_at", { ascending: false });
+    const { data: chargeProperties, error: propErr } = propertyIds.length === 0
+        ? { data: [], error: null }
+        : await admin
+            .from("charges")
+            .select("property_id,properties(id,name,address,status)")
+            .in("property_id", propertyIds)
+            .neq("status", "IMPORT_DRAFT")
+            .order("due_date", { ascending: false });
 
     if (propErr) {
         return (
@@ -172,15 +180,30 @@ export default async function TenantChargesPage({ searchParams }: Props) {
         );
     }
 
-    const propertyRows = (properties ?? []) as PropertyRow[];
+    const propertyRows = Array.from(
+        new Map(
+            ((chargeProperties ?? []) as Array<{ property_id: string; properties?: ChargeProperty | ChargeProperty[] | null }>)
+                .map((row) => {
+                    const property = firstProperty(row.properties);
+                    if (!property) return null;
+                    return [property.id, {
+                        id: property.id,
+                        name: property.name,
+                        address: property.address,
+                        status: "ACTIVE",
+                    } satisfies PropertyRow];
+                })
+                .filter((item): item is [string, PropertyRow] => Boolean(item))
+        ).values()
+    );
     const selectedProperty = selectedPropertyId
         ? propertyRows.find((property) => property.id === selectedPropertyId) ?? null
         : null;
 
-    let listQuery = supabase
+    let listQuery = admin
         .from("charges")
         .select("id,title,type,amount,currency,due_date,status,paid_at,property_id,recurring_group,recurring_index,recurring_count,properties(id,name,address)", { count: "exact" })
-        .eq("tenant_id", user.id)
+        .in("property_id", propertyIds.length > 0 ? propertyIds : ["00000000-0000-0000-0000-000000000000"])
         .neq("status", "IMPORT_DRAFT")
         .order("due_date", { ascending: false });
 
@@ -195,10 +218,10 @@ export default async function TenantChargesPage({ searchParams }: Props) {
     const currentYear = new Date().getFullYear();
     const totalsFrom = fromFilter || `${currentYear}-01-01`;
     const totalsTo = toFilter || `${currentYear}-12-31`;
-    let totalsQuery = supabase
+    let totalsQuery = admin
         .from("charges")
         .select("amount,status")
-        .eq("tenant_id", user.id)
+        .in("property_id", propertyIds.length > 0 ? propertyIds : ["00000000-0000-0000-0000-000000000000"])
         .neq("status", "IMPORT_DRAFT")
         .gte("due_date", totalsFrom)
         .lte("due_date", totalsTo);
@@ -207,10 +230,13 @@ export default async function TenantChargesPage({ searchParams }: Props) {
     if (typeFilter) totalsQuery = totalsQuery.eq("type", typeFilter);
     const { data: totalsRows } = await totalsQuery;
 
-    const { data: documents } = await supabase
+    const chargeIds = ((charges ?? []) as ChargeRow[]).map((charge) => charge.id);
+    const { data: documents } = chargeIds.length === 0
+        ? { data: [] }
+        : await admin
         .from("documents")
         .select("id,charge_id,bucket_path,created_at")
-        .eq("tenant_id", user.id)
+        .in("charge_id", chargeIds)
         .order("created_at", { ascending: false });
 
     const documentsWithUrls = await Promise.all(
@@ -515,9 +541,11 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                                             await archiveTenantCharge(charge.id);
                                                         }}
                                                     >
-                                                        <button type="submit" className="btn btn-secondary btn-sm">
-                                                            Archiválás
-                                                        </button>
+                                                        <PendingSubmitButton
+                                                            className="btn btn-secondary btn-sm"
+                                                            label="Archiválás"
+                                                            pendingLabel="Archiválás..."
+                                                        />
                                                     </form>
                                                 </div>
                                             </>

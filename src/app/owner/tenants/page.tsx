@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { createTenant, deleteTenant } from "./actions";
+import { approveTenantExitRequest, createTenant, deleteTenant, rejectTenantExitRequest } from "./actions";
 import DeleteTenantButton from "./DeleteTenantButton";
 import AppHeader from "@/components/AppHeader";
 import { listOwnerTenantIds } from "@/lib/tenantOwnership";
+import PendingSubmitButton from "@/components/PendingSubmitButton";
 
 type Props = {
     searchParams?: Promise<{ status?: string; message?: string }> | { status?: string; message?: string };
@@ -25,6 +26,13 @@ export default async function OwnerTenantsPage({ searchParams }: Props) {
             .select("id,email,full_name,created_at")
             .in("id", tenantIds)
             .order("created_at", { ascending: false });
+
+    const { data: exitRequests } = await admin
+        .from("tenant_exit_requests")
+        .select("id,tenant_id,property_id,created_at,properties(name,address),profiles!tenant_exit_requests_tenant_id_fkey(email,full_name)")
+        .eq("owner_id", profile.id)
+        .eq("status", "PENDING")
+        .order("created_at", { ascending: true });
 
     if (error) {
         return (
@@ -98,10 +106,67 @@ export default async function OwnerTenantsPage({ searchParams }: Props) {
                         </label>
                     </div>
                 </div>
-                <button className="btn btn-primary">
-                    Meghívó küldése
-                </button>
+                <PendingSubmitButton className="btn btn-primary" label="Meghívó küldése" pendingLabel="Küldés..." />
             </form>
+
+            <section className="card section-stack">
+                <div className="section-header">
+                    <div>
+                        <div className="card-title">Kilépési kérelmek</div>
+                        <p className="muted-note">A bérlők itt kérhetik, hogy lekerüljenek az egyik ingatlanodról.</p>
+                    </div>
+                </div>
+
+                {(exitRequests ?? []).length === 0 ? (
+                    <p className="muted-note">Nincs függő kilépési kérelem.</p>
+                ) : (
+                    <div className="charge-list">
+                        {(exitRequests ?? []).map((request) => {
+                            const tenant = Array.isArray(request.profiles) ? request.profiles[0] : request.profiles;
+                            const property = Array.isArray(request.properties) ? request.properties[0] : request.properties;
+                            return (
+                                <div key={request.id} className="charge-card flex flex-col gap-3">
+                                    <div>
+                                        <div className="card-title">{tenant?.full_name || tenant?.email || "Bérlő"}</div>
+                                        {tenant?.email ? <div className="text-sm text-gray-600">{tenant.email}</div> : null}
+                                        <div className="muted-note">
+                                            {property?.name || "Ingatlan"}{property?.address ? ` · ${property.address}` : ""}
+                                        </div>
+                                    </div>
+                                    <div className="charge-actions">
+                                        <form
+                                            action={async () => {
+                                                "use server";
+                                                const res = await approveTenantExitRequest(request.id);
+                                                if (!res.ok) {
+                                                    const msg = res.error ?? "Ismeretlen hiba.";
+                                                    redirect(`/owner/tenants?status=error&message=${encodeURIComponent(msg)}`);
+                                                }
+                                                redirect("/owner/tenants?status=success&message=A+kil%C3%A9p%C3%A9si+k%C3%A9relem+j%C3%B3v%C3%A1hagyva.");
+                                            }}
+                                        >
+                                            <PendingSubmitButton className="btn btn-primary btn-sm" label="Jóváhagyom" pendingLabel="Mentés..." />
+                                        </form>
+                                        <form
+                                            action={async () => {
+                                                "use server";
+                                                const res = await rejectTenantExitRequest(request.id);
+                                                if (!res.ok) {
+                                                    const msg = res.error ?? "Ismeretlen hiba.";
+                                                    redirect(`/owner/tenants?status=error&message=${encodeURIComponent(msg)}`);
+                                                }
+                                                redirect("/owner/tenants?status=success&message=A+kil%C3%A9p%C3%A9si+k%C3%A9relem+elutas%C3%ADtva.");
+                                            }}
+                                        >
+                                            <PendingSubmitButton className="btn btn-secondary btn-sm" label="Elutasítom" pendingLabel="Mentés..." />
+                                        </form>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </section>
 
             {(!tenants || tenants.length === 0) ? (
                 <div className="card">

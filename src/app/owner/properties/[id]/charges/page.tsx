@@ -10,6 +10,7 @@ import { formatCurrency } from "@/lib/formatters";
 import AppHeader from "@/components/AppHeader";
 import FilterDateInput from "@/components/FilterDateInput";
 import { createDocumentSignedUrl } from "@/lib/documentStorage";
+import PendingSubmitButton from "@/components/PendingSubmitButton";
 
 type ChargeStatus = "UNPAID" | "PAID" | "ARCHIVED" | "CANCELLED" | "IMPORT_DRAFT";
 type ChargeType = "RENT" | "UTILITY" | "COMMON_COST" | "OTHER";
@@ -471,9 +472,11 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                     }}
                                                 confirmMessage="Publikálod ezt a díjat a bérlő felé?"
                                             >
-                                                <button type="submit" className="btn btn-primary btn-sm">
-                                                    Publikálás
-                                                </button>
+                                                <PendingSubmitButton
+                                                    className="btn btn-primary btn-sm"
+                                                    label="Publikálás"
+                                                    pendingLabel="Publikálás..."
+                                                />
                                                 </ConfirmActionForm>
                                             ) : null}
 
@@ -489,9 +492,11 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                     }}
                                                 confirmMessage="Biztosan fizetettnek jelölöd ezt a díjat?"
                                             >
-                                                <button type="submit" className="btn btn-success btn-sm">
-                                                    Fizetettnek jelölés
-                                                </button>
+                                                <PendingSubmitButton
+                                                    className="btn btn-success btn-sm"
+                                                    label="Fizetettnek jelölés"
+                                                    pendingLabel="Mentés..."
+                                                />
                                                 </ConfirmActionForm>
                                             ) : null}
 
@@ -507,9 +512,11 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                     }}
                                                 confirmMessage="Biztosan archiválod ezt a díjat?"
                                             >
-                                                <button type="submit" className="btn btn-secondary btn-sm">
-                                                    Archiválás
-                                                </button>
+                                                <PendingSubmitButton
+                                                    className="btn btn-secondary btn-sm"
+                                                    label="Archiválás"
+                                                    pendingLabel="Archiválás..."
+                                                />
                                                 </ConfirmActionForm>
                                             ) : null}
 
@@ -525,9 +532,11 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                     }}
                                                 confirmMessage="Visszaállítod ezt a díjat aktívra?"
                                             >
-                                                <button type="submit" className="btn btn-success btn-sm">
-                                                    Visszaállítás
-                                                </button>
+                                                <PendingSubmitButton
+                                                    className="btn btn-success btn-sm"
+                                                    label="Visszaállítás"
+                                                    pendingLabel="Visszaállítás..."
+                                                />
                                                 </ConfirmActionForm>
                                             ) : null}
                                         </div>
@@ -551,9 +560,11 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                     }}
                                                 confirmMessage="Biztosan érvényteleníted ezt a díjat?"
                                             >
-                                                <button type="submit" className="btn btn-ghost btn-sm">
-                                                    Érvénytelenítés
-                                                </button>
+                                                <PendingSubmitButton
+                                                    className="btn btn-ghost btn-sm"
+                                                    label="Érvénytelenítés"
+                                                    pendingLabel="Mentés..."
+                                                />
                                                 </ConfirmActionForm>
                                             ) : null}
 
@@ -569,9 +580,11 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                     }}
                                                     confirmMessage="Biztosan sztornózod ezt a díjat? Ez a művelet végleges."
                                                 >
-                                                    <button type="submit" className="btn btn-danger btn-sm">
-                                                        Sztornó
-                                                    </button>
+                                                    <PendingSubmitButton
+                                                        className="btn btn-danger btn-sm"
+                                                        label="Sztornó"
+                                                        pendingLabel="Törlés..."
+                                                    />
                                                 </ConfirmActionForm>
                                             ) : null}
                                         </div>

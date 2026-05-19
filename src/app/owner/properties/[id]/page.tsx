@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
-import { assignTenantToProperty, deleteProperty, updateProperty } from "./actions";
+import { assignTenantToProperty, deleteProperty, removeTenantFromProperty, updateProperty } from "./actions";
 import DeletePropertyForm from "./DeletePropertyForm";
 import AppHeader from "@/components/AppHeader";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { listOwnerTenantIds } from "@/lib/tenantOwnership";
 import OwnerPropertyEditForm from "./OwnerPropertyEditForm";
 import { maskAddress } from "@/lib/addressMasking";
+import PendingSubmitButton from "@/components/PendingSubmitButton";
+import { listPropertyTenants } from "@/lib/propertyTenants";
 
 type Props = {
     params: Promise<{ id: string }>;
@@ -39,6 +41,7 @@ export default async function OwnerPropertyDetailPage({ params, searchParams }: 
 
     const admin = createSupabaseAdminClient();
     const tenantIds = await listOwnerTenantIds(profile.id);
+    const assignedTenants = await listPropertyTenants(property.id);
     const { data: tenants } = tenantIds.length === 0
         ? { data: [] }
         : await admin
@@ -81,12 +84,45 @@ export default async function OwnerPropertyDetailPage({ params, searchParams }: 
                     </span>
                     </span>
                     <span>
-                        <b>Bérlő:</b>{" "}
+                        <b>Elsődleges bérlő:</b>{" "}
                     {property.tenant_id
                         ? tenantOptions.find((tenant) => tenant.id === property.tenant_id)?.email ?? "ismeretlen"
                         : "nincs hozzárendelve"}
                     </span>
                 </div>
+            </section>
+            <section className="card section-stack">
+                <div className="card-title">Hozzárendelt bérlők</div>
+                {assignedTenants.length === 0 ? (
+                    <p className="muted-note">Ehhez az ingatlanhoz még nincs bérlő hozzárendelve.</p>
+                ) : (
+                    <div className="charge-list">
+                        {assignedTenants.map((tenant) => (
+                            <div key={tenant.id} className="charge-card flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <div className="card-title">{tenant.full_name || tenant.email}</div>
+                                    <div className="text-sm text-gray-600">{tenant.email}</div>
+                                    {tenant.id === property.tenant_id ? (
+                                        <div className="muted-note">Elsődleges bérlő</div>
+                                    ) : null}
+                                </div>
+                                <form
+                                    action={async () => {
+                                        "use server";
+                                        const res = await removeTenantFromProperty(property.id, tenant.id);
+                                        if (!res.ok) {
+                                            const msg = res.error ?? "Ismeretlen hiba.";
+                                            redirect(`/owner/properties/${property.id}?status=error&message=${encodeURIComponent(msg)}`);
+                                        }
+                                        redirect(`/owner/properties/${property.id}?status=success&message=A+b%C3%A9rl%C5%91+le+lett+v%C3%A1lasztva+az+ingatlanr%C3%B3l.`);
+                                    }}
+                                >
+                                    <PendingSubmitButton className="btn btn-secondary btn-sm" label="Leválasztás" pendingLabel="Mentés..." />
+                                </form>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </section>
             <OwnerPropertyEditForm
                 action={async (formData) => {
@@ -138,9 +174,11 @@ export default async function OwnerPropertyDetailPage({ params, searchParams }: 
                         </select>
                     </label>
                 </div>
-                <button className="btn btn-primary">
-                    Bérlő hozzárendelése
-                </button>
+                <PendingSubmitButton
+                    className="btn btn-primary"
+                    label="Bérlő hozzárendelése"
+                    pendingLabel="Hozzárendelés..."
+                />
                 <p className="muted-note">
                     Tipp: a bérlői fióknak már léteznie kell, ezt a Bérlők oldalon tudod létrehozni.
                 </p>

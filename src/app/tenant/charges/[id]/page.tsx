@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
 import { formatCurrency } from "@/lib/formatters";
 import { createDocumentSignedUrl } from "@/lib/documentStorage";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { listTenantPropertyIds } from "@/lib/propertyTenants";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -37,19 +39,20 @@ function getDueState(dueDate: string, status: string) {
 
 export default async function TenantChargeDetailPage({ params }: Props) {
     const { id } = await params;
-    const { supabase, user } = await requireRole("TENANT");
+    const { user } = await requireRole("TENANT");
+    const admin = createSupabaseAdminClient();
+    const propertyIds = await listTenantPropertyIds(user.id);
 
-    const { data: charge, error } = await supabase
+    const { data: charge, error } = await admin
         .from("charges")
-        .select("id,title,type,amount,currency,due_date,status,paid_at,notes,properties(name,address)")
+        .select("id,title,type,amount,currency,due_date,status,paid_at,notes,property_id,properties(name,address)")
         .eq("id", id)
-        .eq("tenant_id", user.id)
         .neq("status", "IMPORT_DRAFT")
         .single();
 
-    if (error || !charge) return notFound();
+    if (error || !charge || !propertyIds.includes(charge.property_id)) return notFound();
 
-    const { data: documents } = await supabase
+    const { data: documents } = await admin
         .from("documents")
         .select("id,bucket_path,created_at")
         .eq("charge_id", id)

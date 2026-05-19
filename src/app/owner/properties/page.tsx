@@ -54,6 +54,19 @@ export default async function OwnerPropertiesPage({ searchParams }: Props) {
         ? await admin.from("profiles").select("id,email,full_name").in("id", tenantIds)
         : { data: [] as { id: string; email: string; full_name: string | null }[] };
     const tenantById = new Map((tenantProfiles ?? []).map((tenant) => [tenant.id, tenant]));
+    const propertyIds = (properties ?? []).map((property) => property.id);
+    const { data: propertyTenantRows } = propertyIds.length === 0
+        ? { data: [] as Array<{ property_id: string; tenant_id: string }> }
+        : await admin
+            .from("property_tenants")
+            .select("property_id,tenant_id")
+            .in("property_id", propertyIds);
+    const tenantCountByProperty = new Map<string, number>();
+    (propertyTenantRows ?? []).forEach((row) => {
+        const propertyId = row.property_id as string | null;
+        if (!propertyId) return;
+        tenantCountByProperty.set(propertyId, (tenantCountByProperty.get(propertyId) ?? 0) + 1);
+    });
 
     const propertyCount = properties?.length ?? 0;
     const activeCount = (properties ?? []).filter((property) => property.status === "ACTIVE").length;
@@ -104,6 +117,7 @@ export default async function OwnerPropertiesPage({ searchParams }: Props) {
                     {properties.map((p) => (
                         (() => {
                             const tenant = p.tenant_id ? tenantById.get(p.tenant_id) : null;
+                            const tenantCount = tenantCountByProperty.get(p.id) ?? (tenant ? 1 : 0);
                             return (
                         <Link
                             key={p.id}
@@ -115,7 +129,9 @@ export default async function OwnerPropertiesPage({ searchParams }: Props) {
                                     <div className="card-title">{p.name}</div>
                                     <div className="text-sm text-gray-600">{maskAddress(p.address)}</div>
                                     <div className="muted-note">
-                                        Bérlő: {tenant ? (tenant.full_name || tenant.email) : "Nincs hozzárendelve"}
+                                        {tenantCount > 1
+                                            ? `Elsődleges bérlő: ${tenant ? (tenant.full_name || tenant.email) : "ismeretlen"} · Összes bérlő: ${tenantCount}`
+                                            : `Bérlő: ${tenant ? (tenant.full_name || tenant.email) : "Nincs hozzárendelve"}`}
                                     </div>
                                 </div>
                                 <div className={`status-badge status-${String(p.status).toLowerCase()}`}>

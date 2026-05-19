@@ -25,6 +25,7 @@ export default function AppHeader({ profile }: Props) {
                 { href: "/owner/todo", label: "Teendők" },
                 { href: "/owner/osszefoglalo", label: "Összesítő" },
                 { href: "/owner/properties", label: "Ingatlanok" },
+                { href: "/owner/charges", label: "Díjak" },
                 { href: "/owner/importok", label: "Importok" },
                 { href: "/owner/tenants", label: "Bérlők" },
                 { href: "/account", label: "Fiók" },

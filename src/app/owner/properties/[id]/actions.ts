@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/requireRole";
 import { isTenantOwnedByOwner } from "@/lib/tenantOwnership";
 import { removeDocumentObjects } from "@/lib/documentStorage";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { ensurePropertyPrimaryTenant, syncOwnerTenantMembership } from "@/lib/propertyTenants";
 
 type DocumentPathRow = {
     bucket_path: string | null;
@@ -11,33 +13,83 @@ type DocumentPathRow = {
 
 export async function assignTenantToProperty(propertyId: string, formData: FormData) {
     const { supabase, user } = await requireRole("OWNER");
+    const admin = createSupabaseAdminClient();
 
     const tenantId = String(formData.get("tenant_id") || "").trim();
     if (!tenantId) return { ok: false, error: "Válassz ki egy bérlőt." };
     const isOwned = await isTenantOwnedByOwner(user.id, tenantId);
     if (!isOwned) return { ok: false, error: "Ezt a bérlőt nem rendelheted az ingatlanhoz." };
 
-    // Property tenant_id beállítás (csak a saját ingatlanodra)
-    const { error: propErr } = await supabase
+    const { data: property, error: propertyError } = await supabase
         .from("properties")
-        .update({ tenant_id: tenantId })
+        .select("id,tenant_id")
         .eq("id", propertyId)
-        .eq("owner_id", user.id);
-
-    if (propErr) return { ok: false, error: propErr.message };
-
-    // Régi díjakra is ráírjuk, ahol még nincs tenant_id
-    const { error: chErr } = await supabase
-        .from("charges")
-        .update({ tenant_id: tenantId })
-        .eq("property_id", propertyId)
         .eq("owner_id", user.id)
-        .is("tenant_id", null);
+        .single();
 
-    if (chErr) return { ok: false, error: chErr.message };
+    if (propertyError || !property) return { ok: false, error: "Az ingatlan nem található." };
+
+    const { error: membershipError } = await admin
+        .from("property_tenants")
+        .upsert({
+            property_id: propertyId,
+            tenant_id: tenantId,
+            owner_id: user.id,
+        }, { onConflict: "property_id,tenant_id" });
+
+    if (membershipError) return { ok: false, error: membershipError.message };
+
+    const { error: ownerTenantError } = await admin
+        .from("tenant_memberships")
+        .upsert({ user_id: tenantId, owner_id: user.id }, { onConflict: "user_id,owner_id" });
+
+    if (ownerTenantError) return { ok: false, error: ownerTenantError.message };
+
+    if (!property.tenant_id) {
+        const { error: propErr } = await supabase
+            .from("properties")
+            .update({ tenant_id: tenantId })
+            .eq("id", propertyId)
+            .eq("owner_id", user.id);
+        if (propErr) return { ok: false, error: propErr.message };
+
+        const { error: chErr } = await supabase
+            .from("charges")
+            .update({ tenant_id: tenantId })
+            .eq("property_id", propertyId)
+            .eq("owner_id", user.id)
+            .is("tenant_id", null);
+        if (chErr) return { ok: false, error: chErr.message };
+    }
 
     revalidatePath(`/owner/properties/${propertyId}`);
     revalidatePath("/owner/properties");
+    revalidatePath("/owner/tenants");
+    return { ok: true };
+}
+
+export async function removeTenantFromProperty(propertyId: string, tenantId: string) {
+    const { user } = await requireRole("OWNER");
+    const admin = createSupabaseAdminClient();
+
+    const isOwned = await isTenantOwnedByOwner(user.id, tenantId);
+    if (!isOwned) return { ok: false, error: "Ezt a bérlőt nem kezelheted." };
+
+    const { error } = await admin
+        .from("property_tenants")
+        .delete()
+        .eq("property_id", propertyId)
+        .eq("tenant_id", tenantId)
+        .eq("owner_id", user.id);
+
+    if (error) return { ok: false, error: error.message };
+
+    await ensurePropertyPrimaryTenant(propertyId);
+    await syncOwnerTenantMembership(user.id, tenantId);
+
+    revalidatePath(`/owner/properties/${propertyId}`);
+    revalidatePath("/owner/properties");
+    revalidatePath("/owner/tenants");
     return { ok: true };
 }
 

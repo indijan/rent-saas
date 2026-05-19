@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveAvailableRoles } from "@/lib/auth/availableRoles";
 import type { AppRole } from "@/lib/auth/requireUser";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { listTenantPropertyIds } from "@/lib/propertyTenants";
 
 type UserContext = {
-    supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
     userId: string;
 };
 
@@ -39,7 +40,7 @@ async function requireTenant(): Promise<UserContext | NextResponse> {
         return new NextResponse("Forbidden", { status: 403 });
     }
 
-    return { supabase, userId: user.id };
+    return { userId: user.id };
 }
 
 function escapeCsv(value: unknown) {
@@ -53,6 +54,8 @@ function escapeCsv(value: unknown) {
 export async function GET(request: Request) {
     const ctx = await requireTenant();
     if (ctx instanceof NextResponse) return ctx;
+    const admin = createSupabaseAdminClient();
+    const propertyIds = await listTenantPropertyIds(ctx.userId);
 
     const url = new URL(request.url);
     const propertyId = url.searchParams.get("property") ?? "";
@@ -61,10 +64,10 @@ export async function GET(request: Request) {
     const from = url.searchParams.get("from") ?? "";
     const to = url.searchParams.get("to") ?? "";
 
-    let q = ctx.supabase
+    let q = admin
         .from("charges")
         .select("title,type,amount,currency,due_date,status,paid_at,properties(name,address)")
-        .eq("tenant_id", ctx.userId)
+        .in("property_id", propertyIds.length > 0 ? propertyIds : ["00000000-0000-0000-0000-000000000000"])
         .neq("status", "IMPORT_DRAFT")
         .order("due_date", { ascending: false });
 

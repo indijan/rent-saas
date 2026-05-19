@@ -3,6 +3,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { verifyEmailActionToken } from "@/lib/emailActionTokens";
 import { renderFriendlyArrearsReminderEmail, renderNewChargeEmail } from "@/lib/email/templates";
 import { sendEmail } from "@/lib/email/resend";
+import { listPropertyTenants } from "@/lib/propertyTenants";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu";
 
@@ -23,6 +24,10 @@ type ChargeWithProperty = {
 
 function redirectWithMessage(path: string, status: "success" | "error", message: string) {
     redirect(`${SITE_URL}${path}${path.includes("?") ? "&" : "?"}status=${status}&message=${encodeURIComponent(message)}`);
+}
+
+function isMissingManualReminderColumnError(message: string | undefined) {
+    return (message || "").includes("manual_reminder_sent_at");
 }
 
 function getChargeProperty(charge: ChargeWithProperty) {
@@ -258,43 +263,40 @@ export async function POST(request: Request) {
     }
 
     if (payload.action === "charge_send_reminder") {
-        if (!charge.tenant_id) {
-            redirectWithMessage("/owner/todo", "error", "Ehhez a díjhoz nincs bérlő hozzárendelve.");
-            return;
-        }
-
-        const { data: tenantProfile } = await admin
-            .from("profiles")
-            .select("email,full_name")
-            .eq("id", charge.tenant_id)
-            .limit(1)
-            .maybeSingle();
-
-        if (!tenantProfile?.email) {
+        const tenantProfiles = await listPropertyTenants(charge.property_id);
+        if (tenantProfiles.length === 0) {
             redirectWithMessage("/owner/todo", "error", "A bérlő e-mail-címe nem érhető el.");
             return;
         }
 
         const property = getChargeProperty(charge);
-        const emailResult = await sendEmail(renderFriendlyArrearsReminderEmail({
-            tenantEmail: tenantProfile.email,
-            tenantName: tenantProfile.full_name ?? null,
-            title: charge.title,
-            amount: Number(charge.amount),
-            currency: String(charge.currency || "HUF"),
-            dueDate: String(charge.due_date),
-            propertyName: property?.name ?? null,
-        }));
+        for (const tenantProfile of tenantProfiles) {
+            if (!tenantProfile.email) continue;
+            const emailResult = await sendEmail(renderFriendlyArrearsReminderEmail({
+                tenantEmail: tenantProfile.email,
+                tenantName: tenantProfile.full_name ?? null,
+                title: charge.title,
+                amount: Number(charge.amount),
+                currency: String(charge.currency || "HUF"),
+                dueDate: String(charge.due_date),
+                propertyName: property?.name ?? null,
+            }));
 
-        if (!emailResult.ok) {
-            redirectWithMessage("/owner/todo", "error", emailResult.error ?? "Az emlékeztető nem küldhető ki.");
-            return;
+            if (!emailResult.ok) {
+                redirectWithMessage("/owner/todo", "error", emailResult.error ?? "Az emlékeztető nem küldhető ki.");
+                return;
+            }
         }
 
-        await admin
+        const { error: reminderTrackError } = await admin
             .from("charges")
             .update({ manual_reminder_sent_at: new Date().toISOString() })
             .eq("id", charge.id);
+
+        if (reminderTrackError && !isMissingManualReminderColumnError(reminderTrackError.message)) {
+            redirectWithMessage("/owner/todo", "error", reminderTrackError.message);
+            return;
+        }
 
         redirectWithMessage("/owner/todo", "success", "A baráti emlékeztető elküldve.");
     }
@@ -306,26 +308,19 @@ export async function POST(request: Request) {
                 .update({ status: "UNPAID" })
                 .eq("id", charge.id);
 
-            if (charge.tenant_id) {
-                const { data: tenantProfile } = await admin
-                    .from("profiles")
-                    .select("email")
-                    .eq("id", charge.tenant_id)
-                    .limit(1)
-                    .maybeSingle();
-
-                if (tenantProfile?.email) {
-                    const property = getChargeProperty(charge);
-                    await sendEmail(renderNewChargeEmail({
-                        tenantEmail: tenantProfile.email,
-                        title: charge.title,
-                        amount: Number(charge.amount),
-                        currency: String(charge.currency || "HUF"),
-                        dueDate: String(charge.due_date),
-                        propertyName: property?.name ?? null,
-                        count: 1,
-                    }));
-                }
+            const property = getChargeProperty(charge);
+            const propertyTenants = await listPropertyTenants(charge.property_id);
+            for (const tenantProfile of propertyTenants) {
+                if (!tenantProfile.email) continue;
+                await sendEmail(renderNewChargeEmail({
+                    tenantEmail: tenantProfile.email,
+                    title: charge.title,
+                    amount: Number(charge.amount),
+                    currency: String(charge.currency || "HUF"),
+                    dueDate: String(charge.due_date),
+                    propertyName: property?.name ?? null,
+                    count: 1,
+                }));
             }
         }
 

@@ -5,6 +5,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
 import { renderTenantInviteEmail } from "@/lib/email/templates";
 import { isTenantOwnedByOwner } from "@/lib/tenantOwnership";
+import { ensurePropertyPrimaryTenant, syncOwnerTenantMembership } from "@/lib/propertyTenants";
 
 export async function createTenant(formData: FormData) {
     const { user } = await requireRole("OWNER");
@@ -97,6 +98,35 @@ export async function deleteTenant(tenantId: string) {
     const isOwned = await isTenantOwnedByOwner(user.id, tenantId);
     if (!isOwned) return { ok: false, error: "Ezt a bérlőt nem kezelheted." };
 
+    const { data: propertyAssignments } = await admin
+        .from("property_tenants")
+        .select("property_id")
+        .eq("owner_id", user.id)
+        .eq("tenant_id", tenantId);
+
+    for (const row of propertyAssignments ?? []) {
+        const propertyId = row.property_id as string | null;
+        if (!propertyId) continue;
+
+        const { error: assignmentDeleteError } = await admin
+            .from("property_tenants")
+            .delete()
+            .eq("property_id", propertyId)
+            .eq("tenant_id", tenantId)
+            .eq("owner_id", user.id);
+
+        if (assignmentDeleteError) return { ok: false, error: assignmentDeleteError.message };
+
+        await ensurePropertyPrimaryTenant(propertyId);
+    }
+
+    const { error: propertyFallbackError } = await admin
+        .from("properties")
+        .update({ tenant_id: null })
+        .eq("tenant_id", tenantId)
+        .eq("owner_id", user.id);
+    if (propertyFallbackError) return { ok: false, error: propertyFallbackError.message };
+
     const { error: documentsError } = await admin
         .from("documents")
         .update({ tenant_id: null })
@@ -111,13 +141,6 @@ export async function deleteTenant(tenantId: string) {
         .eq("owner_id", user.id);
     if (chargesError) return { ok: false, error: chargesError.message };
 
-    const { error: propertyError } = await admin
-        .from("properties")
-        .update({ tenant_id: null })
-        .eq("tenant_id", tenantId)
-        .eq("owner_id", user.id);
-    if (propertyError) return { ok: false, error: propertyError.message };
-
     const { error: membershipError } = await admin
         .from("tenant_memberships")
         .delete()
@@ -125,5 +148,69 @@ export async function deleteTenant(tenantId: string) {
         .eq("owner_id", user.id);
     if (membershipError) return { ok: false, error: membershipError.message };
 
+    await admin
+        .from("tenant_exit_requests")
+        .delete()
+        .eq("tenant_id", tenantId)
+        .eq("owner_id", user.id);
+
+    return { ok: true };
+}
+
+export async function approveTenantExitRequest(requestId: string) {
+    const { user } = await requireRole("OWNER");
+    const admin = createSupabaseAdminClient();
+
+    const { data: requestRow, error } = await admin
+        .from("tenant_exit_requests")
+        .select("id,tenant_id,property_id,owner_id,status")
+        .eq("id", requestId)
+        .eq("owner_id", user.id)
+        .eq("status", "PENDING")
+        .single();
+
+    if (error || !requestRow) return { ok: false, error: "A kilépési kérelem nem található." };
+
+    const { error: assignmentDeleteError } = await admin
+        .from("property_tenants")
+        .delete()
+        .eq("property_id", requestRow.property_id)
+        .eq("tenant_id", requestRow.tenant_id)
+        .eq("owner_id", user.id);
+
+    if (assignmentDeleteError) return { ok: false, error: assignmentDeleteError.message };
+
+    await ensurePropertyPrimaryTenant(requestRow.property_id as string);
+    await syncOwnerTenantMembership(user.id, requestRow.tenant_id as string);
+
+    const { error: requestError } = await admin
+        .from("tenant_exit_requests")
+        .update({
+            status: "APPROVED",
+            reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", requestId)
+        .eq("owner_id", user.id);
+
+    if (requestError) return { ok: false, error: requestError.message };
+
+    return { ok: true };
+}
+
+export async function rejectTenantExitRequest(requestId: string) {
+    const { user } = await requireRole("OWNER");
+    const admin = createSupabaseAdminClient();
+
+    const { error } = await admin
+        .from("tenant_exit_requests")
+        .update({
+            status: "REJECTED",
+            reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", requestId)
+        .eq("owner_id", user.id)
+        .eq("status", "PENDING");
+
+    if (error) return { ok: false, error: error.message };
     return { ok: true };
 }

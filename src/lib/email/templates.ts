@@ -121,6 +121,27 @@ type TenantDeletionRequestInput = {
     tenantEmail: string;
 };
 
+type TenantExitRequestInput = {
+    ownerEmail: string;
+    ownerName?: string | null;
+    tenantName?: string | null;
+    tenantEmail: string;
+    propertyName: string;
+    propertyAddress?: string | null;
+    openUrl: string;
+};
+
+type UnknownInboundInvoiceInput = {
+    ownerEmail: string;
+    ownerName?: string | null;
+    sourceEmailFrom?: string | null;
+    fileName?: string | null;
+    propertyName?: string | null;
+    approveUrl: string;
+    rejectUrl: string;
+    reviewUrl: string;
+};
+
 export function renderNewChargeEmail(input: NewChargeInput) {
     const countText = input.count && input.count > 1 ? ` (${input.count} alkalom)` : "";
     const propertyLine = input.propertyName ? `Ingatlan: ${input.propertyName}` : "Ingatlan: -";
@@ -395,6 +416,77 @@ export function renderTenantDeletionRequestEmail(input: TenantDeletionRequestInp
                 <li><b>Bérlő:</b> ${tenantLabel}</li>
             </ul>
             <p>Kérünk ellenőrizd, hogy minden nyitott ügy le van-e zárva, és utána egyeztess vele a törlésről.</p>
+        </div>
+    `;
+
+    return { to: input.ownerEmail, subject, html, text };
+}
+
+export function renderTenantExitRequestEmail(input: TenantExitRequestInput) {
+    const ownerName = input.ownerName ? `Szia ${input.ownerName},` : "Szia,";
+    const tenantLabel = input.tenantName ? `${input.tenantName} (${input.tenantEmail})` : input.tenantEmail;
+    const subject = "Bérlői kilépési kérelem";
+    const text = [
+        ownerName,
+        "Egy bérlő kérte, hogy kerüljön le az egyik ingatlanodról.",
+        `Bérlő: ${tenantLabel}`,
+        `Ingatlan: ${input.propertyName}`,
+        input.propertyAddress ? `Cím: ${input.propertyAddress}` : null,
+        `Jóváhagyás: ${input.openUrl}`,
+    ].filter(Boolean).join("\n");
+
+    const actionButtons = renderActionButtons([
+        { label: "Kérelem megnyitása", href: input.openUrl, primary: true },
+    ]);
+
+    const html = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+            <p>${ownerName}</p>
+            <p>Egy bérlő kérte, hogy kerüljön le az egyik ingatlanodról.</p>
+            <ul>
+                <li><b>Bérlő:</b> ${tenantLabel}</li>
+                <li><b>Ingatlan:</b> ${input.propertyName}</li>
+                ${input.propertyAddress ? `<li><b>Cím:</b> ${input.propertyAddress}</li>` : ""}
+            </ul>
+            <p>A jóváhagyást a Rentappban tudod elvégezni.</p>
+            ${actionButtons}
+        </div>
+    `;
+
+    return { to: input.ownerEmail, subject, html, text };
+}
+
+export function renderUnknownInboundInvoiceEmail(input: UnknownInboundInvoiceInput) {
+    const greeting = input.ownerName ? `Szia ${input.ownerName},` : "Szia,";
+    const subject = "Új számla érkezett ismeretlen feladótól";
+    const text = [
+        greeting,
+        "Érkezett egy számla a közös bejövő címre olyan feladótól, amit a rendszer nem tudott közvetlenül hozzád kötni.",
+        input.sourceEmailFrom ? `Feladó: ${input.sourceEmailFrom}` : null,
+        input.fileName ? `Fájlnév: ${input.fileName}` : null,
+        input.propertyName ? `Feltételezett ingatlan: ${input.propertyName}` : null,
+        `Feldolgozás jóváhagyása: ${input.approveUrl}`,
+        `Elutasítás: ${input.rejectUrl}`,
+        `Részletek: ${input.reviewUrl}`,
+    ].filter(Boolean).join("\n");
+
+    const actionButtons = renderActionButtons([
+        { label: "Igen, dolgozd fel", href: input.approveUrl, primary: true },
+        { label: "Nem ismerős", href: input.rejectUrl },
+        { label: "Megnyitom az importot", href: input.reviewUrl },
+    ]);
+
+    const html = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+            <p>${greeting}</p>
+            <p>Érkezett egy számla a közös bejövő címre olyan feladótól, amit a rendszer nem tudott közvetlenül hozzád kötni.</p>
+            <ul>
+                ${input.sourceEmailFrom ? `<li><b>Feladó:</b> ${input.sourceEmailFrom}</li>` : ""}
+                ${input.fileName ? `<li><b>Fájl:</b> ${input.fileName}</li>` : ""}
+                ${input.propertyName ? `<li><b>Feltételezett ingatlan:</b> ${input.propertyName}</li>` : ""}
+            </ul>
+            <p>Ha ez valóban hozzád tartozik, indítsd el a feldolgozást. Ha nem ismerős, jelöld elutasítottnak.</p>
+            ${actionButtons}
         </div>
     `;
 

@@ -3,7 +3,6 @@
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/requireRole";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
 import { renderFriendlyArrearsReminderEmail, renderNewChargeEmail } from "@/lib/email/templates";
 import { removeDocumentObjects, uploadDocumentObject } from "@/lib/documentStorage";
@@ -14,6 +13,7 @@ import { tmpdir } from "os";
 import path from "path";
 import { writeFile, readFile, rm } from "fs/promises";
 import { extractInvoiceFields } from "@/lib/ai/invoiceExtractor";
+import { listPropertyTenants } from "@/lib/propertyTenants";
 
 type ChargeIdRow = {
     id: string | null;
@@ -43,6 +43,10 @@ const execFileAsync = promisify(execFile);
 
 function normalizeDiacritics(value: string) {
     return value.normalize("NFD").replace(/\p{Diacritic}/gu, "");
+}
+
+function isMissingManualReminderColumnError(message: string | undefined) {
+    return (message || "").includes("manual_reminder_sent_at");
 }
 
 function normalizeLabelText(text: string) {
@@ -343,26 +347,19 @@ export async function createCharge(propertyId: string, formData: FormData) {
         }
     }
 
-    if (property.tenant_id) {
-        const admin = createSupabaseAdminClient();
-        const { data: tenantProfile } = await admin
-            .from("profiles")
-            .select("email")
-            .eq("id", property.tenant_id)
-            .single();
-
-        if (tenantProfile?.email) {
-            const emailPayload = renderNewChargeEmail({
-                tenantEmail: tenantProfile.email,
-                title,
-                amount,
-                currency: "HUF",
-                dueDate: due_date,
-                propertyName: property.name,
-                count: recurringCount,
-            });
-            await sendEmail(emailPayload);
-        }
+    const propertyTenants = await listPropertyTenants(propertyId);
+    for (const tenantProfile of propertyTenants) {
+        if (!tenantProfile.email) continue;
+        const emailPayload = renderNewChargeEmail({
+            tenantEmail: tenantProfile.email,
+            title,
+            amount,
+            currency,
+            dueDate: due_date,
+            propertyName: property.name,
+            count: recurringCount,
+        });
+        await sendEmail(emailPayload);
     }
     revalidatePath(`/owner/properties/${propertyId}/charges`);
     return { ok: true };
@@ -507,34 +504,30 @@ export async function sendManualChargeReminder(chargeId: string) {
 
     if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
     if (charge.status !== "UNPAID") return { ok: false, error: "Csak aktív díjhoz küldhető emlékeztető." };
-    if (!charge.tenant_id) return { ok: false, error: "Ehhez a díjhoz nincs bérlő hozzárendelve." };
 
-    const admin = createSupabaseAdminClient();
-    const { data: tenantProfile, error: tenantError } = await admin
-        .from("profiles")
-        .select("email,full_name")
-        .eq("id", charge.tenant_id)
-        .single();
-
-    if (tenantError || !tenantProfile?.email) {
+    const tenantProfiles = await listPropertyTenants(charge.property_id);
+    if (tenantProfiles.length === 0) {
         return { ok: false, error: "A bérlő e-mail-címe nem érhető el." };
     }
 
     const propertyValue = (charge as { properties?: { name: string | null }[] | { name: string | null } | null }).properties;
     const property = Array.isArray(propertyValue) ? propertyValue[0] : propertyValue;
-    const payload = renderFriendlyArrearsReminderEmail({
-        tenantEmail: tenantProfile.email,
-        tenantName: tenantProfile.full_name ?? null,
-        title: charge.title,
-        amount: Number(charge.amount),
-        currency: String(charge.currency || "HUF"),
-        dueDate: String(charge.due_date),
-        propertyName: property?.name ?? null,
-    });
+    for (const tenantProfile of tenantProfiles) {
+        if (!tenantProfile.email) continue;
+        const payload = renderFriendlyArrearsReminderEmail({
+            tenantEmail: tenantProfile.email,
+            tenantName: tenantProfile.full_name ?? null,
+            title: charge.title,
+            amount: Number(charge.amount),
+            currency: String(charge.currency || "HUF"),
+            dueDate: String(charge.due_date),
+            propertyName: property?.name ?? null,
+        });
 
-    const emailResult = await sendEmail(payload);
-    if (!emailResult.ok) {
-        return { ok: false, error: emailResult.error ?? "Az emlékeztető e-mail küldése nem sikerült." };
+        const emailResult = await sendEmail(payload);
+        if (!emailResult.ok) {
+            return { ok: false, error: emailResult.error ?? "Az emlékeztető e-mail küldése nem sikerült." };
+        }
     }
 
     const { error } = await supabase
@@ -543,7 +536,9 @@ export async function sendManualChargeReminder(chargeId: string) {
         .eq("id", chargeId)
         .eq("owner_id", user.id);
 
-    if (error) return { ok: false, error: error.message };
+    if (error && !isMissingManualReminderColumnError(error.message)) {
+        return { ok: false, error: error.message };
+    }
 
     revalidatePath(`/owner/properties/${charge.property_id}/charges`);
     revalidatePath("/owner/todo");
@@ -571,17 +566,12 @@ export async function publishCharge(chargeId: string) {
 
     if (error) return { ok: false, error: error.message };
 
-    if (charge.tenant_id) {
-        const admin = createSupabaseAdminClient();
-        const { data: tenantProfile } = await admin
-            .from("profiles")
-            .select("email")
-            .eq("id", charge.tenant_id)
-            .single();
-
-        if (tenantProfile?.email) {
-            const propertyValue = (charge as { properties?: { name: string | null }[] | { name: string | null } | null }).properties;
-            const property = Array.isArray(propertyValue) ? propertyValue[0] : propertyValue;
+    const propertyTenants = await listPropertyTenants(charge.property_id);
+    if (propertyTenants.length > 0) {
+        const propertyValue = (charge as { properties?: { name: string | null }[] | { name: string | null } | null }).properties;
+        const property = Array.isArray(propertyValue) ? propertyValue[0] : propertyValue;
+        for (const tenantProfile of propertyTenants) {
+            if (!tenantProfile.email) continue;
             const emailPayload = renderNewChargeEmail({
                 tenantEmail: tenantProfile.email,
                 title: charge.title,
