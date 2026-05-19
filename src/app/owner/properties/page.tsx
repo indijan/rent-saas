@@ -29,6 +29,9 @@ export default async function OwnerPropertiesPage({ searchParams }: Props) {
             const msg = res.error ?? "Ismeretlen hiba.";
             redirect(`/owner/properties?status=error&message=${encodeURIComponent(msg)}`);
         }
+        if (res.duplicate) {
+            redirect("/owner/properties?status=success&message=Ez+az+ingatlan+m%C3%A1r+l%C3%A9tezik%2C+ez%C3%A9rt+nem+hoztuk+l%C3%A9tre+ism%C3%A9t.");
+        }
         redirect("/owner/properties?status=success&message=Az+ingatlan+l%C3%A9trej%C3%B6tt.");
     }
 

@@ -12,6 +12,22 @@ export async function createProperty(formData: FormData) {
         return { ok: false, error: "Név és cím kötelező." };
     }
 
+    const { data: existingProperty, error: existingError } = await supabase
+        .from("properties")
+        .select("id")
+        .eq("owner_id", user.id)
+        .eq("name", name)
+        .eq("address", address)
+        .maybeSingle();
+
+    if (existingError) {
+        return { ok: false, error: existingError.message };
+    }
+
+    if (existingProperty) {
+        return { ok: true, duplicate: true };
+    }
+
     const { error } = await supabase.from("properties").insert({
         owner_id: user.id,
         tenant_id: null,
