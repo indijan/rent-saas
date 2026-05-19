@@ -154,7 +154,7 @@ export async function createManualIngestion(formData: FormData) {
         return { ok: false, error: "A dokumentum feltöltése nem sikerült." };
     }
 
-    const { error: ingestionInsertError } = await supabase
+    const { error: ingestionInsertError } = await admin
         .from("document_ingestions")
         .insert({
             id: ingestionId,
@@ -173,7 +173,7 @@ export async function createManualIngestion(formData: FormData) {
 
     const extraction = await extractInvoiceFromBuffer(buffer);
     if (!extraction.ok || !extraction.data) {
-        await supabase
+        await admin
             .from("document_ingestions")
             .update({
                 status: "FAILED",
@@ -208,7 +208,7 @@ export async function createManualIngestion(formData: FormData) {
     }
 
     if (!normalized.gross_amount || !normalized.due_date) {
-        await supabase
+        await admin
             .from("document_ingestions")
             .update({
                 status: "NEEDS_REVIEW",
@@ -260,7 +260,7 @@ export async function createManualIngestion(formData: FormData) {
     );
 
     if (!draftResult.ok) {
-        await supabase
+        await admin
             .from("document_ingestions")
             .update({
                 status: "FAILED",
@@ -276,7 +276,7 @@ export async function createManualIngestion(formData: FormData) {
         return { ok: false, error: draftResult.error };
     }
 
-    await supabase
+    await admin
         .from("document_fingerprints")
         .insert({
             owner_id: user.id,
@@ -287,7 +287,7 @@ export async function createManualIngestion(formData: FormData) {
             document_id: draftResult.documentId,
         });
 
-    await supabase
+    await admin
         .from("document_ingestions")
         .update({
             status: "DRAFTED",
