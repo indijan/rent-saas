@@ -6,6 +6,8 @@ import DeletePropertyForm from "./DeletePropertyForm";
 import AppHeader from "@/components/AppHeader";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { listOwnerTenantIds } from "@/lib/tenantOwnership";
+import OwnerPropertyEditForm from "./OwnerPropertyEditForm";
+import { maskAddress } from "@/lib/addressMasking";
 
 type Props = {
     params: Promise<{ id: string }>;
@@ -58,7 +60,7 @@ export default async function OwnerPropertyDetailPage({ params, searchParams }: 
                         </Link>
                         <div className="eyebrow">Ingatlan részletei</div>
                         <h1>{property.name}</h1>
-                        <p className="text-sm text-gray-600">{property.address}</p>
+                        <p className="text-sm text-gray-600">{maskAddress(property.address)}</p>
                     </div>
                 </div>
             </section>
@@ -86,7 +88,7 @@ export default async function OwnerPropertyDetailPage({ params, searchParams }: 
                     </span>
                 </div>
             </section>
-            <form
+            <OwnerPropertyEditForm
                 action={async (formData) => {
                     "use server";
                     const res = await updateProperty(property.id, formData);
@@ -96,51 +98,10 @@ export default async function OwnerPropertyDetailPage({ params, searchParams }: 
                     }
                     redirect(`/owner/properties/${property.id}?status=success&message=Az+ingatlan+adatai+elmentve.`);
                 }}
-                className="card form-shell"
-            >
-                <div className="section-header">
-                    <div>
-                        <div className="card-title">Ingatlan szerkesztése</div>
-                        <p className="muted-note">Az alapadatok és az aktív állapot innen módosítható.</p>
-                    </div>
-                </div>
-                <div className="form-panel">
-                    <div className="form-grid">
-                        <label className="field-stack">
-                            <span className="field-label">Megnevezés</span>
-                            <input
-                                name="name"
-                                className="input"
-                                defaultValue={property.name}
-                                required
-                            />
-                        </label>
-                        <label className="field-stack">
-                            <span className="field-label">Cím</span>
-                            <input
-                                name="address"
-                                className="input"
-                                defaultValue={property.address}
-                                required
-                            />
-                        </label>
-                        <label className="field-stack">
-                            <span className="field-label">Státusz</span>
-                            <select
-                                name="status"
-                                className="select"
-                                defaultValue={property.status}
-                            >
-                                <option value="ACTIVE">Aktív</option>
-                                <option value="INACTIVE">Inaktív</option>
-                            </select>
-                        </label>
-                    </div>
-                </div>
-                <button className="btn btn-primary">
-                    Módosítás mentése
-                </button>
-            </form>
+                name={property.name}
+                address={property.address}
+                status={property.status}
+            />
             <form
                 action={async (formData) => {
                     "use server";

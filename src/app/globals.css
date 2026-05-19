@@ -1034,6 +1034,47 @@ summary::-webkit-details-marker {
   color: var(--ink-700);
 }
 
+.address-field {
+  position: relative;
+}
+
+.address-field-feedback {
+  display: grid;
+  gap: 4px;
+}
+
+.address-suggestions {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(18, 24, 31, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 40px rgba(15, 23, 42, 0.12);
+}
+
+.address-suggestion {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(37, 99, 235, 0.1);
+  background: rgba(248, 250, 252, 0.96);
+  color: var(--ink-700);
+}
+
+.address-suggestion:hover {
+  border-color: rgba(37, 99, 235, 0.24);
+  background: rgba(239, 246, 255, 0.92);
+}
+
 @keyframes support-bubble-morph {
   0% {
     transform: scale(1);

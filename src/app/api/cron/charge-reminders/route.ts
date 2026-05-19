@@ -1,6 +1,9 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
 import { renderOwnerOverdueCheckEmail, renderReminderEmail } from "@/lib/email/templates";
+import { createEmailActionToken } from "@/lib/emailActionTokens";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu";
 
 type ReminderChargeRow = {
     id: string;
@@ -128,6 +131,9 @@ export async function POST(request: Request) {
             currency: charge.currency,
             dueDate: charge.due_date,
             propertyName,
+            markPaidUrl: `${SITE_URL}/email-action?token=${encodeURIComponent(createEmailActionToken("charge_mark_paid", charge.id))}`,
+            sendReminderUrl: `${SITE_URL}/email-action?token=${encodeURIComponent(createEmailActionToken("charge_send_reminder", charge.id))}`,
+            openUrl: `${SITE_URL}/owner/todo`,
         });
         await sendEmail(payload);
         overdueCheckIds.push(charge.id);

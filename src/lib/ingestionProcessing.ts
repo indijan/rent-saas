@@ -6,6 +6,9 @@ import { findOwnerSupplierProfile } from "@/lib/supplierProfiles";
 import { suggestOwnerPropertyForIngestion } from "@/lib/propertyMatching";
 import { extractInvoiceFromBuffer } from "@/app/owner/properties/[id]/charges/actions";
 import { downloadDocumentObject } from "@/lib/documentStorage";
+import { createEmailActionToken } from "@/lib/emailActionTokens";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu";
 
 type IngestionRecord = {
     id: string;
@@ -140,6 +143,8 @@ export async function processStoredIngestion(ingestionId: string) {
                 status: "FAILED",
                 fileName: ingestionRow.source_attachment_name,
                 error: extraction.ok ? "A feldolgozás nem sikerült." : extraction.error,
+                openUrl: `${SITE_URL}/owner/importok`,
+                reviewUrl: `${SITE_URL}/owner/importok/${ingestionId}`,
             }));
         }
         return { ok: false as const, error: extraction.ok ? "A feldolgozás nem sikerült." : extraction.error };
@@ -224,6 +229,8 @@ export async function processStoredIngestion(ingestionId: string) {
                 error: normalized.property_id
                     ? "Az import beérkezett, de kézi ellenőrzést igényel."
                     : "Az import beérkezett, de nincs hozzárendelt ingatlan.",
+                openUrl: `${SITE_URL}/owner/importok`,
+                reviewUrl: `${SITE_URL}/owner/importok/${ingestionId}`,
             }));
         }
         return { ok: true as const, needsReview: true };
@@ -322,6 +329,9 @@ export async function processStoredIngestion(ingestionId: string) {
             currency: normalized.currency,
             dueDate: normalized.due_date,
             propertyName: property.name,
+            openUrl: `${SITE_URL}/owner/importok`,
+            reviewUrl: `${SITE_URL}/owner/importok/${ingestionId}`,
+            publishUrl: `${SITE_URL}/email-action?token=${encodeURIComponent(createEmailActionToken("charge_publish", draftResult.chargeId))}`,
         }));
     }
 

@@ -28,6 +28,9 @@ type OwnerOverdueCheckInput = {
     currency: string;
     dueDate: string;
     propertyName?: string | null;
+    markPaidUrl?: string | null;
+    sendReminderUrl?: string | null;
+    openUrl?: string | null;
 };
 
 type FriendlyArrearsReminderInput = {
@@ -64,7 +67,33 @@ type ImportInvoiceStatusInput = {
     propertyName?: string | null;
     fileName?: string | null;
     error?: string | null;
+    openUrl?: string | null;
+    publishUrl?: string | null;
+    reviewUrl?: string | null;
 };
+
+function renderActionButtons(actions: Array<{ label: string; href: string; primary?: boolean }>) {
+    if (actions.length === 0) return "";
+    return `
+        <div style="margin-top: 20px; display: flex; gap: 12px; flex-wrap: wrap;">
+            ${actions.map((action) => `
+                <a
+                    href="${action.href}"
+                    style="
+                        display:inline-block;
+                        padding:12px 18px;
+                        border-radius:999px;
+                        text-decoration:none;
+                        font-weight:700;
+                        ${action.primary
+                            ? "background:#2563eb;color:#ffffff;"
+                            : "background:#ffffff;color:#1f2937;border:1px solid rgba(18,24,31,0.12);"}
+                    "
+                >${action.label}</a>
+            `).join("")}
+        </div>
+    `;
+}
 
 type OwnerLeadInput = {
     ownerEmail: string;
@@ -153,8 +182,14 @@ export function renderOwnerOverdueCheckEmail(input: OwnerOverdueCheckInput) {
         `Megnevezés: ${input.title}`,
         `Összeg: ${input.amount} ${input.currency}`,
         `Esedékesség: ${input.dueDate}`,
-        `Teendők: ${SITE_URL}/owner/todo`,
+        `Teendők: ${input.openUrl || `${SITE_URL}/owner/todo`}`,
     ].filter(Boolean).join("\n");
+
+    const actionButtons = renderActionButtons([
+        input.markPaidUrl ? { label: "Fizetve", href: input.markPaidUrl, primary: true } : null,
+        input.sendReminderUrl ? { label: "Baráti emlékeztetőt küldök", href: input.sendReminderUrl } : null,
+        { label: "Megnyitom az appban", href: input.openUrl || `${SITE_URL}/owner/todo` },
+    ].filter(Boolean) as Array<{ label: string; href: string; primary?: boolean }>);
 
     const html = `
         <div style="font-family: Arial, sans-serif; line-height: 1.5;">
@@ -168,7 +203,7 @@ export function renderOwnerOverdueCheckEmail(input: OwnerOverdueCheckInput) {
                 <li><b>Összeg:</b> ${input.amount} ${input.currency}</li>
                 <li><b>Esedékesség:</b> ${input.dueDate}</li>
             </ul>
-            <p><a href="${SITE_URL}/owner/todo">Teendők megnyitása</a></p>
+            ${actionButtons}
         </div>
     `;
 
@@ -276,8 +311,14 @@ export function renderImportInvoiceStatusEmail(input: ImportInvoiceStatusInput) 
         input.amount !== null && input.amount !== undefined ? `Összeg: ${input.amount} ${input.currency ?? ""}` : null,
         input.dueDate ? `Határidő: ${input.dueDate}` : null,
         input.error ? `Hiba: ${input.error}` : null,
-        `Részletek: ${SITE_URL}/owner/properties`,
+        `Részletek: ${input.openUrl || input.reviewUrl || `${SITE_URL}/owner/importok`}`,
     ].filter(Boolean).join("\n");
+
+    const actionButtons = renderActionButtons([
+        input.publishUrl ? { label: "Jónak tűnik, mehet", href: input.publishUrl, primary: true } : null,
+        input.reviewUrl ? { label: "Nem jó, szerkesztem", href: input.reviewUrl } : null,
+        { label: "Importok megnyitása", href: input.openUrl || `${SITE_URL}/owner/importok` },
+    ].filter(Boolean) as Array<{ label: string; href: string; primary?: boolean }>);
 
     const html = `
         <div style="font-family: Arial, sans-serif; line-height: 1.5;">
@@ -290,7 +331,7 @@ export function renderImportInvoiceStatusEmail(input: ImportInvoiceStatusInput) 
                 ${input.dueDate ? `<li><b>Határidő:</b> ${input.dueDate}</li>` : ""}
                 ${input.error ? `<li><b>Hiba:</b> ${input.error}</li>` : ""}
             </ul>
-            <p><a href="${SITE_URL}/owner/properties">Részletek megnyitása</a></p>
+            ${actionButtons}
         </div>
     `;
 

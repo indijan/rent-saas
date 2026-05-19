@@ -17,11 +17,17 @@ Javasolt flow:
 
 - `ses-s3-to-rentapp-lambda.mjs`: Node.js Lambda handler minta
 
-## Szükséges package-ek a Lambda csomaghoz
+## Lambda csomagolás
 
 ```bash
-npm install @aws-sdk/client-s3 postal-mime
+npm run package:ses-lambda
 ```
+
+Ez elkészíti a feltölthető zipet ide:
+
+`scripts/aws/dist/rentapp-ses-inbound.zip`
+
+AWS-ben ezt a zipet kell feltölteni a Lambda functionhöz.
 
 ## Szükséges environment változók
 

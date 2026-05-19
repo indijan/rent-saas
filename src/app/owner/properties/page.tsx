@@ -4,6 +4,8 @@ import { requireRole } from "@/lib/auth/requireRole";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import AppHeader from "@/components/AppHeader";
 import { createProperty } from "./actions";
+import OwnerPropertyCreateForm from "./OwnerPropertyCreateForm";
+import { maskAddress } from "@/lib/addressMasking";
 
 type Props = {
     searchParams?: Promise<{ status?: string; message?: string }> | { status?: string; message?: string };
@@ -91,39 +93,7 @@ export default async function OwnerPropertiesPage({ searchParams }: Props) {
                 </div>
             ) : null}
 
-            <form action={onCreate} className="card form-shell">
-                <div className="section-header">
-                    <div>
-                        <div className="card-title">Új ingatlan felvétele</div>
-                        <p className="muted-note">Az új ingatlan automatikusan aktív státuszban jön létre.</p>
-                    </div>
-                </div>
-                <div className="form-panel">
-                    <div className="form-grid">
-                        <label className="field-stack">
-                            <span className="field-label">Megnevezés</span>
-                            <input
-                                name="name"
-                                placeholder="Pl. Belvárosi lakás"
-                                className="input"
-                                required
-                            />
-                        </label>
-                        <label className="field-stack">
-                            <span className="field-label">Cím</span>
-                            <input
-                                name="address"
-                                placeholder="Cím"
-                                className="input"
-                                required
-                            />
-                        </label>
-                    </div>
-                </div>
-                <button className="btn btn-primary">
-                    Ingatlan létrehozása
-                </button>
-            </form>
+            <OwnerPropertyCreateForm action={onCreate} />
 
             {(!properties || properties.length === 0) ? (
                 <div className="card">
@@ -143,7 +113,7 @@ export default async function OwnerPropertiesPage({ searchParams }: Props) {
                             <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                     <div className="card-title">{p.name}</div>
-                                    <div className="text-sm text-gray-600">{p.address}</div>
+                                    <div className="text-sm text-gray-600">{maskAddress(p.address)}</div>
                                     <div className="muted-note">
                                         Bérlő: {tenant ? (tenant.full_name || tenant.email) : "Nincs hozzárendelve"}
                                     </div>

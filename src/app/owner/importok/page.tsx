@@ -4,9 +4,10 @@ import { requireRole } from "@/lib/auth/requireRole";
 import AppHeader from "@/components/AppHeader";
 import { getOrCreateInboundMailbox } from "@/lib/inboundMailboxes";
 import { createManualIngestion, rotateOwnerInboundMailbox } from "./actions";
+import ImportSubmitButton from "./ImportSubmitButton";
 
 type Props = {
-    searchParams?: Promise<{ status?: string; message?: string }> | { status?: string; message?: string };
+    searchParams?: Promise<{ status?: string; message?: string; chargeId?: string; ingestionId?: string }> | { status?: string; message?: string; chargeId?: string; ingestionId?: string };
 };
 
 type PropertyRow = {
@@ -49,6 +50,8 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
     const sp = searchParams instanceof Promise ? await searchParams : (searchParams ?? {});
     const status = sp.status ? String(sp.status) : "";
     const message = sp.message ? String(sp.message) : "";
+    const chargeId = sp.chargeId ? String(sp.chargeId) : "";
+    const ingestionId = sp.ingestionId ? String(sp.ingestionId) : "";
 
     const mailbox = await getOrCreateInboundMailbox(user.id);
 
@@ -143,8 +146,23 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
             </section>
 
             {message ? (
-                <div className={`card ${status === "error" ? "text-red-600" : "text-green-600"}`}>
-                    {message}
+                <div className={`card section-stack ${status === "error" ? "text-red-600" : "text-green-600"}`}>
+                    <div>{message}</div>
+                    {status !== "error" && chargeId ? (
+                        <div className="charge-actions">
+                            <span className="muted-note">Draft díj azonosító: {chargeId}</span>
+                            <Link className="btn btn-secondary btn-sm" href={`/owner/importok/${ingestionId}`}>
+                                Import részletei
+                            </Link>
+                        </div>
+                    ) : null}
+                    {status !== "error" && !chargeId && ingestionId ? (
+                        <div className="charge-actions">
+                            <Link className="btn btn-secondary btn-sm" href={`/owner/importok/${ingestionId}`}>
+                                Ellenőrzés megnyitása
+                            </Link>
+                        </div>
+                    ) : null}
                 </div>
             ) : null}
 
@@ -157,9 +175,9 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
                         redirect(`/owner/importok?status=error&message=${encodeURIComponent(msg)}`);
                     }
                     if (res.needsReview) {
-                        redirect("/owner/importok?status=success&message=A+sz%C3%A1mla+be%C3%A9rkezett%2C+de+ellen%C5%91rz%C3%A9st+ig%C3%A9nyel.");
+                        redirect(`/owner/importok?status=success&message=A+sz%C3%A1mla+be%C3%A9rkezett%2C+de+ellen%C5%91rz%C3%A9st+ig%C3%A9nyel.&ingestionId=${encodeURIComponent(res.ingestionId ?? "")}`);
                     }
-                    redirect("/owner/importok?status=success&message=A+sz%C3%A1ml%C3%A1b%C3%B3l+draft+d%C3%ADj+j%C3%B6tt+l%C3%A9tre.");
+                    redirect(`/owner/importok?status=success&message=A+sz%C3%A1ml%C3%A1b%C3%B3l+draft+d%C3%ADj+j%C3%B6tt+l%C3%A9tre.&chargeId=${encodeURIComponent(res.chargeId ?? "")}&ingestionId=${encodeURIComponent(res.ingestionId ?? "")}`);
                 }}
                 className="card form-shell"
             >
@@ -188,9 +206,7 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
                         </label>
                     </div>
                 </div>
-                <button className="btn btn-primary" type="submit">
-                    Feldolgozás indítása
-                </button>
+                <ImportSubmitButton />
             </form>
 
             <section className="card section-stack">

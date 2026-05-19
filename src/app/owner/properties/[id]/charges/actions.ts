@@ -104,26 +104,33 @@ function extractAmountDueFromText(text: string) {
     const linesNoAccents = noAccents.split(/\r?\n/);
     const candidates = [lines, linesNoAccents];
     const rawLines = text.split(/\r?\n/);
+    const amountLabelPattern = /(Fizetendo\s+osszeg|Fizetendo|Osszesen|Vegosszeg|Brutto\s+vegosszeg|Brutto\s+osszeg)/i;
 
     for (const list of candidates) {
         for (let i = 0; i < list.length; i += 1) {
             const line = list[i];
-            const match = line.match(/Fizetendo\s+osszeg\s*[:\s]*([0-9 .,-]+(?:Ft|HUF)?)/i);
+            const match = line.match(/(?:Fizetendo\s+osszeg|Fizetendo|Osszesen|Vegosszeg|Brutto\s+vegosszeg|Brutto\s+osszeg)\s*[:\s]*([0-9 .,-]+(?:Ft|HUF)?)/i);
             if (match?.[1]) {
                 return parseHungarianAmount(match[1]);
             }
-            if (/Fizetendo\s+osszeg/i.test(line) && list[i + 1]) {
+            if (amountLabelPattern.test(line) && list[i + 1]) {
                 const valMatch = list[i + 1].match(/([0-9 .,-]+(?:Ft|HUF)?)/i);
                 if (valMatch?.[1]) return parseHungarianAmount(valMatch[1]);
                 const rawMatch = rawLines[i + 1]?.match(/([0-9 .,-]+(?:Ft|HUF)?)/i);
                 if (rawMatch?.[1]) return parseHungarianAmount(rawMatch[1]);
             }
-            if (/Fizetendo\s+osszeg/i.test(line) && rawLines[i]) {
+            if (amountLabelPattern.test(line) && rawLines[i]) {
                 const rawLineMatch = rawLines[i].match(/([0-9 .,-]+(?:Ft|HUF)?)/i);
                 if (rawLineMatch?.[1]) return parseHungarianAmount(rawLineMatch[1]);
             }
         }
     }
+
+    const keywordWindowMatch = text.match(/(?:fizetend[oő]|összesen|végösszeg|bruttó)[\s\S]{0,80}?([0-9]{1,3}(?:[ .]\d{3})+(?:,\d{1,2})?\s*(?:Ft|HUF)?)/i);
+    if (keywordWindowMatch?.[1]) {
+        return parseHungarianAmount(keywordWindowMatch[1]);
+    }
+
     return null;
 }
 

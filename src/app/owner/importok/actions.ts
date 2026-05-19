@@ -11,6 +11,9 @@ import { rotateInboundMailbox } from "@/lib/inboundMailboxes";
 import { findOwnerSupplierProfile, issuerFingerprint } from "@/lib/supplierProfiles";
 import { processStoredIngestion } from "@/lib/ingestionProcessing";
 import { getConfiguredStorageBucketName, removeDocumentObjects, uploadDocumentObject } from "@/lib/documentStorage";
+import { createEmailActionToken } from "@/lib/emailActionTokens";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu";
 
 function safeFileName(value: string) {
     return value.replaceAll(" ", "_").replace(/[^a-zA-Z0-9._-]/g, "");
@@ -231,10 +234,12 @@ export async function createManualIngestion(formData: FormData) {
                 dueDate: normalized.due_date,
                 propertyName: property.name,
                 error: "Az import beérkezett, de kézi ellenőrzést igényel.",
+                openUrl: `${SITE_URL}/owner/importok`,
+                reviewUrl: `${SITE_URL}/owner/importok/${ingestionId}`,
             }));
         }
         revalidatePath("/owner/importok");
-        return { ok: true, needsReview: true };
+        return { ok: true, needsReview: true, ingestionId };
     }
 
     const draftResult = await createDraftFromNormalized(
@@ -311,12 +316,15 @@ export async function createManualIngestion(formData: FormData) {
             currency: normalized.currency,
             dueDate: normalized.due_date,
             propertyName: property.name,
+            openUrl: `${SITE_URL}/owner/importok`,
+            reviewUrl: `${SITE_URL}/owner/importok/${ingestionId}`,
+            publishUrl: `${SITE_URL}/email-action?token=${encodeURIComponent(createEmailActionToken("charge_publish", draftResult.chargeId))}`,
         }));
     }
 
     revalidatePath("/owner/importok");
     revalidatePath(`/owner/properties/${property.id}/charges`);
-    return { ok: true, needsReview: false, chargeId: draftResult.chargeId };
+    return { ok: true, needsReview: false, chargeId: draftResult.chargeId, ingestionId };
 }
 
 export async function finalizeIngestionReview(ingestionId: string, formData: FormData) {
