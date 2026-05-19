@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/requireRole";
 
 export async function createProperty(formData: FormData) {
@@ -37,5 +38,7 @@ export async function createProperty(formData: FormData) {
     });
 
     if (error) return { ok: false, error: error.message };
+
+    revalidatePath("/owner/properties");
     return { ok: true };
 }

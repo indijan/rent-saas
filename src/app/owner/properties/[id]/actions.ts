@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/requireRole";
 import { isTenantOwnedByOwner } from "@/lib/tenantOwnership";
 import { removeDocumentObjects } from "@/lib/documentStorage";
@@ -35,6 +36,8 @@ export async function assignTenantToProperty(propertyId: string, formData: FormD
 
     if (chErr) return { ok: false, error: chErr.message };
 
+    revalidatePath(`/owner/properties/${propertyId}`);
+    revalidatePath("/owner/properties");
     return { ok: true };
 }
 
@@ -56,6 +59,9 @@ export async function updateProperty(propertyId: string, formData: FormData) {
         .eq("owner_id", user.id);
 
     if (error) return { ok: false, error: error.message };
+
+    revalidatePath(`/owner/properties/${propertyId}`);
+    revalidatePath("/owner/properties");
     return { ok: true };
 }
 
@@ -111,5 +117,8 @@ export async function deleteProperty(propertyId: string) {
         .eq("owner_id", user.id);
 
     if (error) return { ok: false, error: error.message };
+
+    revalidatePath("/owner/properties");
+    revalidatePath("/owner/todo");
     return { ok: true };
 }
