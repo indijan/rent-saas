@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Props = {
     chargeId: string;
 };
 
 export default function UploadInvoice({ chargeId }: Props) {
+    const router = useRouter();
     const [busy, setBusy] = useState(false);
     const [msg, setMsg] = useState<string>("");
 
@@ -34,6 +36,7 @@ export default function UploadInvoice({ chargeId }: Props) {
 
             setMsg("Feltöltve ✅");
             e.target.value = ""; // reset
+            router.refresh();
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : String(err);
             setMsg(`Hiba: ${message}`);

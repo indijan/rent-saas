@@ -41,6 +41,10 @@ function getR2Client() {
     });
 }
 
+function isR2Preferred() {
+    return getStorageProvider() === "r2";
+}
+
 async function streamToBuffer(stream: AsyncIterable<Uint8Array>) {
     const chunks: Buffer[] = [];
     for await (const chunk of stream) {
@@ -50,15 +54,19 @@ async function streamToBuffer(stream: AsyncIterable<Uint8Array>) {
 }
 
 export async function uploadDocumentObject(key: string, body: Buffer, contentType?: string) {
-    if (getStorageProvider() === "r2") {
-        const client = getR2Client();
-        await client.send(new PutObjectCommand({
-            Bucket: getR2BucketName(),
-            Key: key,
-            Body: body,
-            ContentType: contentType || "application/octet-stream",
-        }));
-        return;
+    if (isR2Preferred()) {
+        try {
+            const client = getR2Client();
+            await client.send(new PutObjectCommand({
+                Bucket: getR2BucketName(),
+                Key: key,
+                Body: body,
+                ContentType: contentType || "application/octet-stream",
+            }));
+            return;
+        } catch {
+            // Fall back to Supabase Storage so uploads keep working while R2 is being finalized.
+        }
     }
 
     const admin = createSupabaseAdminClient();
@@ -74,16 +82,19 @@ export async function uploadDocumentObject(key: string, body: Buffer, contentTyp
 export async function removeDocumentObjects(keys: string[]) {
     if (keys.length === 0) return;
 
-    if (getStorageProvider() === "r2") {
-        const client = getR2Client();
-        await client.send(new DeleteObjectsCommand({
-            Bucket: getR2BucketName(),
-            Delete: {
-                Objects: keys.map((key) => ({ Key: key })),
-                Quiet: true,
-            },
-        }));
-        return;
+    if (isR2Preferred()) {
+        try {
+            const client = getR2Client();
+            await client.send(new DeleteObjectsCommand({
+                Bucket: getR2BucketName(),
+                Delete: {
+                    Objects: keys.map((key) => ({ Key: key })),
+                    Quiet: true,
+                },
+            }));
+        } catch {
+            // Continue with Supabase cleanup fallback.
+        }
     }
 
     const admin = createSupabaseAdminClient();
@@ -94,18 +105,22 @@ export async function removeDocumentObjects(keys: string[]) {
 }
 
 export async function downloadDocumentObject(key: string) {
-    if (getStorageProvider() === "r2") {
-        const client = getR2Client();
-        const response = await client.send(new GetObjectCommand({
-            Bucket: getR2BucketName(),
-            Key: key,
-        }));
+    if (isR2Preferred()) {
+        try {
+            const client = getR2Client();
+            const response = await client.send(new GetObjectCommand({
+                Bucket: getR2BucketName(),
+                Key: key,
+            }));
 
-        if (!response.Body) {
-            throw new Error("A dokumentum nem tölthető le.");
+            if (!response.Body) {
+                throw new Error("A dokumentum nem tölthető le.");
+            }
+
+            return streamToBuffer(response.Body as AsyncIterable<Uint8Array>);
+        } catch {
+            // Fall back to Supabase Storage lookup.
         }
-
-        return streamToBuffer(response.Body as AsyncIterable<Uint8Array>);
     }
 
     const admin = createSupabaseAdminClient();
@@ -118,12 +133,16 @@ export async function downloadDocumentObject(key: string) {
 }
 
 export async function createDocumentSignedUrl(key: string, expiresIn = 60 * 60) {
-    if (getStorageProvider() === "r2") {
-        const client = getR2Client();
-        return getSignedUrl(client, new GetObjectCommand({
-            Bucket: getR2BucketName(),
-            Key: key,
-        }), { expiresIn });
+    if (isR2Preferred()) {
+        try {
+            const client = getR2Client();
+            return await getSignedUrl(client, new GetObjectCommand({
+                Bucket: getR2BucketName(),
+                Key: key,
+            }), { expiresIn });
+        } catch {
+            // Fall back to Supabase signed URL.
+        }
     }
 
     const admin = createSupabaseAdminClient();
