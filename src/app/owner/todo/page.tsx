@@ -75,8 +75,9 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
     const upcomingCharges = chargeRows.filter((charge) => charge.status === "UNPAID" && getDayDiff(charge.due_date) >= 0 && getDayDiff(charge.due_date) <= 5);
     const importDrafts = chargeRows.filter((charge) => charge.status === "IMPORT_DRAFT");
     const unassignedProperties = propertyRows.filter((property) => !property.tenant_id && property.status === "ACTIVE");
+    const showUnassignedProperties = propertyRows.length >= 10;
 
-    const totalTodoCount = overdueCharges.length + upcomingCharges.length + importDrafts.length + unassignedProperties.length;
+    const totalTodoCount = overdueCharges.length + upcomingCharges.length + importDrafts.length + (showUnassignedProperties ? unassignedProperties.length : 0);
 
     return (
         <main className="app-shell page-enter space-y-4">
@@ -108,11 +109,11 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                         <div className="kpi-label">Import piszkozatok</div>
                         <div className="kpi-value">{importDrafts.length}</div>
                     </div>
-                    <div className="kpi-card">
-                        <div className="kpi-label">Bérlő nélküli aktív ingatlan</div>
-                        <div className="kpi-value">{unassignedProperties.length}</div>
+                        <div className="kpi-card">
+                            <div className="kpi-label">Bérlő nélküli aktív ingatlan</div>
+                            <div className="kpi-value">{showUnassignedProperties ? unassignedProperties.length : "—"}</div>
+                        </div>
                     </div>
-                </div>
             </section>
 
             {message ? (
@@ -121,27 +122,27 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                 </div>
             ) : null}
 
-            <section className="grid">
-                <article className="card section-stack">
+            <section className="todo-board">
+                <article className="card section-stack todo-column">
                     <div className="card-title">Lejárt, nyitott tételek</div>
                     {overdueCharges.length === 0 ? (
                         <p className="muted-note">Nincs lejárt, nyitott tétel.</p>
                     ) : (
-                        <div className="charge-list">
+                        <div className="todo-stack">
                             {overdueCharges.slice(0, 6).map((charge) => {
                                 const property = firstProperty(charge.properties);
                                 return (
-                                    <article key={charge.id} className="charge-card">
-                                        <div className="section-header">
-                                            <div>
+                                    <article key={charge.id} className="todo-task-card">
+                                        <div className="todo-task-head">
+                                            <div className="todo-task-copy">
                                                 <div className="card-title">{charge.title}</div>
-                                                <div className="charge-meta">
+                                                <div className="todo-task-meta">
                                                     <span>{property?.name ?? "Ingatlan nélkül"}</span>
                                                     <span>{formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))}</span>
                                                     <span>{Math.abs(getDayDiff(charge.due_date))} napja lejárt</span>
                                                 </div>
                                             </div>
-                                            <div className="charge-actions">
+                                            <div className="todo-task-actions">
                                                 <form
                                                     action={async () => {
                                                         "use server";
@@ -178,16 +179,16 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                     )}
                 </article>
 
-                <article className="card section-stack">
+                <article className="card section-stack todo-column">
                     <div className="card-title">Közelgő esedékességek</div>
                     {upcomingCharges.length === 0 ? (
                         <p className="muted-note">Nincs 5 napon belül esedékes tétel.</p>
                     ) : (
-                        <div className="feature-list">
+                        <div className="todo-link-list">
                             {upcomingCharges.slice(0, 6).map((charge) => {
                                 const property = firstProperty(charge.properties);
                                 return (
-                                    <Link key={charge.id} className="feature-item" href={`/owner/properties/${charge.property_id}/charges`}>
+                                    <Link key={charge.id} className="todo-link-card" href={`/owner/properties/${charge.property_id}/charges`}>
                                         {charge.title} · {property?.name ?? "Ingatlan nélkül"} · {formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))} · {charge.due_date}
                                     </Link>
                                 );
@@ -196,14 +197,14 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                     )}
                 </article>
 
-                <article className="card section-stack">
+                <article className="card section-stack todo-column">
                     <div className="card-title">Import piszkozatok</div>
                     {importDrafts.length === 0 ? (
                         <p className="muted-note">Nincs ellenőrizendő import piszkozat.</p>
                     ) : (
-                        <div className="feature-list">
+                        <div className="todo-link-list">
                             {importDrafts.slice(0, 6).map((charge) => (
-                                <Link key={charge.id} className="feature-item" href={`/owner/properties/${charge.property_id}/charges?status=IMPORT_DRAFT`}>
+                                <Link key={charge.id} className="todo-link-card" href={`/owner/properties/${charge.property_id}/charges?status=IMPORT_DRAFT`}>
                                     {charge.title} · {formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))} · publikálás előtt ellenőrizendő
                                 </Link>
                             ))}
@@ -211,20 +212,22 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                     )}
                 </article>
 
-                <article className="card section-stack">
-                    <div className="card-title">Bérlő nélküli ingatlanok</div>
-                    {unassignedProperties.length === 0 ? (
-                        <p className="muted-note">Minden aktív ingatlanhoz tartozik bérlő.</p>
-                    ) : (
-                        <div className="feature-list">
-                            {unassignedProperties.map((property) => (
-                                <Link key={property.id} className="feature-item" href={`/owner/properties/${property.id}`}>
-                                    {property.name} · bérlő hozzárendelése szükséges
-                                </Link>
-                            ))}
-                        </div>
-                    )}
-                </article>
+                {showUnassignedProperties ? (
+                    <article className="card section-stack todo-column">
+                        <div className="card-title">Bérlő nélküli ingatlanok</div>
+                        {unassignedProperties.length === 0 ? (
+                            <p className="muted-note">Minden aktív ingatlanhoz tartozik bérlő.</p>
+                        ) : (
+                            <div className="todo-link-list">
+                                {unassignedProperties.map((property) => (
+                                    <Link key={property.id} className="todo-link-card" href={`/owner/properties/${property.id}`}>
+                                        {property.name} · bérlő hozzárendelése szükséges
+                                    </Link>
+                                ))}
+                            </div>
+                        )}
+                    </article>
+                ) : null}
             </section>
         </main>
     );

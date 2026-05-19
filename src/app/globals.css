@@ -972,6 +972,68 @@ summary::-webkit-details-marker {
   font-weight: 700;
 }
 
+.todo-board {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
+  align-items: start;
+}
+
+.todo-column {
+  min-height: 100%;
+}
+
+.todo-stack,
+.todo-link-list {
+  display: grid;
+  gap: 14px;
+}
+
+.todo-task-card,
+.todo-link-card {
+  border: 1px solid rgba(18, 24, 31, 0.08);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+  padding: 18px;
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+}
+
+.todo-task-card:hover,
+.todo-link-card:hover {
+  transform: translateY(-4px) scale(1.015);
+  border-color: rgba(37, 99, 235, 0.14);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+}
+
+.todo-task-head {
+  display: grid;
+  gap: 16px;
+}
+
+.todo-task-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.todo-task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  color: var(--ink-500);
+  font-size: 0.95rem;
+}
+
+.todo-task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.todo-link-card {
+  color: var(--ink-700);
+}
+
 @keyframes support-bubble-morph {
   0% {
     transform: scale(1);
@@ -1116,6 +1178,14 @@ summary::-webkit-details-marker {
 
   .support-message {
     max-width: 100%;
+  }
+
+  .todo-board {
+    grid-template-columns: 1fr;
+  }
+
+  .todo-task-actions {
+    width: 100%;
   }
 
   .charge-actions > .btn,
