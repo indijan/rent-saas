@@ -555,6 +555,56 @@ img {
   align-items: center;
 }
 
+.property-picker-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.property-picker-card {
+  display: block;
+  border: 1px solid rgba(18, 24, 31, 0.08);
+  border-radius: 22px;
+  background:
+    linear-gradient(160deg, rgba(236, 253, 245, 0.92), rgba(255, 255, 255, 0.98));
+  padding: 22px;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.property-picker-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 24px 52px rgba(15, 23, 42, 0.12);
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.property-picker-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.property-picker-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.property-picker-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #166534;
+  font-weight: 700;
+  border: 1px solid rgba(16, 185, 129, 0.14);
+}
+
 .charge-actions-secondary {
   display: flex;
   flex-wrap: wrap;
@@ -1245,6 +1295,14 @@ summary::-webkit-details-marker {
   .auth-card,
   .auth-hero {
     padding: 16px;
+  }
+
+  .property-picker-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .property-picker-card {
+    padding: 18px;
   }
 
   .info-strip,

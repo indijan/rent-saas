@@ -58,15 +58,15 @@ export default async function OwnerChargesOverviewPage() {
                     <p className="muted-note">Még nincs rögzített ingatlan.</p>
                 </section>
             ) : (
-                <section className="property-grid">
+                <section className="property-picker-grid">
                     {propertyRows.map((property) => (
-                        <Link key={property.id} className="card charge-card charge-fresh" href={`/owner/properties/${property.id}/charges`}>
-                            <div className="charge-head">
-                                <div>
+                        <Link key={property.id} className="property-picker-card" href={`/owner/properties/${property.id}/charges`}>
+                            <div className="property-picker-head">
+                                <div className="property-picker-copy">
                                     <div className="card-title">{property.name}</div>
                                     <p className="muted-note">{maskAddress(property.address)}</p>
                                 </div>
-                                <div className="due-pill due-fresh">Díjak megnyitása</div>
+                                <div className="property-picker-pill">Díjak megnyitása</div>
                             </div>
                         </Link>
                     ))}
