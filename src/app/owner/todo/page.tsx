@@ -5,6 +5,7 @@ import { formatCurrency } from "@/lib/formatters";
 import AppHeader from "@/components/AppHeader";
 import PendingSubmitButton from "@/components/PendingSubmitButton";
 import { markChargePaid, sendManualChargeReminder } from "@/app/owner/properties/[id]/charges/actions";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type ChargeTodoRow = {
     id: string;
@@ -41,6 +42,7 @@ type Props = {
 
 export default async function OwnerTodoPage({ searchParams }: Props) {
     const { supabase, user, profile } = await requireRole("OWNER");
+    const admin = createSupabaseAdminClient();
     const sp = (searchParams instanceof Promise) ? await searchParams : (searchParams ?? {});
     const status = sp.status ? String(sp.status) : "";
     const message = sp.message ? String(sp.message) : "";
@@ -80,6 +82,48 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
             .in("property_id", propertyIds)
             .eq("owner_id", user.id);
     const assignedPropertyIds = new Set((propertyTenantRows ?? []).map((row) => row.property_id as string).filter(Boolean));
+
+    const { data: propertyTenantAssignments } = propertyIds.length === 0
+        ? { data: [] as Array<{ property_id: string; tenant_id: string }> }
+        : await admin
+            .from("property_tenants")
+            .select("property_id,tenant_id")
+            .in("property_id", propertyIds)
+            .eq("owner_id", user.id);
+
+    const tenantIds = Array.from(
+        new Set(
+            (propertyTenantAssignments ?? [])
+                .map((row) => row.tenant_id as string | null)
+                .filter((tenantId): tenantId is string => Boolean(tenantId))
+        )
+    );
+
+    const { data: tenantProfiles } = tenantIds.length === 0
+        ? { data: [] as Array<{ id: string; full_name: string | null; email: string | null }> }
+        : await admin
+            .from("profiles")
+            .select("id,full_name,email")
+            .in("id", tenantIds);
+
+    const tenantNamesById = new Map(
+        (tenantProfiles ?? []).map((tenant) => [
+            tenant.id as string,
+            (tenant.full_name as string | null) || (tenant.email as string | null) || "Ismeretlen bérlő",
+        ])
+    );
+
+    const tenantNamesByPropertyId = new Map<string, string[]>();
+    (propertyTenantAssignments ?? []).forEach((row) => {
+        const propertyId = row.property_id as string | null;
+        const tenantId = row.tenant_id as string | null;
+        if (!propertyId || !tenantId) return;
+        const label = tenantNamesById.get(tenantId);
+        if (!label) return;
+        const current = tenantNamesByPropertyId.get(propertyId) ?? [];
+        if (!current.includes(label)) current.push(label);
+        tenantNamesByPropertyId.set(propertyId, current);
+    });
 
     const overdueCharges = chargeRows.filter((charge) => charge.status === "UNPAID" && getDayDiff(charge.due_date) < 0);
     const upcomingCharges = chargeRows.filter((charge) => charge.status === "UNPAID" && getDayDiff(charge.due_date) >= 0 && getDayDiff(charge.due_date) <= 5);
@@ -141,6 +185,7 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                         <div className="todo-stack">
                             {overdueCharges.slice(0, 6).map((charge) => {
                                 const property = firstProperty(charge.properties);
+                                const tenantNames = tenantNamesByPropertyId.get(charge.property_id) ?? [];
                                 return (
                                     <article key={charge.id} className="todo-task-card">
                                         <div className="todo-task-head">
@@ -148,6 +193,7 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                                                 <div className="card-title">{charge.title}</div>
                                                 <div className="todo-task-meta">
                                                     <span>{property?.name ?? "Ingatlan nélkül"}</span>
+                                                    {tenantNames.length > 0 ? <span>Bérlő: {tenantNames.join(", ")}</span> : null}
                                                     <span>{formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))}</span>
                                                     <span>{Math.abs(getDayDiff(charge.due_date))} napja lejárt</span>
                                                 </div>
@@ -205,9 +251,10 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                         <div className="todo-link-list">
                             {upcomingCharges.slice(0, 6).map((charge) => {
                                 const property = firstProperty(charge.properties);
+                                const tenantNames = tenantNamesByPropertyId.get(charge.property_id) ?? [];
                                 return (
                                     <Link key={charge.id} className="todo-link-card" href={`/owner/properties/${charge.property_id}/charges`}>
-                                        {charge.title} · {property?.name ?? "Ingatlan nélkül"} · {formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))} · {charge.due_date}
+                                        {charge.title} · {property?.name ?? "Ingatlan nélkül"} · {tenantNames.length > 0 ? `Bérlő: ${tenantNames.join(", ")} · ` : ""}{formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))} · {charge.due_date}
                                     </Link>
                                 );
                             })}

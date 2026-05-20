@@ -90,6 +90,10 @@ function buildStatusHref(basePath: string, current: SearchParams, nextStatus: st
     })}`;
 }
 
+function todayIsoDate() {
+    return new Date().toISOString().slice(0, 10);
+}
+
 function statusLabel(status: ChargeStatus) {
     switch (status) {
         case "IMPORT_DRAFT":
@@ -157,6 +161,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
     const pageSize = 12;
     const rangeFrom = (page - 1) * pageSize;
     const rangeTo = rangeFrom + pageSize - 1;
+    const todayIso = todayIsoDate();
 
     const { data: property, error: propErr } = await supabase
         .from("properties")
@@ -174,7 +179,11 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
         .eq("owner_id", profile.id)
         .order("due_date", { ascending: false });
 
-    if (statusFilter) listQuery = listQuery.eq("status", statusFilter);
+    if (statusFilter === "OVERDUE") {
+        listQuery = listQuery.eq("status", "UNPAID").lt("due_date", todayIso);
+    } else if (statusFilter) {
+        listQuery = listQuery.eq("status", statusFilter);
+    }
     if (typeFilter) listQuery = listQuery.eq("type", typeFilter);
     if (fromFilter) listQuery = listQuery.gte("due_date", fromFilter);
     if (toFilter) listQuery = listQuery.lte("due_date", toFilter);
@@ -330,6 +339,9 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                     <Link className={`pill${statusFilter === "UNPAID" ? " pill-active" : ""}`} href={buildStatusHref(basePath, activeQuery, "UNPAID")}>
                         Aktív
                     </Link>
+                    <Link className={`pill${statusFilter === "OVERDUE" ? " pill-active" : ""}`} href={buildStatusHref(basePath, activeQuery, "OVERDUE")}>
+                        Lejárt
+                    </Link>
                     <Link className={`pill${statusFilter === "PAID" ? " pill-active" : ""}`} href={buildStatusHref(basePath, activeQuery, "PAID")}>
                         Fizetett
                     </Link>
@@ -346,6 +358,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                 <option value="">Minden státusz</option>
                                 <option value="IMPORT_DRAFT">Piszkozat</option>
                                 <option value="UNPAID">Aktív</option>
+                                <option value="OVERDUE">Lejárt</option>
                                 <option value="PAID">Fizetett</option>
                                 <option value="ARCHIVED">Archivált</option>
                                 <option value="CANCELLED">Törölt</option>
