@@ -2,25 +2,39 @@ import Link from "next/link";
 import PublicHeader from "@/components/PublicHeader";
 import { getSignedInDashboardHref } from "@/lib/auth/getDashboardHref";
 
-const ownerFeatures = [
-    "Ingatlanok, bérlők és díjak kezelése egyetlen felületen.",
-    "Automatikus számlaimport piszkozatként, kézi ellenőrzés és publikálás előtt.",
-    "AI-segített dokumentumfeldolgozás emberi jóváhagyási ponttal.",
-    "Egyszerű számlafeltöltés PDF-ből vagy a saját Rentappos e-mail-címre küldve.",
-    "Menedzsment nézet teendőkkel, elmaradásokkal és egygombos alap műveletekkel.",
-    "Emailes értesítések közelgő határidőről, plusz külön baráti emlékeztető nyitott díjra.",
-    "Dokumentumfeltöltés és számlamellékletek megőrzése charge szinten.",
-    "Éves összesítők és szűrhető díjlista nem az aktuális lapból, hanem a teljes időszakból.",
-    "Nem kell fejben tartani a teendőket, a rendszer összegyűjti őket.",
-];
-
-const tenantFeatures = [
-    "Áttekinthető saját díjlista lejárati állapotokkal.",
-    "Kapcsolódó számladokumentumok megnyitása egy helyről.",
-    "Közelgő és lejárt tételek tiszta vizuális jelzése.",
-    "Baráti emailes értesítések, ha egy díj nyitott marad.",
-    "Archiválás a rendezett tételeken, tiszta történettel.",
-    "Konzisztens mobilnézet és egyszerű, közérthető státuszok minden képernyőn.",
+const features = [
+    {
+        title: "Ingatlanok kezelése káosz nélkül",
+        body: "Akár egyetlen lakást adsz bérbe, akár több ingatlant kezelsz, minden egy helyen átlátható: ingatlan adatok, bérlők hozzárendelése, kapcsolódó díjak, dokumentumok és státuszok.",
+    },
+    {
+        title: "Bérlők kezelése egyszerűen",
+        body: "Minden bérlő a saját ingatlanához kapcsolva jelenik meg. Látod, ki melyik ingatlanhoz tartozik, milyen nyitott tételei vannak és milyen dokumentumok kapcsolódnak hozzá. A bérlők csak a saját dolgaikat látják.",
+    },
+    {
+        title: "AI támogatott számlafeldolgozás",
+        body: "Nem kell kézzel bepötyögni minden adatot. Tölts fel egy PDF számlát, vagy küldd tovább emailben, és a rendszer előkészíti a feldolgozást. Az AI segít felismerni az összeget, esedékességet, szolgáltatót, díjtípust és más releváns adatokat.",
+    },
+    {
+        title: "Emailből automatikusan",
+        body: "Van egy dedikált email címed a számlákhoz. Egyszerűen továbbküldöd a számlát, a rendszer pedig felismeri, feldolgozza, és draftként előkészíti.",
+    },
+    {
+        title: "Soha többé „majd észben tartom”",
+        body: "A Teendők dashboard folyamatosan mutatja, mivel kell foglalkoznod: lejárt fizetések, közelgő határidők, ellenőrzésre váró importok és hiányzó beállítások.",
+    },
+    {
+        title: "Dokumentumok ott, ahol kellenek",
+        body: "Szerződések, számlák, PDF-ek. Nem email mellékletek között kell vadászni. Minden kapcsolódik ahhoz az ingatlanhoz vagy tételhez, amihez tartozik.",
+    },
+    {
+        title: "Bérlői önkiszolgáló hozzáférés",
+        body: "A bérlő belép, és látja a saját dolgait: nyitott tételek, fizetett tételek, dokumentumok, státuszok. Kevesebb kérdés. Kevesebb üzenet. Kevesebb admin.",
+    },
+    {
+        title: "Mobilról is használható",
+        body: "Mert a bérbeadással kapcsolatos dolgok ritkán akkor történnek, amikor laptop előtt ülsz. A Rentapp mobilon is kényelmesen használható.",
+    },
 ];
 
 export default async function FeaturesPage() {
@@ -34,56 +48,42 @@ export default async function FeaturesPage() {
                 <div className="section-header">
                     <div>
                         <div className="eyebrow">Funkciók</div>
-                        <h1>Mit tud a Rentapp?</h1>
+                        <h1>Minden, ami a bérbeadás menedzseléséhez kell. Egy helyen.</h1>
                         <p>
-                            A bérbeadói és a bérlői felületet közös nevezőre hozzuk:
-                            ugyanazok a státuszok, ugyanaz a logika, kevesebb félreértés és kevesebb fejben tartott adminisztráció.
+                            A Rentapp nem csak nyilvántart. Segít rendet rakni a bérbeadás körüli adminisztrációban,
+                            automatizálja a monoton részeket, és leveszi a terhet a fejedről.
                         </p>
                     </div>
                     <div className="info-strip">
-                        <span>Az automatikus import nem élesedik magától.</span>
-                        <span>A publikálás, a szerkesztés és a végső kontroll a bérbeadó kezében marad.</span>
+                        <span>Nem Excelben</span>
+                        <span>Nem fejben</span>
+                        <span>Nem szétszórva</span>
                     </div>
                 </div>
             </section>
 
             <section className="grid">
-                <article className="card section-stack">
-                    <div>
-                        <div className="eyebrow">Bérbeadói oldal</div>
-                        <h2>Operatív kezelés napi használatra</h2>
-                    </div>
-                    <div className="feature-list">
-                        {ownerFeatures.map((item) => (
-                            <div key={item} className="feature-item">{item}</div>
-                        ))}
-                    </div>
-                </article>
-
-                <article className="card section-stack">
-                    <div>
-                        <div className="eyebrow">Bérlői oldal</div>
-                        <h2>Tiszta díjkövetés felesleges zaj nélkül</h2>
-                    </div>
-                    <div className="feature-list">
-                        {tenantFeatures.map((item) => (
-                            <div key={item} className="feature-item">{item}</div>
-                        ))}
-                    </div>
-                </article>
+                {features.map((feature, index) => (
+                    <article key={feature.title} className="card section-stack">
+                        <div className="eyebrow">Funkció {index + 1}</div>
+                        <div className="card-title">{feature.title}</div>
+                        <p>{feature.body}</p>
+                    </article>
+                ))}
             </section>
 
             <section className="card section-stack">
                 <div className="section-header">
                     <div>
-                        <div className="card-title">Árazás és indulás</div>
-                        <p className="muted-note">
-                            A díjazás sávos: 1-3 ingatlan 3 000 Ft, 4-9 ingatlan 2 000 Ft, 10 felett 1 000 Ft / ingatlan / hó, induláskor 1 hónap ingyenes próbaidővel.
+                        <div className="eyebrow">CTA</div>
+                        <h2>Próbáld ki 30 napig ingyen.</h2>
+                        <p>
+                            Nézd meg, milyen érzés úgy kezelni a bérbeadást, hogy nem kell mindent fejben tartani.
                         </p>
                     </div>
                     <div className="charge-actions">
-                        <Link className="btn btn-primary" href="/hasznalati-dij">Használati díj</Link>
-                        <Link className="btn btn-secondary" href="/berbeadoi-regisztracio">Bérbeadói regisztráció</Link>
+                        <Link className="btn btn-primary" href="/berbeadoi-regisztracio">Elindítom az ingyenes próbaidőt</Link>
+                        <Link className="btn btn-secondary" href="/gyik">Gyakori kérdések</Link>
                     </div>
                 </div>
             </section>

@@ -28,6 +28,7 @@ export default function PublicHeader({ dashboardHref }: Props) {
             <nav className="nav-pills">
                 <Link className="pill" href="/funkciok">Funkciók</Link>
                 <Link className="pill" href="/hasznalati-dij">Használati díj</Link>
+                <Link className="pill" href="/gyik">GYIK</Link>
                 <Link className="pill" href="/berbeadoi-regisztracio">Bérbeadói regisztráció</Link>
                 {dashboardHref ? (
                     <Link className="pill pill-active" href={dashboardHref}>Saját felület</Link>
