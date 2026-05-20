@@ -29,6 +29,10 @@ export default function PublicHeader({ dashboardHref }: Props) {
                 <Link className="pill" href="/funkciok">Funkciók</Link>
                 <Link className="pill" href="/hasznalati-dij">Használati díj</Link>
                 <Link className="pill" href="/gyik">GYIK</Link>
+                <Link className="pill pill-with-icon" href="/gyik#nem-talaltad">
+                    <span className="pill-icon" aria-hidden="true">?</span>
+                    Kapcsolat
+                </Link>
                 <Link className="pill" href="/berbeadoi-regisztracio">Bérbeadói regisztráció</Link>
                 {dashboardHref ? (
                     <Link className="pill pill-active" href={dashboardHref}>Saját felület</Link>

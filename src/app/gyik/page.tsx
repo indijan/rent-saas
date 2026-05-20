@@ -165,7 +165,8 @@ export default async function FaqPage() {
                         </p>
                     </div>
                     <div className="charge-actions">
-                        <Link className="btn btn-secondary" href="https://wa.me/64275665850" target="_blank" rel="noreferrer">Kapcsolat</Link>
+                        <Link className="btn btn-primary" href="https://wa.me/64275665850" target="_blank" rel="noreferrer">WhatsApp</Link>
+                        <Link className="btn btn-secondary" href="https://m.me/indijanmac" target="_blank" rel="noreferrer">Messenger</Link>
                     </div>
                 </div>
             </section>
@@ -195,7 +196,7 @@ export default async function FaqPage() {
                 </section>
             ))}
 
-            <section className="card section-stack">
+            <section id="nem-talaltad" className="card section-stack">
                 <div className="section-header">
                     <div>
                         <div className="eyebrow">Nem találtad?</div>
@@ -203,7 +204,8 @@ export default async function FaqPage() {
                         <p>Semmi gond. Írj nekünk, segítünk.</p>
                     </div>
                     <div className="charge-actions">
-                        <Link className="btn btn-primary" href="https://wa.me/64275665850" target="_blank" rel="noreferrer">Kapcsolat</Link>
+                        <Link className="btn btn-primary" href="https://wa.me/64275665850" target="_blank" rel="noreferrer">WhatsApp</Link>
+                        <Link className="btn btn-secondary" href="https://m.me/indijanmac" target="_blank" rel="noreferrer">Messenger</Link>
                     </div>
                 </div>
             </section>
