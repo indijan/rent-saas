@@ -73,6 +73,21 @@ export default async function FeaturesPage() {
             </section>
 
             <section className="card section-stack">
+                <div>
+                    <div className="eyebrow">Folyamatos fejlesztés</div>
+                    <h2>Ha többen kérik, belefejlesztjük.</h2>
+                    <p>
+                        A Rentapp nem egy lezárt doboztermék. Ha egy funkció hiányzik, vagy a mostani működés
+                        jobb lenne másképp, azt vissza lehet jelezni. A valós, ismétlődő igények alapján fejlesztünk,
+                        külön díj nélkül.
+                    </p>
+                </div>
+                <div className="charge-actions">
+                    <Link className="btn btn-secondary" href="/otletlada">Ötletet küldök</Link>
+                </div>
+            </section>
+
+            <section className="card section-stack">
                 <div className="section-header">
                     <div>
                         <div className="eyebrow">CTA</div>

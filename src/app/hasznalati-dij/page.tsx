@@ -134,6 +134,20 @@ export default async function PricingPage() {
             </section>
 
             <section className="card section-stack">
+                <div>
+                    <div className="eyebrow">A díjban ez is benne van</div>
+                    <h2>A fejlesztés nem külön upsell.</h2>
+                    <p>
+                        Ha a bérbeadók több ponton ugyanazt az igényt jelzik, azt nem külön fizetős extraként kezeljük,
+                        hanem a rendszer részeként fejlesztjük bele. Ugyanígy azt is jelezheted, ha valami nem jó irányba megy.
+                    </p>
+                </div>
+                <div className="charge-actions">
+                    <Link className="btn btn-secondary" href="/otletlada">Ötletet küldök</Link>
+                </div>
+            </section>
+
+            <section className="card section-stack">
                 <div className="section-header">
                     <div>
                         <div className="eyebrow">Próbaidő</div>

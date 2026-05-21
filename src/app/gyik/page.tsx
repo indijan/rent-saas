@@ -27,6 +27,10 @@ const sections = [
                 q: "Több ingatlan kezelésére is alkalmas?",
                 a: "Igen. Akár egyetlen lakásról, akár teljes portfólióról van szó.",
             },
+            {
+                q: "Lehet funkciót kérni vagy változtatást javasolni?",
+                a: "Igen. A Rentappot a valós bérbeadói visszajelzések alapján folyamatosan fejlesztjük. Ha egy igényt többen is jeleznek, külön díj nélkül belefejlesztjük.",
+            },
         ],
     },
     {
@@ -206,6 +210,7 @@ export default async function FaqPage() {
                     <div className="charge-actions">
                         <Link className="btn btn-primary" href="https://wa.me/64275665850" target="_blank" rel="noreferrer">WhatsApp</Link>
                         <Link className="btn btn-secondary" href="https://m.me/indijanmac" target="_blank" rel="noreferrer">Messenger</Link>
+                        <Link className="btn btn-secondary" href="/otletlada">Ötletláda</Link>
                     </div>
                 </div>
             </section>

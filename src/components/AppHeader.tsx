@@ -28,18 +28,21 @@ export default function AppHeader({ profile }: Props) {
                 { href: "/owner/charges", label: "Díjak" },
                 { href: "/owner/importok", label: "Importok" },
                 { href: "/owner/tenants", label: "Bérlők" },
+                { href: "/otletlada", label: "Ötletláda" },
                 { href: "/account", label: "Fiók" },
             ];
         }
         if (profile.role === "TENANT") {
             return [
                 { href: "/tenant/charges", label: "Díjak" },
+                { href: "/otletlada", label: "Ötletláda" },
                 { href: "/account", label: "Fiók" },
             ];
         }
         if (profile.role === "ADMIN") {
             return [
                 { href: "/admin/berbeadok", label: "Bérbeadók" },
+                { href: "/admin/otletlada", label: "Ötletláda" },
                 { href: "/account", label: "Fiók" },
             ];
         }
@@ -79,6 +82,10 @@ export default function AppHeader({ profile }: Props) {
                 Menü
             </button>
             <nav id="app-navigation" className={`nav-pills${menuOpen ? " nav-open" : ""}`}>
+                <Link className="pill pill-with-icon" href="/gyik#nem-talaltad" onClick={() => setMenuOpen(false)}>
+                    <span className="pill-icon" aria-hidden="true">?</span>
+                    Kapcsolat
+                </Link>
                 {navItems.map((item) => (
                     <Link
                         key={item.href}

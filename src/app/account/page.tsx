@@ -4,6 +4,7 @@ import AppHeader from "@/components/AppHeader";
 import PendingSubmitButton from "@/components/PendingSubmitButton";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { listTenantProperties } from "@/lib/propertyTenants";
+import IdeaBoxForm from "@/components/IdeaBoxForm";
 
 type Props = {
     searchParams?: Promise<{ status?: string; message?: string }> | { status?: string; message?: string };
@@ -113,6 +114,16 @@ export default async function AccountPage({ searchParams }: Props) {
                     Dokumentumok letöltése
                 </a>
             </section>
+
+            <IdeaBoxForm
+                eyebrow="Ötletláda"
+                title="Mondj véleményt a rendszerről."
+                description="Ha hiányzik egy funkció, valami nem jól működik, vagy másképp lenne használhatóbb, itt közvetlenül megírhatod."
+                pageContext="account"
+                defaultEmail={profile.email}
+                defaultName={profile.full_name}
+                lockIdentity
+            />
 
             {tenantOnly ? (
                 <>

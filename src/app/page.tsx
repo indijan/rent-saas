@@ -158,6 +158,20 @@ export default async function HomePage() {
             </section>
 
             <section className="card section-stack">
+                <div className="section-header">
+                    <div>
+                        <div className="eyebrow">Visszajelzés-alapú fejlesztés</div>
+                        <h2>Nem egy rugalmatlan, elavult rendszer.</h2>
+                        <p>
+                            A Rentapp reflektál a bérbeadók igényeire. Ha olyan funkció hiányzik,
+                            aminek szükségességét többen is jelzik, azt belefejlesztjük külön díj nélkül.
+                            Ugyanígy azt is megírhatod, ha valami most nem megfelelően működik, vagy máshogyan lenne jobb.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section className="card section-stack">
                 <div>
                     <div className="eyebrow">Kinek készült?</div>
                     <h2>Nem az ingatlanok számától lesz hasznos.</h2>
@@ -185,6 +199,22 @@ export default async function HomePage() {
                     <div className="charge-actions">
                         <Link className="btn btn-primary" href="/berbeadoi-regisztracio">Elindítom az ingyenes próbaidőt</Link>
                         <Link className="btn btn-secondary" href="/hasznalati-dij">Árazás megtekintése</Link>
+                    </div>
+                </div>
+            </section>
+
+            <section className="card section-stack">
+                <div className="section-header">
+                    <div>
+                        <div className="eyebrow">Ötletláda</div>
+                        <h2>Van egy jó ötleted vagy hiányérzeted?</h2>
+                        <p>
+                            Küldd be. A rendszer használat közben lesz igazán erős, ezért a fejlesztési irányt
+                            valós bérbeadói visszajelzések alapján finomítjuk.
+                        </p>
+                    </div>
+                    <div className="charge-actions">
+                        <Link className="btn btn-secondary" href="/otletlada">Megnyitom az ötletládát</Link>
                     </div>
                 </div>
             </section>
