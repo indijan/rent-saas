@@ -1287,6 +1287,20 @@ summary::-webkit-details-marker {
     display: flex;
   }
 
+  .sticky-subnav .nav-pills {
+    display: flex;
+    grid-column: auto;
+    width: auto;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .sticky-subnav .pill {
+    flex: 0 0 auto;
+  }
+
   .pill {
     width: 100%;
     justify-content: center;

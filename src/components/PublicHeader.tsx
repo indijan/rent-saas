@@ -1,10 +1,15 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 
 type Props = {
     dashboardHref?: string | null;
 };
 
 export default function PublicHeader({ dashboardHref }: Props) {
+    const [menuOpen, setMenuOpen] = useState(false);
+
     return (
         <header className="app-header">
             <div className="brand">
@@ -25,20 +30,29 @@ export default function PublicHeader({ dashboardHref }: Props) {
                 </div>
                 <span>Bérbeadói és bérlői adminisztráció közös nevezőn.</span>
             </div>
-            <nav className="nav-pills">
-                <Link className="pill" href="/funkciok">Funkciók</Link>
-                <Link className="pill" href="/hasznalati-dij">Használati díj</Link>
-                <Link className="pill" href="/gyik">GYIK</Link>
-                <Link className="pill" href="/otletlada">Ötletláda</Link>
-                <Link className="pill pill-with-icon" href="/gyik#nem-talaltad">
+            <button
+                type="button"
+                className="header-toggle"
+                aria-expanded={menuOpen}
+                aria-controls="public-navigation"
+                onClick={() => setMenuOpen((value) => !value)}
+            >
+                Menü
+            </button>
+            <nav id="public-navigation" className={`nav-pills${menuOpen ? " nav-open" : ""}`}>
+                <Link className="pill" href="/funkciok" onClick={() => setMenuOpen(false)}>Funkciók</Link>
+                <Link className="pill" href="/hasznalati-dij" onClick={() => setMenuOpen(false)}>Használati díj</Link>
+                <Link className="pill" href="/gyik" onClick={() => setMenuOpen(false)}>GYIK</Link>
+                <Link className="pill" href="/otletlada" onClick={() => setMenuOpen(false)}>Ötletláda</Link>
+                <Link className="pill pill-with-icon" href="/gyik#nem-talaltad" onClick={() => setMenuOpen(false)}>
                     <span className="pill-icon" aria-hidden="true">?</span>
                     Kapcsolat
                 </Link>
-                <Link className="pill" href="/berbeadoi-regisztracio">Bérbeadói regisztráció</Link>
+                <Link className="pill" href="/berbeadoi-regisztracio" onClick={() => setMenuOpen(false)}>Bérbeadói regisztráció</Link>
                 {dashboardHref ? (
-                    <Link className="pill pill-active" href={dashboardHref}>Saját felület</Link>
+                    <Link className="pill pill-active" href={dashboardHref} onClick={() => setMenuOpen(false)}>Saját felület</Link>
                 ) : (
-                    <Link className="pill pill-active" href="/login">Belépés</Link>
+                    <Link className="pill pill-active" href="/login" onClick={() => setMenuOpen(false)}>Belépés</Link>
                 )}
             </nav>
         </header>
