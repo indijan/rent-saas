@@ -318,7 +318,7 @@ export async function createManualIngestion(formData: FormData) {
             propertyName: property.name,
             openUrl: `${SITE_URL}/owner/importok`,
             reviewUrl: `${SITE_URL}/owner/importok/${ingestionId}`,
-            chargeUrl: `${SITE_URL}/owner/properties/${property.id}/charges/${draftResult.chargeId}`,
+            chargeUrl: `${SITE_URL}/owner/properties/${property.id}/charges?status=IMPORT_DRAFT`,
             publishUrl: `${SITE_URL}/email-action?token=${encodeURIComponent(createEmailActionToken("charge_publish", draftResult.chargeId))}`,
         }));
     }

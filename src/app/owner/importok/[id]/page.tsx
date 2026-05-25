@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth/requireRole";
 import AppHeader from "@/components/AppHeader";
 import { finalizeIngestionReview, reprocessIngestion, saveSupplierProfileFromIngestion } from "../actions";
 import { createDocumentSignedUrl } from "@/lib/documentStorage";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type Props = {
     params: Promise<{ id: string }>;
@@ -67,12 +68,13 @@ function propertyLabel(properties: PropertyRow[], propertyId: string) {
 export default async function OwnerImportDetailPage({ params, searchParams }: Props) {
     const { id } = await params;
     const { supabase, user, profile } = await requireRole("OWNER");
+    const admin = createSupabaseAdminClient();
     const sp = searchParams instanceof Promise ? await searchParams : (searchParams ?? {});
     const status = sp.status ? String(sp.status) : "";
     const message = sp.message ? String(sp.message) : "";
 
     const [{ data: ingestion, error: ingestionError }, { data: properties, error: propertyError }] = await Promise.all([
-        supabase
+        admin
             .from("document_ingestions")
             .select("id,source_type,source_attachment_name,storage_key,status,error_message,created_charge_id,extracted_data,normalized_data,confidence,created_at")
             .eq("id", id)

@@ -349,7 +349,7 @@ export function renderImportInvoiceStatusEmail(input: ImportInvoiceStatusInput) 
         input.publishUrl ? { label: "Jónak tűnik, mehet", href: input.publishUrl, primary: true } : null,
         input.chargeUrl ? { label: "Megnyitom a piszkozatot", href: input.chargeUrl } : null,
         input.reviewUrl ? { label: input.status === "FAILED" ? "Megnyitom az importot" : "Nem jó, szerkesztem", href: input.reviewUrl } : null,
-        { label: "Importok megnyitása", href: input.openUrl || `${SITE_URL}/owner/importok` },
+        (input.status === "FAILED" || (!input.chargeUrl && !input.reviewUrl)) ? { label: "Importok megnyitása", href: input.openUrl || `${SITE_URL}/owner/importok` } : null,
     ].filter(Boolean) as Array<{ label: string; href: string; primary?: boolean }>);
 
     const html = `
