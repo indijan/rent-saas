@@ -6,6 +6,7 @@ import { finalizeIngestionReview } from "../actions";
 import { createDocumentSignedUrl } from "@/lib/documentStorage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import PendingSubmitButton from "@/components/PendingSubmitButton";
+import PdfPreview from "@/components/PdfPreview";
 
 type Props = {
     params: Promise<{ id: string }>;
@@ -114,8 +115,6 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
     } catch {
         previewUrl = "";
     }
-    const previewEmbedUrl = previewUrl ? `${previewUrl}#view=FitH&zoom=page-width&page=1` : "";
-
     return (
         <main className="app-shell page-enter space-y-4">
             <AppHeader profile={profile} />
@@ -185,17 +184,7 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
                             PDF előnézet lenyitása
                         </summary>
                         <div className="document-preview-body">
-                            <object
-                                data={previewEmbedUrl}
-                                type="application/pdf"
-                                className="document-preview-frame"
-                            >
-                                <div className="muted-note">
-                                    Az inline PDF előnézet itt nem érhető el. Nyisd meg külön a
-                                    {" "}
-                                    <a className="link" href={previewUrl} target="_blank" rel="noreferrer">PDF-et</a>.
-                                </div>
-                            </object>
+                            <PdfPreview url={previewUrl} />
                         </div>
                     </details>
                 ) : (

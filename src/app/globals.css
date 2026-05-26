@@ -1029,13 +1029,20 @@ summary::-webkit-details-marker {
   padding: 0 16px 16px;
 }
 
-.document-preview-frame {
+.document-preview-pages {
+  display: grid;
+  gap: 16px;
+}
+
+.document-preview-image {
   display: block;
   width: 100%;
-  min-height: 960px;
+  max-width: 960px;
+  margin: 0 auto;
   border: 1px solid rgba(18, 24, 31, 0.08);
   border-radius: 16px;
   background: #fff;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
 }
 
 .support-message-user {
