@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
 import AppHeader from "@/components/AppHeader";
-import { finalizeIngestionReview, reprocessIngestion, saveSupplierProfileFromIngestion } from "../actions";
+import { finalizeIngestionReview } from "../actions";
 import { createDocumentSignedUrl } from "@/lib/documentStorage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -103,8 +103,10 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
     const ingestionRow = ingestion as IngestionRow;
     const propertyRows = (properties ?? []) as PropertyRow[];
     const normalized = (ingestionRow.normalized_data ?? {}) as Record<string, unknown>;
-    const extracted = (ingestionRow.extracted_data ?? {}) as Record<string, unknown>;
     const selectedPropertyId = asString(normalized.property_id);
+    const chargeLink = ingestionRow.created_charge_id && selectedPropertyId
+        ? `/owner/properties/${selectedPropertyId}/charges?status=IMPORT_DRAFT#charge-${ingestionRow.created_charge_id}`
+        : "/owner/importok";
     let previewUrl = "";
     try {
         previewUrl = await createDocumentSignedUrl(ingestionRow.storage_key, 60 * 60);
@@ -119,8 +121,8 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
             <section className="card section-stack">
                 <div className="section-header">
                     <div>
-                        <Link className="link text-sm" href="/owner/importok">
-                            ← Vissza az importokhoz
+                        <Link className="link text-sm" href={chargeLink}>
+                            ← {ingestionRow.created_charge_id ? "Vissza a piszkozathoz" : "Vissza az importokhoz"}
                         </Link>
                         <div className="eyebrow">Import részletei</div>
                         <h1>{ingestionRow.source_attachment_name || "Név nélküli csatolmány"}</h1>
@@ -145,8 +147,8 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
                     <div className="card-title">Kinyert adatok</div>
                     <div className="feature-list">
                         <div className="feature-item">Issuer: {asString(normalized.issuer_name) || "-"}</div>
-                    <div className="feature-item">Összeg: {asNumberString(normalized.gross_amount) || "-"}</div>
-                    <div className="feature-item">Valuta: {asString(normalized.currency) || "HUF"}</div>
+                        <div className="feature-item">Összeg: {asNumberString(normalized.gross_amount) || "-"}</div>
+                        <div className="feature-item">Valuta: {asString(normalized.currency) || "HUF"}</div>
                         <div className="feature-item">Esedékesség: {asString(normalized.due_date) || "-"}</div>
                         <div className="feature-item">Típus: {asString(normalized.charge_type) || "OTHER"}</div>
                         <div className="feature-item">
@@ -156,18 +158,10 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
                         <div className="feature-item">
                             Feldolgozási bizalom: {typeof ingestionRow.confidence === "number" ? `${Math.round(ingestionRow.confidence * 100)}%` : "-"}
                         </div>
-                        <div className="feature-item">Storage kulcs: {ingestionRow.storage_key}</div>
                     </div>
                     {ingestionRow.error_message ? (
                         <p className="muted-note text-red-600">{ingestionRow.error_message}</p>
                     ) : null}
-                </article>
-
-                <article className="card section-stack">
-                    <div className="card-title">Nyers AI válasz</div>
-                    <pre className="overflow-x-auto rounded-xl border border-black/10 bg-slate-50 p-3 text-xs text-slate-700">
-                        {JSON.stringify(extracted, null, 2)}
-                    </pre>
                 </article>
             </section>
 
@@ -175,7 +169,7 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
                 <div className="section-header">
                     <div>
                         <div className="card-title">PDF előnézet</div>
-                        <p className="muted-note">A preview signed URL-lel érhető el, így az import ellenőrzése közben is meg tudod nyitni a dokumentumot.</p>
+                        <p className="muted-note">A preview signed URL-lel érhető el, így ellenőrzés közben is meg tudod nyitni a dokumentumot.</p>
                     </div>
                     {previewUrl ? (
                         <a className="btn btn-secondary" href={previewUrl} target="_blank" rel="noreferrer">
@@ -184,38 +178,20 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
                     ) : null}
                 </div>
                 {previewUrl ? (
-                    <iframe
-                        src={previewUrl}
-                        title="Számla PDF előnézet"
-                        className="min-h-[720px] w-full rounded-xl border border-black/10 bg-white"
-                    />
+                    <details className="w-full rounded-xl border border-black/10 bg-white/70 p-3">
+                        <summary className="btn btn-secondary btn-sm cursor-pointer">
+                            PDF előnézet lenyitása
+                        </summary>
+                        <iframe
+                            src={previewUrl}
+                            title="Számla PDF előnézet"
+                            className="mt-3 min-h-[720px] w-full rounded-xl border border-black/10 bg-white"
+                        />
+                    </details>
                 ) : (
                     <p className="muted-note">A preview jelenleg nem érhető el ehhez a dokumentumhoz.</p>
                 )}
             </section>
-
-            <form
-                action={async () => {
-                    "use server";
-                    const res = await reprocessIngestion(ingestionRow.id);
-                    if (!res.ok) {
-                        const msg = res.error ?? "Ismeretlen hiba.";
-                        redirect(`/owner/importok/${ingestionRow.id}?status=error&message=${encodeURIComponent(msg)}`);
-                    }
-                    redirect(`/owner/importok/${ingestionRow.id}?status=success&message=Az+import+%C3%BAjrafeldolgoz%C3%A1sa+lefutott.`);
-                }}
-                className="card form-shell"
-            >
-                <div className="section-header">
-                    <div>
-                        <div className="card-title">Újrafeldolgozás</div>
-                        <p className="muted-note">Ha közben mentettél szolgáltatói sablont vagy javult a parser, innen újrafuttatható az import.</p>
-                    </div>
-                </div>
-                <button className="btn btn-secondary" type="submit">
-                    Import újrafeldolgozása
-                </button>
-            </form>
 
             <form
                 action={async (formData) => {
@@ -225,14 +201,16 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
                         const msg = res.error ?? "Ismeretlen hiba.";
                         redirect(`/owner/importok/${ingestionRow.id}?status=error&message=${encodeURIComponent(msg)}`);
                     }
-                    redirect(`/owner/importok/${ingestionRow.id}?status=success&message=A+draft+d%C3%ADj+l%C3%A9trej%C3%B6tt.`);
+                    redirect(`/owner/properties/${res.propertyId}/charges?status=IMPORT_DRAFT#charge-${res.chargeId}`);
                 }}
                 className="card form-shell"
             >
                 <div className="section-header">
                     <div>
-                        <div className="card-title">Draft létrehozása review után</div>
-                        <p className="muted-note">Itt javíthatod a mezőket, majd létrehozhatod a draft díjat.</p>
+                        <div className="card-title">{ingestionRow.created_charge_id ? "Piszkozat adatainak javítása" : "Draft létrehozása review után"}</div>
+                        <p className="muted-note">
+                            Itt javíthatod a mezőket, majd {ingestionRow.created_charge_id ? "a meglévő piszkozatot frissítheted." : "létrehozhatod a draft díjat."}
+                        </p>
                     </div>
                 </div>
                 <div className="form-panel">
@@ -276,66 +254,11 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
                     </div>
                     <label className="field-stack">
                         <span className="field-label">Megjegyzés</span>
-                        <textarea name="notes" className="input textarea" placeholder="Miért kellett javítani vagy mit tanultunk ebből a számlából?" />
+                        <textarea name="notes" className="input textarea" placeholder="Opcionális belső megjegyzés a javításhoz." />
                     </label>
                 </div>
                 <button className="btn btn-primary" type="submit">
-                    Draft díj létrehozása
-                </button>
-            </form>
-
-            <form
-                action={async (formData) => {
-                    "use server";
-                    const res = await saveSupplierProfileFromIngestion(ingestionRow.id, formData);
-                    if (!res.ok) {
-                        const msg = res.error ?? "Ismeretlen hiba.";
-                        redirect(`/owner/importok/${ingestionRow.id}?status=error&message=${encodeURIComponent(msg)}`);
-                    }
-                    redirect(`/owner/importok/${ingestionRow.id}?status=success&message=A+szolg%C3%A1ltat%C3%B3i+sablon+elmentve.`);
-                }}
-                className="card form-shell"
-            >
-                <div className="section-header">
-                    <div>
-                        <div className="card-title">Szolgáltatói sablon mentése</div>
-                        <p className="muted-note">Ez még egyszerű issuer-alapú sablon. A későbbi extraction profil erre épül majd rá.</p>
-                    </div>
-                </div>
-                <div className="form-panel">
-                    <div className="form-grid">
-                        <label className="field-stack">
-                            <span className="field-label">Issuer neve</span>
-                            <input name="issuer_name" className="input" defaultValue={asString(normalized.issuer_name)} required />
-                        </label>
-                        <label className="field-stack">
-                            <span className="field-label">Alapértelmezett ingatlan</span>
-                            <select name="default_property_id" className="select" defaultValue={selectedPropertyId}>
-                                <option value="">Nincs rögzítve</option>
-                                {propertyRows.map((property) => (
-                                    <option key={property.id} value={property.id}>
-                                        {property.name} · {property.address}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
-                        <label className="field-stack">
-                            <span className="field-label">Alap típus</span>
-                            <select name="charge_type" className="select" defaultValue={asString(normalized.charge_type, "OTHER")}>
-                                <option value="RENT">Bérleti díj</option>
-                                <option value="UTILITY">Rezsi</option>
-                                <option value="COMMON_COST">Közös költség</option>
-                                <option value="OTHER">Egyéb</option>
-                            </select>
-                        </label>
-                        <label className="field-stack">
-                            <span className="field-label">Valuta</span>
-                            <input name="currency" className="input" defaultValue={asString(normalized.currency, "HUF")} required />
-                        </label>
-                    </div>
-                </div>
-                <button className="btn btn-secondary" type="submit">
-                    Szolgáltatói sablon mentése
+                    {ingestionRow.created_charge_id ? "Draft díj módosítása" : "Draft díj létrehozása"}
                 </button>
             </form>
         </main>

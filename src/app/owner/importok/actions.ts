@@ -8,8 +8,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
 import { renderImportInvoiceStatusEmail } from "@/lib/email/templates";
 import { rotateInboundMailbox } from "@/lib/inboundMailboxes";
-import { findOwnerSupplierProfile, issuerFingerprint } from "@/lib/supplierProfiles";
-import { processStoredIngestion } from "@/lib/ingestionProcessing";
+import { findOwnerSupplierProfile } from "@/lib/supplierProfiles";
 import { getConfiguredStorageBucketName, removeDocumentObjects, uploadDocumentObject } from "@/lib/documentStorage";
 import { createEmailActionToken } from "@/lib/emailActionTokens";
 
@@ -42,6 +41,56 @@ type NormalizedDraftInput = {
     currency: string;
     charge_type: string;
 };
+
+async function updateDraftFromNormalized(
+    admin: ReturnType<typeof createSupabaseAdminClient>,
+    ownerId: string,
+    chargeId: string,
+    documentId: string | null,
+    property: PropertyRow,
+    ingestion: IngestionRow,
+    normalized: NormalizedDraftInput
+) {
+    const { error: chargeError } = await admin
+        .from("charges")
+        .update({
+            property_id: property.id,
+            owner_id: ownerId,
+            tenant_id: property.tenant_id,
+            type: normalized.charge_type,
+            title: normalized.issuer_name || ingestion.source_attachment_name?.replace(/\.pdf$/i, "") || "Importált számla",
+            amount: normalized.gross_amount,
+            currency: normalized.currency,
+            due_date: normalized.due_date,
+        })
+        .eq("id", chargeId)
+        .eq("owner_id", ownerId);
+
+    if (chargeError) {
+        return { ok: false as const, error: chargeError.message || "A draft díj frissítése nem sikerült." };
+    }
+
+    if (documentId) {
+        const { error: documentError } = await admin
+            .from("documents")
+            .update({
+                owner_id: ownerId,
+                tenant_id: property.tenant_id,
+                property_id: property.id,
+                charge_id: chargeId,
+                bucket_path: ingestion.storage_key,
+                type: "INVOICE",
+            })
+            .eq("id", documentId)
+            .eq("owner_id", ownerId);
+
+        if (documentError) {
+            return { ok: false as const, error: documentError.message || "A dokumentum frissítése nem sikerült." };
+        }
+    }
+
+    return { ok: true as const, chargeId, documentId };
+}
 
 async function createDraftFromNormalized(
     supabase: Awaited<ReturnType<typeof requireRole>>["supabase"],
@@ -318,7 +367,7 @@ export async function createManualIngestion(formData: FormData) {
             propertyName: property.name,
             openUrl: `${SITE_URL}/owner/importok`,
             reviewUrl: `${SITE_URL}/owner/importok/${ingestionId}`,
-            chargeUrl: `${SITE_URL}/owner/properties/${property.id}/charges?status=IMPORT_DRAFT`,
+            chargeUrl: `${SITE_URL}/owner/properties/${property.id}/charges?status=IMPORT_DRAFT#charge-${draftResult.chargeId}`,
             publishUrl: `${SITE_URL}/email-action?token=${encodeURIComponent(createEmailActionToken("charge_publish", draftResult.chargeId))}`,
         }));
     }
@@ -330,6 +379,7 @@ export async function createManualIngestion(formData: FormData) {
 
 export async function finalizeIngestionReview(ingestionId: string, formData: FormData) {
     const { supabase, user } = await requireRole("OWNER");
+    const admin = createSupabaseAdminClient();
 
     const propertyId = String(formData.get("property_id") || "").trim();
     const issuerName = String(formData.get("issuer_name") || "").trim() || null;
@@ -350,9 +400,9 @@ export async function finalizeIngestionReview(ingestionId: string, formData: For
             .eq("id", propertyId)
             .eq("owner_id", user.id)
             .single(),
-        supabase
+        admin
             .from("document_ingestions")
-            .select("id,owner_id,source_attachment_name,storage_key,extracted_data,normalized_data,created_document_id")
+            .select("id,owner_id,source_attachment_name,storage_key,extracted_data,normalized_data,created_document_id,created_charge_id")
             .eq("id", ingestionId)
             .eq("owner_id", user.id)
             .single(),
@@ -361,19 +411,32 @@ export async function finalizeIngestionReview(ingestionId: string, formData: For
     if (propertyError || !property) return { ok: false, error: "Az ingatlan nem található." };
     if (ingestionError || !ingestion) return { ok: false, error: "Az import nem található." };
 
-    const draftResult = await createDraftFromNormalized(
-        supabase,
-        user.id,
-        property as PropertyRow,
-        ingestion as IngestionRow,
-        {
-            issuer_name: issuerName,
-            due_date: dueDate,
-            gross_amount: amount,
-            currency,
-            charge_type: chargeType,
-        }
-    );
+    const ingestionRow = ingestion as IngestionRow & { created_charge_id?: string | null };
+    const normalizedInput = {
+        issuer_name: issuerName,
+        due_date: dueDate,
+        gross_amount: amount,
+        currency,
+        charge_type: chargeType,
+    };
+
+    const draftResult = ingestionRow.created_charge_id
+        ? await updateDraftFromNormalized(
+            admin,
+            user.id,
+            ingestionRow.created_charge_id,
+            ingestionRow.created_document_id,
+            property as PropertyRow,
+            ingestionRow,
+            normalizedInput
+        )
+        : await createDraftFromNormalized(
+            supabase,
+            user.id,
+            property as PropertyRow,
+            ingestionRow,
+            normalizedInput
+        );
 
     if (!draftResult.ok) {
         return { ok: false, error: draftResult.error };
@@ -389,7 +452,7 @@ export async function finalizeIngestionReview(ingestionId: string, formData: For
         property_name: property.name,
     };
 
-    await supabase.from("extraction_reviews").insert({
+    await admin.from("extraction_reviews").insert({
         ingestion_id: ingestionId,
         reviewed_by: user.id,
         raw_extraction_json: ingestion.extracted_data ?? {},
@@ -397,7 +460,7 @@ export async function finalizeIngestionReview(ingestionId: string, formData: For
         notes,
     });
 
-    await supabase
+    await admin
         .from("document_ingestions")
         .update({
             status: "DRAFTED",
@@ -414,95 +477,7 @@ export async function finalizeIngestionReview(ingestionId: string, formData: For
     revalidatePath("/owner/importok");
     revalidatePath(`/owner/importok/${ingestionId}`);
     revalidatePath(`/owner/properties/${property.id}/charges`);
-    return { ok: true, chargeId: draftResult.chargeId };
-}
-
-export async function saveSupplierProfileFromIngestion(ingestionId: string, formData: FormData) {
-    const { supabase, user } = await requireRole("OWNER");
-
-    const issuerName = String(formData.get("issuer_name") || "").trim();
-    const propertyId = String(formData.get("default_property_id") || "").trim() || null;
-    const chargeType = String(formData.get("charge_type") || "OTHER").trim();
-    const currency = String(formData.get("currency") || "HUF").trim().toUpperCase() || "HUF";
-
-    if (!issuerName) {
-        return { ok: false, error: "Az issuer neve kötelező a szolgáltatói sablonhoz." };
-    }
-
-    if (propertyId) {
-        const { data: property, error: propertyError } = await supabase
-            .from("properties")
-            .select("id")
-            .eq("id", propertyId)
-            .eq("owner_id", user.id)
-            .single();
-
-        if (propertyError || !property) {
-            return { ok: false, error: "A kiválasztott alapértelmezett ingatlan nem található." };
-        }
-    }
-
-    const { data: ingestion, error } = await supabase
-        .from("document_ingestions")
-        .select("id,normalized_data")
-        .eq("id", ingestionId)
-        .eq("owner_id", user.id)
-        .single();
-
-    if (error || !ingestion) {
-        return { ok: false, error: "Az import nem található." };
-    }
-
-    const normalized = (ingestion.normalized_data ?? {}) as Record<string, unknown>;
-    const fingerprint = issuerFingerprint(issuerName);
-
-    const fieldRules = {
-        default_charge_type: chargeType,
-        currency_hint: currency,
-        sample_due_date: normalized.due_date ?? null,
-        sample_amount: normalized.gross_amount ?? null,
-    };
-
-    const { error: upsertError } = await supabase
-        .from("supplier_profiles")
-        .upsert({
-            owner_id: user.id,
-            issuer_name: issuerName,
-            issuer_fingerprint: fingerprint,
-            default_property_id: propertyId,
-            default_charge_type: chargeType,
-            currency_hint: currency,
-            field_rules_json: fieldRules,
-            is_global: false,
-        }, { onConflict: "owner_id,issuer_fingerprint" });
-
-    if (upsertError) {
-        return { ok: false, error: upsertError.message };
-    }
-
-    revalidatePath(`/owner/importok/${ingestionId}`);
-    return { ok: true };
-}
-
-export async function reprocessIngestion(ingestionId: string) {
-    const { user } = await requireRole("OWNER");
-    const admin = createSupabaseAdminClient();
-
-    const { data: ingestion, error } = await admin
-        .from("document_ingestions")
-        .select("id,owner_id")
-        .eq("id", ingestionId)
-        .eq("owner_id", user.id)
-        .single();
-
-    if (error || !ingestion) {
-        return { ok: false, error: "Az import nem található." };
-    }
-
-    const result = await processStoredIngestion(ingestionId);
-    revalidatePath("/owner/importok");
-    revalidatePath(`/owner/importok/${ingestionId}`);
-    return result.ok ? { ok: true } : { ok: false, error: result.error };
+    return { ok: true, chargeId: draftResult.chargeId, propertyId: property.id };
 }
 
 export async function rotateOwnerInboundMailbox() {

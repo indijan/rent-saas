@@ -429,6 +429,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                             return (
                                 <article
                                     key={charge.id}
+                                    id={`charge-${charge.id}`}
                                     className={`charge-card${dueState.cardClass}${charge.status === "ARCHIVED" ? " charge-archived" : ""}`}
                                 >
                                     <div className="section-header">
