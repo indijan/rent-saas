@@ -5,6 +5,7 @@ import AppHeader from "@/components/AppHeader";
 import { finalizeIngestionReview } from "../actions";
 import { createDocumentSignedUrl } from "@/lib/documentStorage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import PendingSubmitButton from "@/components/PendingSubmitButton";
 
 type Props = {
     params: Promise<{ id: string }>;
@@ -113,6 +114,7 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
     } catch {
         previewUrl = "";
     }
+    const previewEmbedUrl = previewUrl ? `${previewUrl}#view=FitH&zoom=page-width&page=1` : "";
 
     return (
         <main className="app-shell page-enter space-y-4">
@@ -178,15 +180,23 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
                     ) : null}
                 </div>
                 {previewUrl ? (
-                    <details className="w-full rounded-xl border border-black/10 bg-white/70 p-3">
-                        <summary className="btn btn-secondary btn-sm cursor-pointer">
+                    <details className="document-preview-shell">
+                        <summary className="document-preview-toggle">
                             PDF előnézet lenyitása
                         </summary>
-                        <iframe
-                            src={previewUrl}
-                            title="Számla PDF előnézet"
-                            className="mt-3 min-h-[720px] w-full rounded-xl border border-black/10 bg-white"
-                        />
+                        <div className="document-preview-body">
+                            <object
+                                data={previewEmbedUrl}
+                                type="application/pdf"
+                                className="document-preview-frame"
+                            >
+                                <div className="muted-note">
+                                    Az inline PDF előnézet itt nem érhető el. Nyisd meg külön a
+                                    {" "}
+                                    <a className="link" href={previewUrl} target="_blank" rel="noreferrer">PDF-et</a>.
+                                </div>
+                            </object>
+                        </div>
                     </details>
                 ) : (
                     <p className="muted-note">A preview jelenleg nem érhető el ehhez a dokumentumhoz.</p>
@@ -257,9 +267,11 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
                         <textarea name="notes" className="input textarea" placeholder="Opcionális belső megjegyzés a javításhoz." />
                     </label>
                 </div>
-                <button className="btn btn-primary" type="submit">
-                    {ingestionRow.created_charge_id ? "Draft díj módosítása" : "Draft díj létrehozása"}
-                </button>
+                <PendingSubmitButton
+                    className="btn btn-primary"
+                    label={ingestionRow.created_charge_id ? "Draft díj módosítása" : "Draft díj létrehozása"}
+                    pendingLabel={ingestionRow.created_charge_id ? "Draft módosítása folyamatban..." : "Draft létrehozása folyamatban..."}
+                />
             </form>
         </main>
     );
