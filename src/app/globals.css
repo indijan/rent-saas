@@ -2057,6 +2057,10 @@ summary::-webkit-details-marker {
     display: flex;
   }
 
+  .sticky-subnav {
+    display: none;
+  }
+
   .sticky-subnav .nav-pills {
     display: none;
   }
