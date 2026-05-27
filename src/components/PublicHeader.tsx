@@ -27,7 +27,7 @@ export default function PublicHeader({ dashboardHref }: Props) {
 
     return (
         <header className="app-header">
-            <div className="brand">
+            <Link className="brand" href="/" onClick={() => setMenuOpen(false)}>
                 <div className="brand-kicker">Automate for freedom</div>
                 <div className="brand-title-row">
                     <div className="brand-mark" aria-hidden="true">
@@ -38,7 +38,7 @@ export default function PublicHeader({ dashboardHref }: Props) {
                         <span className="brand-meta">A landlord operating system, ami rendet tesz a káoszban.</span>
                     </div>
                 </div>
-            </div>
+            </Link>
             <button
                 type="button"
                 className="header-toggle"

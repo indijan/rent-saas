@@ -70,10 +70,13 @@ export default async function HomePage() {
                 <div className="hero-copy">
                     <div className="eyebrow">Rentapp</div>
                     <h1>Automate for freedom.</h1>
-                    <p>
+                    <p className="hero-lead">
                         A Rentapp rendet tesz a bérbeadás körüli káoszban: számlák, bérlők, dokumentumok, határidők és teendők egy rendszerben,
                         hogy a működésed ne rád nehezedjen, hanem helyetted dolgozzon.
                     </p>
+                    <div className="hero-copy-note">
+                        Kevesebb adminisztráció, kevesebb fejben tartás, több kontroll a teljes bérbeadási működésed fölött.
+                    </div>
                     <div className="charge-actions">
                         <Link className="btn btn-primary" href="/berbeadoi-regisztracio">Próbáld ki 30 napig ingyen</Link>
                         <Link className="btn btn-secondary" href="/funkciok">Funkciók megtekintése</Link>
