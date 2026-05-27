@@ -108,9 +108,9 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
             <section className="card section-stack">
                 <div className="section-header">
                     <div>
-                        <div className="eyebrow">Tulajdonosi összesítő</div>
-                        <h1>Összes pénzügyi áttekintés</h1>
-                        <p>Ha több ingatlanod van, itt látod őket egyben, nem csak külön oldalakra bontva.</p>
+                        <div className="eyebrow">Owner command center</div>
+                        <h1>Összes pénzügyi áttekintés, egy működő rendszerben.</h1>
+                        <p>Nem külön oldalakra bontott káosz, hanem egy tiszta operatív nézet arról, hol áll a portfóliód most.</p>
                     </div>
                     <div className="info-strip">
                         <span>Időszak: {from} - {to}</span>
@@ -138,19 +138,19 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
                 </form>
 
                 <div className="kpi-grid stagger">
-                    <div className="kpi-card">
+                    <div className="kpi-card kpi-card-glow">
                         <div className="kpi-label">Összes terhelés</div>
                         <div className="kpi-value">{formatCurrency(summary.total, "HUF")}</div>
                     </div>
-                    <div className="kpi-card">
+                    <div className="kpi-card kpi-card-glow">
                         <div className="kpi-label">Nyitott követelés</div>
                         <div className="kpi-value">{formatCurrency(summary.unpaid, "HUF")}</div>
                     </div>
-                    <div className="kpi-card">
+                    <div className="kpi-card kpi-card-glow">
                         <div className="kpi-label">Beérkezett összeg</div>
                         <div className="kpi-value">{formatCurrency(summary.paid, "HUF")}</div>
                     </div>
-                    <div className="kpi-card">
+                    <div className="kpi-card kpi-card-glow">
                         <div className="kpi-label">Lejárt nyitott összeg</div>
                         <div className="kpi-value">{formatCurrency(summary.overdue, "HUF")}</div>
                         <div className="muted-note">{summary.drafts} import piszkozat</div>

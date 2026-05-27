@@ -103,46 +103,48 @@ export default function SupportChatWidget() {
                         Funkciók, díjkezelés, import, jelszó-visszaállítás, bérlői és bérbeadói használat.
                     </div>
 
-                    {!hasConversation ? (
-                        <section className="support-intro-card">
-                            <p className="support-intro-copy">
-                                Segítek az app használatában, az importokban, a díjakban, a szerepkörökben és a jelszó-visszaállításban.
-                            </p>
-                            <div className="support-prompts">
-                                {quickActions.map((prompt) => (
-                                    <button
-                                        key={prompt}
-                                        type="button"
-                                        className="support-prompt"
-                                        onClick={() => void sendMessage(prompt)}
-                                    >
-                                        {prompt}
-                                    </button>
-                                ))}
-                            </div>
-                        </section>
-                    ) : null}
-
-                    {hasConversation ? (
-                        <div className="support-messages">
-                            {messages.map((message, index) => (
-                                <article
-                                    key={`${message.role}-${index}`}
-                                    className={`support-message ${message.role === "assistant" ? "support-message-assistant" : "support-message-user"}`}
-                                >
-                                    <p>{message.content}</p>
-                                </article>
-                            ))}
-
-                            {loading ? (
-                                <div className="support-typing">
-                                    <span />
-                                    <span />
-                                    <span />
+                    <div className="support-panel-body">
+                        {!hasConversation ? (
+                            <section className="support-intro-card">
+                                <p className="support-intro-copy">
+                                    Segítek az app használatában, az importokban, a díjakban, a szerepkörökben és a jelszó-visszaállításban.
+                                </p>
+                                <div className="support-prompts">
+                                    {quickActions.map((prompt) => (
+                                        <button
+                                            key={prompt}
+                                            type="button"
+                                            className="support-prompt"
+                                            onClick={() => void sendMessage(prompt)}
+                                        >
+                                            {prompt}
+                                        </button>
+                                    ))}
                                 </div>
-                            ) : null}
-                        </div>
-                    ) : null}
+                            </section>
+                        ) : null}
+
+                        {hasConversation ? (
+                            <div className="support-messages">
+                                {messages.map((message, index) => (
+                                    <article
+                                        key={`${message.role}-${index}`}
+                                        className={`support-message ${message.role === "assistant" ? "support-message-assistant" : "support-message-user"}`}
+                                    >
+                                        <p>{message.content}</p>
+                                    </article>
+                                ))}
+
+                                {loading ? (
+                                    <div className="support-typing">
+                                        <span />
+                                        <span />
+                                        <span />
+                                    </div>
+                                ) : null}
+                            </div>
+                        ) : null}
+                    </div>
 
                     <form
                         className="support-form"

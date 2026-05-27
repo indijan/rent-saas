@@ -128,10 +128,10 @@ export default function LoginPage() {
         <main className="auth-shell page-enter">
             <div className="auth-frame">
                 <section className="auth-hero">
-                    <div className="eyebrow">Rentapp</div>
-                    <h1>Átlátható bérbeadás, rendezett díjkezelés.</h1>
+                    <div className="eyebrow">Automate for freedom</div>
+                    <h1>Kapd vissza a fókuszt a működéstől, ne a káosztól.</h1>
                     <p>
-                        A tulajdonosi és bérlői felületet közös nevezőre hozzuk:
+                        A tulajdonosi és bérlői felületet egy közös rendszerben hozzuk össze:
                         mi aktív, mi közeleg, mi lejárt és mi lett már rendezve.
                     </p>
                     <div className="kpi-grid" style={{ marginTop: 24 }}>

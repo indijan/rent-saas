@@ -69,10 +69,10 @@ export default async function HomePage() {
             <section className="card hero-marketing">
                 <div className="hero-copy">
                     <div className="eyebrow">Rentapp</div>
-                    <h1>A bérbeadás ne egy második teljes állás legyen.</h1>
+                    <h1>Automate for freedom.</h1>
                     <p>
-                        A Rentapp egy személyes landlord dashboard, ami segít rendben tartani a bérleményeidet,
-                        bérlőidet, számláidat, dokumentumaidat és teendőidet — hogy ne neked kelljen mindent fejben tartani.
+                        A Rentapp rendet tesz a bérbeadás körüli káoszban: számlák, bérlők, dokumentumok, határidők és teendők egy rendszerben,
+                        hogy a működésed ne rád nehezedjen, hanem helyetted dolgozzon.
                     </p>
                     <div className="charge-actions">
                         <Link className="btn btn-primary" href="/berbeadoi-regisztracio">Próbáld ki 30 napig ingyen</Link>
@@ -87,15 +87,34 @@ export default async function HomePage() {
                 </div>
 
                 <div className="hero-panel">
-                    <div className="kpi-card">
-                        <div className="kpi-label">Miért más?</div>
-                        <div className="kpi-value">Nem még egy rendszer</div>
-                        <div className="muted-note">Hanem egy olyan saját workspace, ami leveszi a szétszórt adminisztrációt a fejedről.</div>
+                    <div className="kpi-card signal-card">
+                        <div className="signal-grid">
+                            <div className="signal-column">
+                                <span className="signal-badge">Bejövő</span>
+                                <div className="signal-node">Számlák</div>
+                                <div className="signal-node">Határidők</div>
+                                <div className="signal-node">Bérlői ügyek</div>
+                                <div className="signal-node">Dokumentumok</div>
+                            </div>
+                            <div className="signal-core">
+                                <div className="signal-core-shell">
+                                    <div className="signal-core-title">Automation engine</div>
+                                    <div className="signal-core-line" />
+                                    <p>AI + workflow + emberi kontroll</p>
+                                </div>
+                            </div>
+                            <div className="signal-column">
+                                <span className="signal-badge signal-badge-success">Kimenő</span>
+                                <div className="signal-node signal-node-success">Kevesebb admin</div>
+                                <div className="signal-node signal-node-success">Tisztább döntések</div>
+                                <div className="signal-node signal-node-success">Több szabadság</div>
+                            </div>
+                        </div>
                     </div>
-                    <div className="feature-list">
-                        <div className="feature-item">PDF vagy email alapú számlaimport, AI előkészítéssel és emberi jóváhagyással.</div>
-                        <div className="feature-item">Nyitott tételek, dokumentumok és bérlői státuszok egy helyen, nem több külön felületen.</div>
-                        <div className="feature-item">Lejáratok, hiányzó beállítások és importok egy teendő dashboardon.</div>
+                    <div className="feature-list freedom-rail">
+                        <div className="feature-item freedom-item">PDF vagy email alapú számlaimport, AI előkészítéssel és emberi jóváhagyással.</div>
+                        <div className="feature-item freedom-item">Nyitott tételek, dokumentumok és bérlői státuszok egy helyen, nem több külön felületen.</div>
+                        <div className="feature-item freedom-item">Lejáratok, hiányzó beállítások és importok egy teendő dashboardon.</div>
                     </div>
                 </div>
             </section>

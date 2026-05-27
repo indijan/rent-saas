@@ -90,7 +90,7 @@ export default async function FeaturesPage() {
             <section className="card section-stack">
                 <div className="section-header">
                     <div>
-                        <div className="eyebrow">CTA</div>
+                        <div className="eyebrow">Próba</div>
                         <h2>Próbáld ki 30 napig ingyen.</h2>
                         <p>
                             Nézd meg, milyen érzés úgy kezelni a bérbeadást, hogy nem kell mindent fejben tartani.

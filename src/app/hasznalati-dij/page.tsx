@@ -181,7 +181,7 @@ export default async function PricingPage() {
             <section className="card section-stack">
                 <div className="section-header">
                     <div>
-                        <div className="eyebrow">Végső CTA</div>
+                        <div className="eyebrow">Kezdés</div>
                         <h2>Kezdd el most. Az első hónap a miénk.</h2>
                         <p>30 napig teljes funkcionalitással kipróbálhatod. Kockázat nélkül.</p>
                     </div>
