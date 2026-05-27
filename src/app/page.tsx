@@ -78,18 +78,30 @@ export default async function HomePage() {
                         <Link className="btn btn-primary" href="/berbeadoi-regisztracio">Próbáld ki 30 napig ingyen</Link>
                         <Link className="btn btn-secondary" href="/funkciok">Funkciók megtekintése</Link>
                     </div>
-                    <div className="info-strip">
-                        <span>30 nap ingyenes próba</span>
-                        <span>Mobilról is kényelmesen használható</span>
-                        <span>AI támogatott számlafeldolgozás</span>
-                        <span>Saját, privát landlord workspace</span>
+                    <div className="hero-proof-grid">
+                        <div className="hero-proof-card">
+                            <span className="hero-proof-label">Próbaidő</span>
+                            <strong>30 nap ingyen</strong>
+                        </div>
+                        <div className="hero-proof-card">
+                            <span className="hero-proof-label">Használat</span>
+                            <strong>Mobilról is kényelmes</strong>
+                        </div>
+                        <div className="hero-proof-card">
+                            <span className="hero-proof-label">Import</span>
+                            <strong>AI támogatott számlafeldolgozás</strong>
+                        </div>
+                        <div className="hero-proof-card">
+                            <span className="hero-proof-label">Workspace</span>
+                            <strong>Saját landlord rendszer</strong>
+                        </div>
                     </div>
                 </div>
 
                 <div className="hero-panel">
                     <div className="kpi-card signal-card">
                         <div className="signal-grid">
-                            <div className="signal-column">
+                            <div className="signal-column signal-column-input">
                                 <span className="signal-badge">Bejövő</span>
                                 <div className="signal-node">Számlák</div>
                                 <div className="signal-node">Határidők</div>
@@ -103,7 +115,7 @@ export default async function HomePage() {
                                     <p>AI + workflow + emberi kontroll</p>
                                 </div>
                             </div>
-                            <div className="signal-column">
+                            <div className="signal-column signal-column-output">
                                 <span className="signal-badge signal-badge-success">Kimenő</span>
                                 <div className="signal-node signal-node-success">Kevesebb admin</div>
                                 <div className="signal-node signal-node-success">Tisztább döntések</div>
@@ -111,10 +123,28 @@ export default async function HomePage() {
                             </div>
                         </div>
                     </div>
-                    <div className="feature-list freedom-rail">
-                        <div className="feature-item freedom-item">PDF vagy email alapú számlaimport, AI előkészítéssel és emberi jóváhagyással.</div>
-                        <div className="feature-item freedom-item">Nyitott tételek, dokumentumok és bérlői státuszok egy helyen, nem több külön felületen.</div>
-                        <div className="feature-item freedom-item">Lejáratok, hiányzó beállítások és importok egy teendő dashboardon.</div>
+                    <div className="hero-outcomes">
+                        <article className="hero-outcome-card">
+                            <span className="hero-outcome-dot" aria-hidden="true" />
+                            <div>
+                                <div className="hero-outcome-title">Számlaimport, ami nem rád borul</div>
+                                <p>PDF vagy email alapú számlaimport, AI előkészítéssel és emberi jóváhagyással.</p>
+                            </div>
+                        </article>
+                        <article className="hero-outcome-card">
+                            <span className="hero-outcome-dot" aria-hidden="true" />
+                            <div>
+                                <div className="hero-outcome-title">Minden ügy egy nézetben</div>
+                                <p>Nyitott tételek, dokumentumok és bérlői státuszok egy helyen, nem több külön felületen.</p>
+                            </div>
+                        </article>
+                        <article className="hero-outcome-card">
+                            <span className="hero-outcome-dot" aria-hidden="true" />
+                            <div>
+                                <div className="hero-outcome-title">A rendszer szól, mielőtt gond lenne</div>
+                                <p>Lejáratok, hiányzó beállítások és importok egy teendő dashboardon.</p>
+                            </div>
+                        </article>
                     </div>
                 </div>
             </section>
