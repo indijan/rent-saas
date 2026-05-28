@@ -16,52 +16,62 @@ const MetaPixel = dynamic(() => import("@/components/MetaPixel"), {
 export default function PublicShellMount() {
     const pathname = usePathname();
     const isPublicPage = isPublicPath(pathname);
-    const [noticePath, setNoticePath] = useState<string | null>(null);
+    const [hasConsent, setHasConsent] = useState(() => {
+        if (typeof window === "undefined") return false;
+        return window.localStorage.getItem(PUBLIC_COOKIE_NOTICE_KEY) === "1";
+    });
     const [pixelPath, setPixelPath] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!isPublicPage) return;
+        if (!isPublicPage) {
+            return;
+        }
 
-        const hasCookieConsent = window.localStorage.getItem(PUBLIC_COOKIE_NOTICE_KEY) === "1";
-        let noticeTimeoutId: number | null = null;
         let pixelTimeoutId: number | null = null;
         let pixelIdleId: number | null = null;
 
-        const enablePixel = () => setPixelPath(pathname);
-        const handleConsent = () => {
-            setNoticePath(null);
-            enablePixel();
-        };
-
-        if (hasCookieConsent) {
-            if (typeof window.requestIdleCallback === "function") {
-                pixelIdleId = window.requestIdleCallback(enablePixel, { timeout: 2500 });
-            } else {
-                pixelTimeoutId = window.setTimeout(enablePixel, 1200);
-            }
-        } else {
-            noticeTimeoutId = window.setTimeout(() => {
-                setNoticePath(pathname);
-            }, 2200);
-        }
-
-        window.addEventListener(PUBLIC_COOKIE_EVENT, handleConsent);
-
-        return () => {
-            if (noticeTimeoutId !== null) {
-                window.clearTimeout(noticeTimeoutId);
-            }
+        const clearPixelTimers = () => {
             if (pixelTimeoutId !== null) {
                 window.clearTimeout(pixelTimeoutId);
             }
             if (pixelIdleId !== null && typeof window.cancelIdleCallback === "function") {
                 window.cancelIdleCallback(pixelIdleId);
             }
+        };
+
+        const enablePixel = () => setPixelPath(pathname);
+        const schedulePixel = () => {
+            clearPixelTimers();
+            if (typeof window.requestIdleCallback === "function") {
+                pixelIdleId = window.requestIdleCallback(enablePixel, { timeout: 4000 });
+            } else {
+                pixelTimeoutId = window.setTimeout(enablePixel, 2500);
+            }
+        };
+
+        const handleConsent = () => {
+            setHasConsent(true);
+            schedulePixel();
+        };
+
+        if (hasConsent) {
+            if (document.readyState === "complete") {
+                schedulePixel();
+            } else {
+                window.addEventListener("load", schedulePixel, { once: true });
+            }
+        }
+
+        window.addEventListener(PUBLIC_COOKIE_EVENT, handleConsent);
+
+        return () => {
+            window.removeEventListener("load", schedulePixel);
+            clearPixelTimers();
             window.removeEventListener(PUBLIC_COOKIE_EVENT, handleConsent);
         };
-    }, [isPublicPage, pathname]);
+    }, [hasConsent, isPublicPage, pathname]);
 
-    const showCookieNotice = isPublicPage && noticePath === pathname;
+    const showCookieNotice = isPublicPage && hasConsent === false;
     const enableMetaPixel = isPublicPage && pixelPath === pathname;
 
     return (

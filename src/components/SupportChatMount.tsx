@@ -1,36 +1,42 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { isPublicPath } from "@/lib/publicShell";
 
 const SupportChatWidget = dynamic(() => import("@/components/SupportChatWidget"), {
     ssr: false,
 });
 
 export default function SupportChatMount() {
+    const pathname = usePathname();
+    const isPublicPage = isPublicPath(pathname);
     const [ready, setReady] = useState(false);
 
     useEffect(() => {
-        let timeoutId: number | null = null;
-        let idleId: number | null = null;
-
-        const activate = () => setReady(true);
-
-        if (typeof window.requestIdleCallback === "function") {
-            idleId = window.requestIdleCallback(activate, { timeout: 4000 });
-        } else {
-            timeoutId = window.setTimeout(activate, 1800);
+        if (!isPublicPage) {
+            return;
         }
 
+        let timeoutId: number | null = null;
+
+        const activate = () => setReady(true);
+        const handlePointerDown = () => activate();
+        const handleKeyDown = () => activate();
+
+        timeoutId = window.setTimeout(activate, 15000);
+        window.addEventListener("pointerdown", handlePointerDown, { once: true, passive: true });
+        window.addEventListener("keydown", handleKeyDown, { once: true });
+
         return () => {
-            if (idleId !== null && typeof window.cancelIdleCallback === "function") {
-                window.cancelIdleCallback(idleId);
-            }
             if (timeoutId !== null) {
                 window.clearTimeout(timeoutId);
             }
+            window.removeEventListener("pointerdown", handlePointerDown);
+            window.removeEventListener("keydown", handleKeyDown);
         };
-    }, []);
+    }, [isPublicPage]);
 
-    return ready ? <SupportChatWidget /> : null;
+    return isPublicPage && ready ? <SupportChatWidget /> : null;
 }
