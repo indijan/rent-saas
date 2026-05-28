@@ -2184,8 +2184,10 @@ summary::-webkit-details-marker {
   }
 
   .header-utility-bar {
+    display: inline-flex;
     justify-content: flex-end;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
   }
 
   .section-header {
@@ -2194,6 +2196,22 @@ summary::-webkit-details-marker {
 
   .header-toggle {
     display: inline-flex;
+  }
+
+   .header-nav-shell {
+    width: 100%;
+   }
+
+  .header-nav-shell .nav-pills {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .header-nav-shell .nav-pills.nav-open {
+    display: flex;
   }
 
   .nav-pills-desktop {

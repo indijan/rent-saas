@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { isPublicPath } from "@/lib/publicShell";
 
@@ -17,8 +17,10 @@ function shouldHandleAnchor(target: EventTarget | null) {
 
 export default function RouteTransitionOverlay() {
     const pathname = usePathname();
+    const searchParams = useSearchParams();
     const [pendingFromPath, setPendingFromPath] = useState<string | null>(null);
     const isPublicPage = isPublicPath(pathname);
+    const searchKey = searchParams.toString();
 
     useEffect(() => {
         if (isPublicPage) {
@@ -50,17 +52,33 @@ export default function RouteTransitionOverlay() {
             const currentPath = `${window.location.pathname}${window.location.search}`;
             if (nextPath === currentPath) return;
 
-            setPendingFromPath(window.location.pathname);
+            setPendingFromPath(currentPath);
+        };
+
+        const handleSubmit = (event: SubmitEvent) => {
+            if (!(event.target instanceof HTMLFormElement)) return;
+
+            const method = (event.target.getAttribute("method") || "get").toUpperCase();
+            if (method !== "GET") return;
+
+            const action = event.target.getAttribute("action");
+            const url = new URL(action || window.location.href, window.location.href);
+            if (url.origin !== window.location.origin) return;
+
+            setPendingFromPath(`${window.location.pathname}${window.location.search}`);
         };
 
         window.addEventListener("click", handleClick, true);
+        window.addEventListener("submit", handleSubmit, true);
 
         return () => {
             window.removeEventListener("click", handleClick, true);
+            window.removeEventListener("submit", handleSubmit, true);
         };
     }, [isPublicPage]);
 
-    const visible = !isPublicPage && pendingFromPath !== null && pathname === pendingFromPath;
+    const currentPath = `${pathname}${searchKey ? `?${searchKey}` : ""}`;
+    const visible = !isPublicPage && pendingFromPath !== null && currentPath === pendingFromPath;
 
     if (!visible) return null;
 
