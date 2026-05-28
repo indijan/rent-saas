@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Space_Grotesk } from "next/font/google";
-import MetaPixel from "@/components/MetaPixel";
-import PublicCookieNotice from "@/components/PublicCookieNotice";
+import PublicShellMount from "@/components/PublicShellMount";
 import SupportChatMount from "@/components/SupportChatMount";
 import "./globals.css";
 
@@ -30,9 +29,8 @@ export default function RootLayout({
       <body
         className={`${spaceGrotesk.variable} ${fraunces.variable} antialiased`}
       >
-        <MetaPixel />
         {children}
-        <PublicCookieNotice />
+        <PublicShellMount />
         <SupportChatMount />
       </body>
     </html>

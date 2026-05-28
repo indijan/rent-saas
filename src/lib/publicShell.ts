@@ -1,4 +1,5 @@
 export const PUBLIC_COOKIE_NOTICE_KEY = "rentapp-public-cookie-notice-dismissed";
+export const PUBLIC_COOKIE_EVENT = "rentapp:cookie-notice-dismissed";
 
 export const PUBLIC_PATHS = new Set([
     "/",

@@ -3,9 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { PUBLIC_COOKIE_NOTICE_KEY, isPublicPath } from "@/lib/publicShell";
-
-const COOKIE_EVENT = "rentapp:cookie-notice-dismissed";
+import { PUBLIC_COOKIE_EVENT, PUBLIC_COOKIE_NOTICE_KEY, isPublicPath } from "@/lib/publicShell";
 
 export default function PublicCookieNotice() {
     const pathname = usePathname();
@@ -17,7 +15,7 @@ export default function PublicCookieNotice() {
 
     function closeNotice() {
         window.localStorage.setItem(PUBLIC_COOKIE_NOTICE_KEY, "1");
-        window.dispatchEvent(new Event(COOKIE_EVENT));
+        window.dispatchEvent(new Event(PUBLIC_COOKIE_EVENT));
         setDismissed(true);
     }
 
