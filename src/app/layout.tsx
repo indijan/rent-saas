@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, Space_Grotesk } from "next/font/google";
-import AuthRecoveryListener from "@/components/AuthRecoveryListener";
+import MetaPixel from "@/components/MetaPixel";
+import PublicCookieNotice from "@/components/PublicCookieNotice";
 import SupportChatWidget from "@/components/SupportChatWidget";
 import "./globals.css";
 
@@ -29,8 +30,9 @@ export default function RootLayout({
       <body
         className={`${spaceGrotesk.variable} ${fraunces.variable} antialiased`}
       >
-        <AuthRecoveryListener />
+        <MetaPixel />
         {children}
+        <PublicCookieNotice />
         <SupportChatWidget />
       </body>
     </html>

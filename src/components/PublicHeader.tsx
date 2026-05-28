@@ -1,7 +1,5 @@
-"use client";
-
 import Link from "next/link";
-import { type ReactNode, useState } from "react";
+import { type ReactNode } from "react";
 
 type Props = {
     dashboardHref?: string | null;
@@ -23,11 +21,9 @@ function UtilityIcon({
 }
 
 export default function PublicHeader({ dashboardHref }: Props) {
-    const [menuOpen, setMenuOpen] = useState(false);
-
     return (
         <header className="app-header">
-            <Link className="brand" href="/" onClick={() => setMenuOpen(false)}>
+            <Link className="brand" href="/">
                 <div className="brand-kicker">Automate for freedom</div>
                 <div className="brand-title-row">
                     <div className="brand-mark" aria-hidden="true">
@@ -39,15 +35,6 @@ export default function PublicHeader({ dashboardHref }: Props) {
                     </div>
                 </div>
             </Link>
-            <button
-                type="button"
-                className="header-toggle"
-                aria-expanded={menuOpen}
-                aria-controls="public-navigation"
-                onClick={() => setMenuOpen((value) => !value)}
-            >
-                Menü
-            </button>
             <div className="header-actions">
                 <div className="header-utility-bar">
                     <Link
@@ -69,7 +56,6 @@ export default function PublicHeader({ dashboardHref }: Props) {
                         href="/gyik#nem-talaltad"
                         data-tooltip="Kapcsolat"
                         aria-label="Kapcsolat"
-                        onClick={() => setMenuOpen(false)}
                     >
                         <UtilityIcon label="Kapcsolat">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
@@ -79,20 +65,47 @@ export default function PublicHeader({ dashboardHref }: Props) {
                             </svg>
                         </UtilityIcon>
                     </Link>
+                    <Link
+                        className="header-icon-link"
+                        href="/aszf"
+                        data-tooltip="ÁSZF"
+                        aria-label="ÁSZF"
+                    >
+                        <UtilityIcon label="ÁSZF">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M8 3h6l5 5v13H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+                                <path d="M14 3v5h5" />
+                                <path d="M10 12h6" />
+                                <path d="M10 16h6" />
+                            </svg>
+                        </UtilityIcon>
+                    </Link>
                 </div>
-                <div className="header-nav-shell">
-                    <nav id="public-navigation" className={`nav-pills${menuOpen ? " nav-open" : ""}`}>
-                    <Link className="pill" href="/funkciok" onClick={() => setMenuOpen(false)}>Funkciók</Link>
-                    <Link className="pill" href="/hasznalati-dij" onClick={() => setMenuOpen(false)}>Díjak</Link>
-                    <Link className="pill" href="/gyik" onClick={() => setMenuOpen(false)}>GYIK</Link>
-                    <Link className="pill" href="/berbeadoi-regisztracio" onClick={() => setMenuOpen(false)}>Regisztráció</Link>
+                <nav id="public-navigation" className="nav-pills nav-pills-desktop">
+                    <Link className="pill" href="/funkciok">Funkciók</Link>
+                    <Link className="pill" href="/hasznalati-dij">Díjak</Link>
+                    <Link className="pill" href="/gyik">GYIK</Link>
+                    <Link className="pill" href="/berbeadoi-regisztracio">Regisztráció</Link>
                     {dashboardHref ? (
-                        <Link className="pill pill-active" href={dashboardHref} onClick={() => setMenuOpen(false)}>Saját felület</Link>
+                        <Link className="pill pill-active" href={dashboardHref}>Saját felület</Link>
                     ) : (
-                        <Link className="pill pill-active" href="/login" onClick={() => setMenuOpen(false)}>Belépés</Link>
+                        <Link className="pill pill-active" href="/login">Belépés</Link>
                     )}
+                </nav>
+                <details className="header-nav-shell header-nav-shell-mobile">
+                    <summary className="header-toggle">Menü</summary>
+                    <nav className="nav-pills nav-pills-mobile">
+                        <Link className="pill" href="/funkciok">Funkciók</Link>
+                        <Link className="pill" href="/hasznalati-dij">Díjak</Link>
+                        <Link className="pill" href="/gyik">GYIK</Link>
+                        <Link className="pill" href="/berbeadoi-regisztracio">Regisztráció</Link>
+                        {dashboardHref ? (
+                            <Link className="pill pill-active" href={dashboardHref}>Saját felület</Link>
+                        ) : (
+                            <Link className="pill pill-active" href="/login">Belépés</Link>
+                        )}
                     </nav>
-                </div>
+                </details>
             </div>
         </header>
     );
