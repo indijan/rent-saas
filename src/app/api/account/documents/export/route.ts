@@ -59,7 +59,8 @@ export async function GET() {
 
         try {
             const fileBuffer = await downloadDocumentObject(bucketPath);
-            const fileName = bucketPath.split("/").at(-1) || `document-${index}.pdf`;
+            const pathParts = bucketPath.split("/");
+            const fileName = pathParts[pathParts.length - 1] || `document-${index}.pdf`;
             const safeName = `${String(index).padStart(3, "0")}-${safeFileName(fileName)}`;
             entries.push({
                 name: safeName,

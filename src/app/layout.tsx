@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Space_Grotesk } from "next/font/google";
 import MetaPixel from "@/components/MetaPixel";
 import PublicCookieNotice from "@/components/PublicCookieNotice";
-import SupportChatWidget from "@/components/SupportChatWidget";
+import SupportChatMount from "@/components/SupportChatMount";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -33,7 +33,7 @@ export default function RootLayout({
         <MetaPixel />
         {children}
         <PublicCookieNotice />
-        <SupportChatWidget />
+        <SupportChatMount />
       </body>
     </html>
   );

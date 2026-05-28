@@ -156,7 +156,10 @@ function extractAmountDueFromText(text: string) {
     const globalKeywordValues = Array.from(
         text.matchAll(/(?:fizetend[oő]|összesen|végösszeg|bruttó)[\s\S]{0,120}?((?:\d{1,3}(?:[ .]\d{3})+(?:,\d{1,2})?|\d+(?:,\d{1,2})?)\s*(?:Ft|HUF)?)/gi),
         (match) => match[1]
-    ).flatMap((chunk) => extractAmountCandidates(chunk));
+    ).reduce<number[]>((allMatches, chunk) => {
+        allMatches.push(...extractAmountCandidates(chunk));
+        return allMatches;
+    }, []);
     const globalKeywordValue = pickBestAmount(globalKeywordValues);
     if (globalKeywordValue !== null) {
         return globalKeywordValue;

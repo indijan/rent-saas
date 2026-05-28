@@ -128,14 +128,19 @@ export default async function TenantChargeDetailPage({ params }: Props) {
                     <p className="text-sm text-gray-600">Nincs feltöltött dokumentum.</p>
                 ) : (
                     <div className="charge-docs">
-                        {(documentsWithUrls as ChargeDocumentWithUrl[]).map((doc) => (
-                            <div key={doc.id} className="form-panel">
-                                <a className="link" href={doc.signed_url} target="_blank" rel="noreferrer">
-                                    Dokumentum: {doc.bucket_path.split("/").at(-1)}
-                                </a>{" "}
-                                <span className="muted-note">{new Date(doc.created_at).toLocaleString("hu-HU")}</span>
-                            </div>
-                        ))}
+                        {(documentsWithUrls as ChargeDocumentWithUrl[]).map((doc) => {
+                            const pathParts = doc.bucket_path.split("/");
+                            const fileName = pathParts[pathParts.length - 1];
+
+                            return (
+                                <div key={doc.id} className="form-panel">
+                                    <a className="link" href={doc.signed_url} target="_blank" rel="noreferrer">
+                                        Dokumentum: {fileName}
+                                    </a>{" "}
+                                    <span className="muted-note">{new Date(doc.created_at).toLocaleString("hu-HU")}</span>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>

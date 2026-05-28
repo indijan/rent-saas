@@ -457,14 +457,19 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
 
                                     {docList.length > 0 ? (
                                         <div className="charge-docs">
-                                            {docList.map((doc) => (
-                                                <div key={doc.id}>
-                                                    <a className="link" href={doc.signed_url} target="_blank" rel="noreferrer">
-                                                        Dokumentum: {doc.bucket_path.split("/").at(-1)}
-                                                    </a>{" "}
-                                                    · {new Date(doc.created_at).toLocaleString("hu-HU")}
-                                                </div>
-                                            ))}
+                                            {docList.map((doc) => {
+                                                const pathParts = doc.bucket_path.split("/");
+                                                const fileName = pathParts[pathParts.length - 1];
+
+                                                return (
+                                                    <div key={doc.id}>
+                                                        <a className="link" href={doc.signed_url} target="_blank" rel="noreferrer">
+                                                            Dokumentum: {fileName}
+                                                        </a>{" "}
+                                                        · {new Date(doc.created_at).toLocaleString("hu-HU")}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     ) : (
                                         <div className="charge-docs">
