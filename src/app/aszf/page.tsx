@@ -1,4 +1,5 @@
 import PublicHeader from "@/components/PublicHeader";
+import PublicPageEnhancements from "@/components/PublicPageEnhancements";
 import { getSignedInDashboardHref } from "@/lib/auth/getDashboardHref";
 
 export default async function TermsPage() {
@@ -7,6 +8,7 @@ export default async function TermsPage() {
     return (
         <main className="app-shell page-enter space-y-4">
             <PublicHeader dashboardHref={dashboardHref} />
+            <PublicPageEnhancements />
 
             <section className="card section-stack">
                 <div className="eyebrow">ÁSZF</div>

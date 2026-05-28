@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import { Fraunces, Space_Grotesk } from "next/font/google";
-import PublicShellMount from "@/components/PublicShellMount";
-import SupportChatMount from "@/components/SupportChatMount";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -24,14 +22,12 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-    return (
+  return (
     <html lang="hu">
       <body
         className={`${spaceGrotesk.variable} ${fraunces.variable} antialiased`}
       >
         {children}
-        <PublicShellMount />
-        <SupportChatMount />
       </body>
     </html>
   );

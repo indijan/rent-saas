@@ -1,25 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { PUBLIC_COOKIE_EVENT, PUBLIC_COOKIE_NOTICE_KEY, isPublicPath } from "@/lib/publicShell";
+import { PUBLIC_COOKIE_EVENT, PUBLIC_COOKIE_NOTICE_KEY } from "@/lib/publicShell";
 
-export default function PublicCookieNotice() {
-    const pathname = usePathname();
-    const [dismissed, setDismissed] = useState(() => {
-        if (typeof window === "undefined") return true;
-        return window.localStorage.getItem(PUBLIC_COOKIE_NOTICE_KEY) === "1";
-    });
-    const isPublicPage = isPublicPath(pathname);
+type Props = {
+    initialDismissed: boolean;
+};
+
+export default function PublicCookieNotice({ initialDismissed }: Props) {
+    const [dismissed, setDismissed] = useState(initialDismissed);
 
     function closeNotice() {
         window.localStorage.setItem(PUBLIC_COOKIE_NOTICE_KEY, "1");
+        document.cookie = `${PUBLIC_COOKIE_NOTICE_KEY}=1; path=/; max-age=31536000; samesite=lax`;
         window.dispatchEvent(new Event(PUBLIC_COOKIE_EVENT));
         setDismissed(true);
     }
 
-    if (!isPublicPage || dismissed) return null;
+    if (dismissed) return null;
 
     return (
         <aside className="cookie-notice" aria-label="Cookie tájékoztató">

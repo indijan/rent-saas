@@ -1,4 +1,5 @@
 import PublicHeader from "@/components/PublicHeader";
+import PublicPageEnhancements from "@/components/PublicPageEnhancements";
 import IdeaBoxForm from "@/components/IdeaBoxForm";
 import { getSignedInDashboardHref } from "@/lib/auth/getDashboardHref";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -26,6 +27,7 @@ export default async function IdeaBoxPage() {
     return (
         <main className="app-shell page-enter space-y-4">
             <PublicHeader dashboardHref={dashboardHref} />
+            <PublicPageEnhancements />
 
             <section className="card section-stack">
                 <div className="section-header">

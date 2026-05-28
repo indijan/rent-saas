@@ -3,27 +3,36 @@
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { PUBLIC_COOKIE_EVENT, PUBLIC_COOKIE_NOTICE_KEY, isPublicPath } from "@/lib/publicShell";
-
-const PublicCookieNotice = dynamic(() => import("@/components/PublicCookieNotice"), {
-    ssr: false,
-});
+import { PUBLIC_COOKIE_EVENT } from "@/lib/publicShell";
 
 const MetaPixel = dynamic(() => import("@/components/MetaPixel"), {
     ssr: false,
 });
 
-export default function PublicShellMount() {
+const SupportChatMount = dynamic(() => import("@/components/SupportChatMount"), {
+    ssr: false,
+});
+
+type Props = {
+    initialConsent: boolean;
+};
+
+export default function PublicAnalyticsMount({ initialConsent }: Props) {
     const pathname = usePathname();
-    const isPublicPage = isPublicPath(pathname);
-    const [hasConsent, setHasConsent] = useState(() => {
-        if (typeof window === "undefined") return false;
-        return window.localStorage.getItem(PUBLIC_COOKIE_NOTICE_KEY) === "1";
-    });
+    const [hasConsent, setHasConsent] = useState(initialConsent);
     const [pixelPath, setPixelPath] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!isPublicPage) {
+        const handleConsent = () => setHasConsent(true);
+        window.addEventListener(PUBLIC_COOKIE_EVENT, handleConsent);
+
+        return () => {
+            window.removeEventListener(PUBLIC_COOKIE_EVENT, handleConsent);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!hasConsent) {
             return;
         }
 
@@ -49,35 +58,22 @@ export default function PublicShellMount() {
             }
         };
 
-        const handleConsent = () => {
-            setHasConsent(true);
+        if (document.readyState === "complete") {
             schedulePixel();
-        };
-
-        if (hasConsent) {
-            if (document.readyState === "complete") {
-                schedulePixel();
-            } else {
-                window.addEventListener("load", schedulePixel, { once: true });
-            }
+        } else {
+            window.addEventListener("load", schedulePixel, { once: true });
         }
-
-        window.addEventListener(PUBLIC_COOKIE_EVENT, handleConsent);
 
         return () => {
             window.removeEventListener("load", schedulePixel);
             clearPixelTimers();
-            window.removeEventListener(PUBLIC_COOKIE_EVENT, handleConsent);
         };
-    }, [hasConsent, isPublicPage, pathname]);
-
-    const showCookieNotice = isPublicPage && hasConsent === false;
-    const enableMetaPixel = isPublicPage && pixelPath === pathname;
+    }, [hasConsent, pathname]);
 
     return (
         <>
-            {enableMetaPixel ? <MetaPixel /> : null}
-            {showCookieNotice ? <PublicCookieNotice /> : null}
+            {pixelPath === pathname ? <MetaPixel /> : null}
+            <SupportChatMount />
         </>
     );
 }

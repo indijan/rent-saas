@@ -1,5 +1,6 @@
 import Link from "next/link";
 import PublicHeader from "@/components/PublicHeader";
+import PublicPageEnhancements from "@/components/PublicPageEnhancements";
 import { submitOwnerRegistration } from "./actions";
 import { getSignedInDashboardHref } from "@/lib/auth/getDashboardHref";
 
@@ -16,6 +17,7 @@ export default async function OwnerRegistrationPage({ searchParams }: Props) {
     return (
         <main className="app-shell page-enter space-y-4">
             <PublicHeader dashboardHref={dashboardHref} />
+            <PublicPageEnhancements />
 
             <section className="card section-stack">
                 <div className="section-header">

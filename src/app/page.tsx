@@ -1,4 +1,5 @@
 import PublicHeader from "@/components/PublicHeader";
+import PublicPageEnhancements from "@/components/PublicPageEnhancements";
 import Link from "next/link";
 import { getSignedInDashboardHref } from "@/lib/auth/getDashboardHref";
 
@@ -65,6 +66,7 @@ export default async function HomePage() {
     return (
         <main className="app-shell page-enter space-y-4">
             <PublicHeader dashboardHref={dashboardHref} />
+            <PublicPageEnhancements />
 
             <section className="card hero-marketing">
                 <div className="hero-copy">
