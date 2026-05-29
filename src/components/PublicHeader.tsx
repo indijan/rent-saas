@@ -1,4 +1,4 @@
-import Link from "next/link";
+/* eslint-disable @next/next/no-html-link-for-pages */
 import { type ReactNode } from "react";
 
 type Props = {
@@ -23,7 +23,7 @@ function UtilityIcon({
 export default function PublicHeader({ dashboardHref }: Props) {
     return (
         <header className="app-header">
-            <Link className="brand" href="/">
+            <a className="brand" href="/">
                 <div className="brand-kicker">Automate for freedom</div>
                 <div className="brand-title-row">
                     <div className="brand-mark" aria-hidden="true">
@@ -34,10 +34,10 @@ export default function PublicHeader({ dashboardHref }: Props) {
                         <span className="brand-meta">A landlord operating system, ami rendet tesz a káoszban.</span>
                     </div>
                 </div>
-            </Link>
+            </a>
             <div className="header-actions">
                 <div className="header-utility-bar">
-                    <Link
+                    <a
                         className="header-icon-link"
                         href="/otletlada"
                         data-tooltip="Ötletláda"
@@ -50,8 +50,8 @@ export default function PublicHeader({ dashboardHref }: Props) {
                                 <path d="M12 2a7 7 0 0 0-4 12.8c.7.5 1 1 1.2 1.7h5.6c.2-.7.5-1.2 1.2-1.7A7 7 0 0 0 12 2Z" />
                             </svg>
                         </UtilityIcon>
-                    </Link>
-                    <Link
+                    </a>
+                    <a
                         className="header-icon-link"
                         href="/gyik#nem-talaltad"
                         data-tooltip="Kapcsolat"
@@ -64,8 +64,8 @@ export default function PublicHeader({ dashboardHref }: Props) {
                                 <path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4l-3 3-3-3H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
                             </svg>
                         </UtilityIcon>
-                    </Link>
-                    <Link
+                    </a>
+                    <a
                         className="header-icon-link"
                         href="/aszf"
                         data-tooltip="ÁSZF"
@@ -79,30 +79,30 @@ export default function PublicHeader({ dashboardHref }: Props) {
                                 <path d="M10 16h6" />
                             </svg>
                         </UtilityIcon>
-                    </Link>
+                    </a>
                 </div>
                 <nav id="public-navigation" className="nav-pills nav-pills-desktop">
-                    <Link className="pill" href="/funkciok">Funkciók</Link>
-                    <Link className="pill" href="/hasznalati-dij">Díjak</Link>
-                    <Link className="pill" href="/gyik">GYIK</Link>
-                    <Link className="pill" href="/berbeadoi-regisztracio">Regisztráció</Link>
+                    <a className="pill" href="/funkciok">Funkciók</a>
+                    <a className="pill" href="/hasznalati-dij">Díjak</a>
+                    <a className="pill" href="/gyik">GYIK</a>
+                    <a className="pill" href="/berbeadoi-regisztracio">Regisztráció</a>
                     {dashboardHref ? (
-                        <Link className="pill pill-active" href={dashboardHref}>Saját felület</Link>
+                        <a className="pill pill-active" href={dashboardHref}>Saját felület</a>
                     ) : (
-                        <Link className="pill pill-active" href="/login">Belépés</Link>
+                        <a className="pill pill-active" href="/login">Belépés</a>
                     )}
                 </nav>
                 <details className="header-nav-shell header-nav-shell-mobile">
                     <summary className="header-toggle">Menü</summary>
                     <nav className="nav-pills nav-pills-mobile">
-                        <Link className="pill" href="/funkciok">Funkciók</Link>
-                        <Link className="pill" href="/hasznalati-dij">Díjak</Link>
-                        <Link className="pill" href="/gyik">GYIK</Link>
-                        <Link className="pill" href="/berbeadoi-regisztracio">Regisztráció</Link>
+                        <a className="pill" href="/funkciok">Funkciók</a>
+                        <a className="pill" href="/hasznalati-dij">Díjak</a>
+                        <a className="pill" href="/gyik">GYIK</a>
+                        <a className="pill" href="/berbeadoi-regisztracio">Regisztráció</a>
                         {dashboardHref ? (
-                            <Link className="pill pill-active" href={dashboardHref}>Saját felület</Link>
+                            <a className="pill pill-active" href={dashboardHref}>Saját felület</a>
                         ) : (
-                            <Link className="pill pill-active" href="/login">Belépés</Link>
+                            <a className="pill pill-active" href="/login">Belépés</a>
                         )}
                     </nav>
                 </details>

@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { Fraunces, Space_Grotesk } from "next/font/google";
-import RouteTransitionOverlay from "@/components/RouteTransitionOverlay";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -30,9 +28,6 @@ export default function RootLayout({
         className={`${spaceGrotesk.variable} ${fraunces.variable} antialiased`}
       >
         {children}
-        <Suspense fallback={null}>
-          <RouteTransitionOverlay />
-        </Suspense>
       </body>
     </html>
   );

@@ -1,6 +1,5 @@
 import PublicHeader from "@/components/PublicHeader";
 import PublicPageEnhancements from "@/components/PublicPageEnhancements";
-import Link from "next/link";
 import { getSignedInDashboardHref } from "@/lib/auth/getDashboardHref";
 
 const painPoints = [
@@ -80,8 +79,8 @@ export default async function HomePage() {
                         Kevesebb adminisztráció, kevesebb fejben tartás, több kontroll a teljes bérbeadási működésed fölött.
                     </div>
                     <div className="charge-actions">
-                        <Link className="btn btn-primary" href="/berbeadoi-regisztracio">Próbáld ki 30 napig ingyen</Link>
-                        <Link className="btn btn-secondary" href="/funkciok">Funkciók megtekintése</Link>
+                        <a className="btn btn-primary" href="/berbeadoi-regisztracio">Próbáld ki 30 napig ingyen</a>
+                        <a className="btn btn-secondary" href="/funkciok">Funkciók megtekintése</a>
                     </div>
                     <div className="hero-proof-grid">
                         <div className="hero-proof-card">
@@ -251,8 +250,8 @@ export default async function HomePage() {
                         </p>
                     </div>
                     <div className="charge-actions">
-                        <Link className="btn btn-primary" href="/berbeadoi-regisztracio">Elindítom az ingyenes próbaidőt</Link>
-                        <Link className="btn btn-secondary" href="/hasznalati-dij">Árazás megtekintése</Link>
+                        <a className="btn btn-primary" href="/berbeadoi-regisztracio">Elindítom az ingyenes próbaidőt</a>
+                        <a className="btn btn-secondary" href="/hasznalati-dij">Árazás megtekintése</a>
                     </div>
                 </div>
             </section>
@@ -268,7 +267,7 @@ export default async function HomePage() {
                         </p>
                     </div>
                     <div className="charge-actions">
-                        <Link className="btn btn-secondary" href="/otletlada">Megnyitom az ötletládát</Link>
+                        <a className="btn btn-secondary" href="/otletlada">Megnyitom az ötletládát</a>
                     </div>
                 </div>
             </section>
