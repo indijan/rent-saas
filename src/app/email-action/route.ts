@@ -26,6 +26,12 @@ function redirectWithMessage(path: string, status: "success" | "error", message:
     redirect(`${SITE_URL}${path}${path.includes("?") ? "&" : "?"}status=${status}&message=${encodeURIComponent(message)}`);
 }
 
+function redirectToResult(status: "success" | "error", title: string, message: string) {
+    redirect(
+        `${SITE_URL}/email-action/result?status=${status}&title=${encodeURIComponent(title)}&message=${encodeURIComponent(message)}`
+    );
+}
+
 function isMissingManualReminderColumnError(message: string | undefined) {
     return (message || "").includes("manual_reminder_sent_at");
 }
@@ -303,16 +309,31 @@ export async function POST(request: Request) {
 
     if (payload.action === "charge_publish") {
         if (charge.status === "IMPORT_DRAFT") {
-            await admin
+            const { error: publishError } = await admin
                 .from("charges")
                 .update({ status: "UNPAID" })
                 .eq("id", charge.id);
 
+            if (publishError) {
+                redirectToResult("error", "A publikálás nem sikerült.", publishError.message);
+                return;
+            }
+
             const property = getChargeProperty(charge);
             const propertyTenants = await listPropertyTenants(charge.property_id);
+
+            if (propertyTenants.length === 0) {
+                redirectToResult(
+                    "success",
+                    "A számla sikeresen létrejött.",
+                    "A díj publikálva lett. Ehhez az ingatlanhoz jelenleg nincs bérlő rendelve, ezért nem küldtünk értesítést."
+                );
+                return;
+            }
+
             for (const tenantProfile of propertyTenants) {
                 if (!tenantProfile.email) continue;
-                await sendEmail(renderNewChargeEmail({
+                const emailResult = await sendEmail(renderNewChargeEmail({
                     tenantEmail: tenantProfile.email,
                     title: charge.title,
                     amount: Number(charge.amount),
@@ -321,10 +342,23 @@ export async function POST(request: Request) {
                     propertyName: property?.name ?? null,
                     count: 1,
                 }));
+
+                if (!emailResult.ok) {
+                    redirectToResult(
+                        "error",
+                        "A számla létrejött, de az értesítés nem ment ki.",
+                        emailResult.error ?? "A bérlő értesítését nem tudtuk kiküldeni."
+                    );
+                    return;
+                }
             }
         }
 
-        redirectWithMessage("/owner/importok", "success", "A draft díj publikálva lett.");
+        redirectToResult(
+            "success",
+            "A számla sikeresen létrejött.",
+            "A díj publikálva lett, a bérlőt értesítettük, nincs több dolgod."
+        );
     }
 
     redirectWithMessage("/login", "error", "Ismeretlen e-mailes művelet.");
