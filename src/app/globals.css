@@ -1453,7 +1453,7 @@ summary::-webkit-details-marker {
 }
 
 .route-loading-copy span {
-  color: var(--ink-600);
+  color: var(--ink-700);
   font-size: 0.95rem;
   font-weight: 700;
 }
@@ -2517,6 +2517,23 @@ summary::-webkit-details-marker {
   .hero-copy-note,
   .info-strip {
     color: #d5e2f0;
+  }
+
+  .route-loading-shell {
+    background:
+      radial-gradient(circle at top, rgba(37, 99, 235, 0.18), transparent 38%),
+      linear-gradient(180deg, rgba(7, 15, 28, 0.78), rgba(7, 15, 28, 0.88));
+  }
+
+  .route-loading-card {
+    border-color: rgba(148, 163, 184, 0.14);
+    background: linear-gradient(180deg, rgba(10, 19, 35, 0.96), rgba(13, 25, 44, 0.94));
+    box-shadow: 0 24px 54px rgba(2, 6, 23, 0.34);
+  }
+
+  .route-loading-copy strong,
+  .route-loading-copy span {
+    color: #eff6ff;
   }
 
   .signal-card {
