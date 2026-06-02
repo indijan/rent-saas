@@ -447,6 +447,70 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                             </tbody>
                         </table>
                     </div>
+
+                    <div className="todo-mobile-list">
+                        {visibleRows.length === 0 ? (
+                            <div className="dashboard-empty-note">Nincs feladat ebben a nézetben.</div>
+                        ) : (
+                            visibleRows.map((task) => (
+                                <article key={`${task.id}-mobile`} className="todo-task-card todo-mobile-card">
+                                    <div className="todo-task-head">
+                                        <div className="todo-task-copy">
+                                            <strong>{task.label}</strong>
+                                            <span className="dashboard-table-subtitle">{task.description}{task.amountLabel ? ` · ${task.amountLabel}` : ""}</span>
+                                        </div>
+                                        <div className="todo-task-meta">
+                                            <span>{task.propertyLabel}</span>
+                                            <span>{task.counterparty}</span>
+                                            <span>{task.deadlineLabel}</span>
+                                            <span>{task.deadlineSubLabel}</span>
+                                        </div>
+                                        <div className="todo-task-meta">
+                                            <span className={`dashboard-inline-badge ${priorityTone(task.priority)}`}>
+                                                {task.priority === "high" ? "Magas" : task.priority === "medium" ? "Közepes" : "Alacsony"}
+                                            </span>
+                                            <span className={`dashboard-inline-badge ${stateTone(task.state)}`}>
+                                                {task.state === "done" ? "Elvégezve" : task.state === "progress" ? "Folyamatban" : "Nyitott"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="todo-task-actions todo-mobile-actions">
+                                        {task.actionType === "charge" && task.chargeId ? (
+                                            <>
+                                                <form
+                                                    action={async () => {
+                                                        "use server";
+                                                        const res = await markChargePaid(task.chargeId!);
+                                                        if (!res.ok) {
+                                                            redirect(`/owner/todo?status=error&message=${encodeURIComponent(res.error ?? "Ismeretlen hiba.")}`);
+                                                        }
+                                                        redirect("/owner/todo?status=success&message=A+t%C3%A9tel+fizetettre+lett+%C3%A1ll%C3%ADtva.");
+                                                    }}
+                                                >
+                                                    <PendingSubmitButton className="btn btn-primary btn-sm" label="Befizetett" pendingLabel="Mentés..." />
+                                                </form>
+                                                <form
+                                                    action={async () => {
+                                                        "use server";
+                                                        const res = await sendManualChargeReminder(task.chargeId!);
+                                                        if (!res.ok) {
+                                                            redirect(`/owner/todo?status=error&message=${encodeURIComponent(res.error ?? "Ismeretlen hiba.")}`);
+                                                        }
+                                                        redirect("/owner/todo?status=success&message=Bar%C3%A1ti+eml%C3%A9keztet%C5%91+elk%C3%BCldve.");
+                                                    }}
+                                                >
+                                                    <PendingSubmitButton className="btn btn-secondary btn-sm" label="Emlékeztető" pendingLabel="Küldés..." />
+                                                </form>
+                                            </>
+                                        ) : null}
+                                        <Link className="btn btn-secondary btn-sm" href={task.actionHref}>
+                                            Megnyitás
+                                        </Link>
+                                    </div>
+                                </article>
+                            ))
+                        )}
+                    </div>
                 </section>
             </div>
         </main>

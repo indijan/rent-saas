@@ -251,6 +251,7 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
     const searchKey = searchParams.toString();
     const [menuOpen, setMenuOpen] = useState(false);
     const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+    const [mobileContextOpen, setMobileContextOpen] = useState(false);
     const [isCompactViewport, setIsCompactViewport] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
         if (typeof window === "undefined") return false;
@@ -284,6 +285,7 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
             setIsCompactViewport(compact);
             if (!compact) {
                 setMobileMoreOpen(false);
+                setMobileContextOpen(false);
             }
         };
 
@@ -296,23 +298,27 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
         const frame = window.requestAnimationFrame(() => {
             setMenuOpen(false);
             setMobileMoreOpen(false);
+            setMobileContextOpen(false);
         });
         return () => window.cancelAnimationFrame(frame);
     }, [pathname, searchKey]);
 
     useEffect(() => {
-        const closeMobileMore = () => setMobileMoreOpen(false);
+        const closeMobileSheets = () => {
+            setMobileMoreOpen(false);
+            setMobileContextOpen(false);
+        };
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === "Escape") {
-                setMobileMoreOpen(false);
+                closeMobileSheets();
             }
         };
-        window.addEventListener("hashchange", closeMobileMore);
-        window.addEventListener("popstate", closeMobileMore);
+        window.addEventListener("hashchange", closeMobileSheets);
+        window.addEventListener("popstate", closeMobileSheets);
         window.addEventListener("keydown", handleKeyDown);
         return () => {
-            window.removeEventListener("hashchange", closeMobileMore);
-            window.removeEventListener("popstate", closeMobileMore);
+            window.removeEventListener("hashchange", closeMobileSheets);
+            window.removeEventListener("popstate", closeMobileSheets);
             window.removeEventListener("keydown", handleKeyDown);
         };
     }, []);
@@ -336,18 +342,29 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                 }
             });
 
-            const mobileMoreSheet = document.querySelector<HTMLElement>(".dashboard-mobile-more-sheet.is-open");
-            const mobileMoreTrigger = target instanceof HTMLElement
-                ? target.closest<HTMLElement>("[data-dashboard-mobile-more-trigger='true']")
+            const mobileSheet = document.querySelector<HTMLElement>(".dashboard-mobile-sheet.is-open");
+            const mobileTrigger = target instanceof HTMLElement
+                ? target.closest<HTMLElement>("[data-dashboard-mobile-sheet-trigger='true']")
                 : null;
-            if (mobileMoreOpen && mobileMoreSheet && !mobileMoreSheet.contains(target) && !mobileMoreTrigger) {
+            if ((mobileMoreOpen || mobileContextOpen) && mobileSheet && !mobileSheet.contains(target) && !mobileTrigger) {
                 setMobileMoreOpen(false);
+                setMobileContextOpen(false);
             }
         };
 
         document.addEventListener("pointerdown", handlePointerDown);
         return () => document.removeEventListener("pointerdown", handlePointerDown);
-    }, [mobileMoreOpen]);
+    }, [mobileMoreOpen, mobileContextOpen]);
+
+    const toggleMobileContext = () => {
+        setMobileMoreOpen(false);
+        setMobileContextOpen((value) => !value);
+    };
+
+    const toggleMobileMore = () => {
+        setMobileContextOpen(false);
+        setMobileMoreOpen((value) => !value);
+    };
 
     const setThemeMode = (nextMode: ThemeMode) => {
         setAppearanceMode(nextMode);
@@ -439,9 +456,9 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                                     <button
                                         type="button"
                                         className="dashboard-context-input dashboard-context-summary dashboard-context-mobile-trigger"
-                                        aria-expanded={mobileMoreOpen}
-                                        data-dashboard-mobile-more-trigger="true"
-                                        onClick={() => setMobileMoreOpen((value) => !value)}
+                                        aria-expanded={mobileContextOpen}
+                                        data-dashboard-mobile-sheet-trigger="true"
+                                        onClick={toggleMobileContext}
                                     >
                                         <span className="dashboard-context-icon" aria-hidden="true">
                                             <BuildingIcon />
@@ -536,8 +553,8 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                                     className="dashboard-profile-chip dashboard-profile-mobile-trigger"
                                     aria-label="Profil és további műveletek"
                                     aria-expanded={mobileMoreOpen}
-                                    data-dashboard-mobile-more-trigger="true"
-                                    onClick={() => setMobileMoreOpen((value) => !value)}
+                                    data-dashboard-mobile-sheet-trigger="true"
+                                    onClick={toggleMobileMore}
                                 >
                                     <span className="dashboard-profile-avatar">{initials}</span>
                                 </button>
@@ -607,35 +624,54 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
 
             {mobileNavItems.length > 0 ? (
                 <>
-                    {mobileMoreOpen ? (
+                    {mobileMoreOpen || mobileContextOpen ? (
                         <button
                             type="button"
                             className="dashboard-mobile-more-backdrop"
-                            aria-label="További menü bezárása"
-                            onClick={() => setMobileMoreOpen(false)}
+                            aria-label="Mobil menü bezárása"
+                            onClick={() => {
+                                setMobileMoreOpen(false);
+                                setMobileContextOpen(false);
+                            }}
                         />
                     ) : null}
 
+                    {dashboardContext && isCompactViewport ? (
+                        <div className={`dashboard-mobile-sheet dashboard-mobile-context-sheet${mobileContextOpen ? " is-open" : ""}`}>
+                            <div className="dashboard-mobile-more-header">
+                                <strong>{dashboardContext.label}</strong>
+                                <span>{currentPropertyLabel}</span>
+                            </div>
+
+                            <div className="dashboard-mobile-more-grid dashboard-mobile-context-grid">
+                                <Link href={buildContextHref("__all__")} className="dashboard-mobile-more-link" onClick={() => setMobileContextOpen(false)}>
+                                    Összes ingatlan
+                                </Link>
+                                {dashboardContext.items.map((item) => (
+                                    <Link key={item.id} href={buildContextHref(item.id)} className="dashboard-mobile-more-link" onClick={() => setMobileContextOpen(false)}>
+                                        {item.label}
+                                    </Link>
+                                ))}
+                            </div>
+
+                            {profile.role === "OWNER" ? (
+                                <div className="dashboard-mobile-more-section">
+                                    <Link href="/owner/properties" className="dashboard-mobile-more-link" onClick={() => setMobileContextOpen(false)}>
+                                        + Új ingatlan
+                                    </Link>
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : null}
+
                     {profile.role === "OWNER" || navConfig.secondary.length > 0 ? (
-                        <div className={`dashboard-mobile-more-sheet${mobileMoreOpen ? " is-open" : ""}`}>
+                        <div className={`dashboard-mobile-sheet dashboard-mobile-more-sheet${mobileMoreOpen ? " is-open" : ""}`}>
                             <div className="dashboard-mobile-more-header">
                                 <strong>Több</strong>
                                 <span>{roleLabel}</span>
                             </div>
 
                             <div className="dashboard-mobile-more-grid">
-                                {dashboardContext && isCompactViewport ? (
-                                    <>
-                                        <Link href={buildContextHref("__all__")} className="dashboard-mobile-more-link" onClick={() => setMobileMoreOpen(false)}>
-                                            Összes ingatlan
-                                        </Link>
-                                        {dashboardContext.items.map((item) => (
-                                            <Link key={item.id} href={buildContextHref(item.id)} className="dashboard-mobile-more-link" onClick={() => setMobileMoreOpen(false)}>
-                                                {item.label}
-                                            </Link>
-                                        ))}
-                                    </>
-                                ) : null}
                                 <Link href="/valassz-nezetet" className="dashboard-mobile-more-link" onClick={() => setMobileMoreOpen(false)}>
                                     Nézetváltás
                                 </Link>
@@ -719,8 +755,8 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                                 className={`dashboard-mobile-nav-item dashboard-mobile-nav-button${mobileMoreOpen ? " is-active" : ""}`}
                                 aria-expanded={mobileMoreOpen}
                                 aria-label="További menüpontok"
-                                data-dashboard-mobile-more-trigger="true"
-                                onClick={() => setMobileMoreOpen((value) => !value)}
+                                data-dashboard-mobile-sheet-trigger="true"
+                                onClick={toggleMobileMore}
                             >
                                 <span className="dashboard-mobile-nav-icon"><MoreIcon /></span>
                                 <span>Több</span>
