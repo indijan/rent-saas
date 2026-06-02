@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type MouseEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import type { AppRole } from "@/lib/auth/requireUser";
 
@@ -246,6 +246,7 @@ function isNavItemActive(pathname: string, item: NavItem) {
 }
 
 export default function AppHeader({ profile, dashboardContext }: Props) {
+    const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const searchKey = searchParams.toString();
@@ -364,6 +365,20 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
     const toggleMobileMore = () => {
         setMobileContextOpen(false);
         setMobileMoreOpen((value) => !value);
+    };
+
+    const closeMobileSheets = () => {
+        setMobileMoreOpen(false);
+        setMobileContextOpen(false);
+    };
+
+    const handleMobileNavigate = (href: string) => (event: MouseEvent<HTMLElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        closeMobileSheets();
+        window.requestAnimationFrame(() => {
+            router.push(href);
+        });
     };
 
     const setThemeMode = (nextMode: ThemeMode) => {
@@ -629,10 +644,7 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                             type="button"
                             className="dashboard-mobile-more-backdrop"
                             aria-label="Mobil menü bezárása"
-                            onClick={() => {
-                                setMobileMoreOpen(false);
-                                setMobileContextOpen(false);
-                            }}
+                            onClick={closeMobileSheets}
                         />
                     ) : null}
 
@@ -644,11 +656,11 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                             </div>
 
                             <div className="dashboard-mobile-more-grid dashboard-mobile-context-grid">
-                                <Link href={buildContextHref("__all__")} className="dashboard-mobile-more-link" onClick={() => setMobileContextOpen(false)}>
+                                <Link href={buildContextHref("__all__")} className="dashboard-mobile-more-link" onClick={handleMobileNavigate(buildContextHref("__all__"))}>
                                     Összes ingatlan
                                 </Link>
                                 {dashboardContext.items.map((item) => (
-                                    <Link key={item.id} href={buildContextHref(item.id)} className="dashboard-mobile-more-link" onClick={() => setMobileContextOpen(false)}>
+                                    <Link key={item.id} href={buildContextHref(item.id)} className="dashboard-mobile-more-link" onClick={handleMobileNavigate(buildContextHref(item.id))}>
                                         {item.label}
                                     </Link>
                                 ))}
@@ -656,7 +668,7 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
 
                             {profile.role === "OWNER" ? (
                                 <div className="dashboard-mobile-more-section">
-                                    <Link href="/owner/properties" className="dashboard-mobile-more-link" onClick={() => setMobileContextOpen(false)}>
+                                    <Link href="/owner/properties" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/owner/properties")}>
                                         + Új ingatlan
                                     </Link>
                                 </div>
@@ -672,38 +684,38 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                             </div>
 
                             <div className="dashboard-mobile-more-grid">
-                                <Link href="/valassz-nezetet" className="dashboard-mobile-more-link" onClick={() => setMobileMoreOpen(false)}>
+                                <Link href="/valassz-nezetet" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/valassz-nezetet")}>
                                     Nézetváltás
                                 </Link>
-                                <Link href="/account" className="dashboard-mobile-more-link" onClick={() => setMobileMoreOpen(false)}>
+                                <Link href="/account" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/account")}>
                                     Profil
                                 </Link>
                                 {profile.role !== "TENANT" ? (
-                                    <Link href="/account" className="dashboard-mobile-more-link" onClick={() => setMobileMoreOpen(false)}>
+                                    <Link href="/account" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/account")}>
                                         Saját adatok
                                     </Link>
                                 ) : null}
                                 {profile.role === "OWNER" ? (
                                     <>
-                                        <Link href="/owner/properties" className="dashboard-mobile-more-link" onClick={() => setMobileMoreOpen(false)}>
+                                        <Link href="/owner/properties" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/owner/properties")}>
                                             Ingatlanok kezelése
                                         </Link>
-                                        <Link href="/owner/properties" className="dashboard-mobile-more-link" onClick={() => setMobileMoreOpen(false)}>
+                                        <Link href="/owner/properties" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/owner/properties")}>
                                             + Új ingatlan
                                         </Link>
                                     </>
                                 ) : null}
                                 {profile.role === "TENANT" ? (
-                                    <Link href="/account#kilepesi-kerelem-kuldes" className="dashboard-mobile-more-link" onClick={() => setMobileMoreOpen(false)}>
+                                    <Link href="/account#kilepesi-kerelem-kuldes" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/account#kilepesi-kerelem-kuldes")}>
                                         Kilépés ingatlanból
                                     </Link>
                                 ) : null}
                                 {navConfig.secondary.map((item) => (
-                                    <Link key={item.href} href={item.href} className="dashboard-mobile-more-link" onClick={() => setMobileMoreOpen(false)}>
+                                    <Link key={item.href} href={item.href} className="dashboard-mobile-more-link" onClick={handleMobileNavigate(item.href)}>
                                         {item.label}
                                     </Link>
                                 ))}
-                                <Link href="/auth/sign-out" className="dashboard-mobile-more-link dashboard-mobile-more-link-danger" onClick={() => setMobileMoreOpen(false)}>
+                                <Link href="/auth/sign-out" className="dashboard-mobile-more-link dashboard-mobile-more-link-danger" onClick={handleMobileNavigate("/auth/sign-out")}>
                                     Kijelentkezés
                                 </Link>
                             </div>
@@ -743,7 +755,7 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                                 key={item.href}
                                 href={item.href}
                                 className={`dashboard-mobile-nav-item${isNavItemActive(pathname, item) ? " is-active" : ""}`}
-                                onClick={() => setMobileMoreOpen(false)}
+                                onClick={handleMobileNavigate(item.href)}
                             >
                                 <span className="dashboard-mobile-nav-icon">{item.icon}</span>
                                 <span>{item.label}</span>
