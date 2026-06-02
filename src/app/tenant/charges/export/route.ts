@@ -51,6 +51,15 @@ function escapeCsv(value: unknown) {
     return text;
 }
 
+function todayIsoDate() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
 export async function GET(request: Request) {
     const ctx = await requireTenant();
     if (ctx instanceof NextResponse) return ctx;
@@ -72,7 +81,11 @@ export async function GET(request: Request) {
         .order("due_date", { ascending: false });
 
     if (propertyId) q = q.eq("property_id", propertyId);
-    if (status) q = q.eq("status", status);
+    if (status === "OVERDUE") {
+        q = q.eq("status", "UNPAID").lt("due_date", todayIsoDate());
+    } else if (status) {
+        q = q.eq("status", status);
+    }
     if (type) q = q.eq("type", type);
     if (from) q = q.gte("due_date", from);
     if (to) q = q.lte("due_date", to);

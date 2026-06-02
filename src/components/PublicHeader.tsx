@@ -1,5 +1,7 @@
 /* eslint-disable @next/next/no-html-link-for-pages */
-import { type ReactNode } from "react";
+"use client";
+
+import { type ReactNode, useState } from "react";
 
 type Props = {
     dashboardHref?: string | null;
@@ -21,6 +23,8 @@ function UtilityIcon({
 }
 
 export default function PublicHeader({ dashboardHref }: Props) {
+    const [menuOpen, setMenuOpen] = useState(false);
+
     return (
         <header className="app-header">
             <a className="brand" href="/">
@@ -92,20 +96,28 @@ export default function PublicHeader({ dashboardHref }: Props) {
                         <a className="pill pill-active" href="/login">Belépés</a>
                     )}
                 </nav>
-                <details className="header-nav-shell header-nav-shell-mobile">
-                    <summary className="header-toggle">Menü</summary>
-                    <nav className="nav-pills nav-pills-mobile">
-                        <a className="pill" href="/funkciok">Funkciók</a>
-                        <a className="pill" href="/hasznalati-dij">Díjak</a>
-                        <a className="pill" href="/gyik">GYIK</a>
-                        <a className="pill" href="/berbeadoi-regisztracio">Regisztráció</a>
+                <div className="header-nav-shell header-nav-shell-mobile">
+                    <button
+                        type="button"
+                        className="header-toggle"
+                        aria-expanded={menuOpen}
+                        aria-controls="public-navigation-mobile"
+                        onClick={() => setMenuOpen((value) => !value)}
+                    >
+                        Menü
+                    </button>
+                    <nav id="public-navigation-mobile" className={`nav-pills nav-pills-mobile${menuOpen ? " nav-open" : ""}`}>
+                        <a className="pill" href="/funkciok" onClick={() => setMenuOpen(false)}>Funkciók</a>
+                        <a className="pill" href="/hasznalati-dij" onClick={() => setMenuOpen(false)}>Díjak</a>
+                        <a className="pill" href="/gyik" onClick={() => setMenuOpen(false)}>GYIK</a>
+                        <a className="pill" href="/berbeadoi-regisztracio" onClick={() => setMenuOpen(false)}>Regisztráció</a>
                         {dashboardHref ? (
-                            <a className="pill pill-active" href={dashboardHref}>Saját felület</a>
+                            <a className="pill pill-active" href={dashboardHref} onClick={() => setMenuOpen(false)}>Saját felület</a>
                         ) : (
-                            <a className="pill pill-active" href="/login">Belépés</a>
+                            <a className="pill pill-active" href="/login" onClick={() => setMenuOpen(false)}>Belépés</a>
                         )}
                     </nav>
-                </details>
+                </div>
             </div>
         </header>
     );

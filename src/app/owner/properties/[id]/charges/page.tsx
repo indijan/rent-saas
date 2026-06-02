@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
-import { archiveCharge, cancelCharge, deleteCharge, markChargePaid, publishCharge, restoreCharge } from "./actions";
+import { archiveCharge, cancelCharge, deleteCharge, markChargePaid, publishCharge, restoreCharge, undoChargePaid } from "./actions";
 import ConfirmActionForm from "./ConfirmActionForm";
 import UploadInvoice from "@/components/UploadInvoice";
 import CreateChargeForm from "./CreateChargeForm";
@@ -11,10 +11,9 @@ import AppHeader from "@/components/AppHeader";
 import FilterDateInput from "@/components/FilterDateInput";
 import { createDocumentSignedUrl } from "@/lib/documentStorage";
 import PendingSubmitButton from "@/components/PendingSubmitButton";
+import { ALL_CHARGE_TYPE_OPTIONS, getChargeTypeLabel, type ChargeType } from "@/lib/chargeTypes";
 
 type ChargeStatus = "UNPAID" | "PAID" | "ARCHIVED" | "CANCELLED" | "IMPORT_DRAFT";
-type ChargeType = "RENT" | "UTILITY" | "COMMON_COST" | "OTHER";
-
 type SearchParams = {
     status?: string;
     type?: string;
@@ -61,6 +60,13 @@ type Props = {
     searchParams?: Promise<SearchParams> | SearchParams;
 };
 
+function toDateInputValue(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
 function buildQueryString(input: SearchParams) {
     const params = new URLSearchParams();
     if (input.status) params.set("status", input.status);
@@ -91,7 +97,7 @@ function buildStatusHref(basePath: string, current: SearchParams, nextStatus: st
 }
 
 function todayIsoDate() {
-    return new Date().toISOString().slice(0, 10);
+    return toDateInputValue(new Date());
 }
 
 function statusLabel(status: ChargeStatus) {
@@ -108,21 +114,6 @@ function statusLabel(status: ChargeStatus) {
             return "Torolt";
         default:
             return status;
-    }
-}
-
-function typeLabel(type: ChargeType) {
-    switch (type) {
-        case "RENT":
-            return "Bérleti díj";
-        case "UTILITY":
-            return "Rezsi";
-        case "COMMON_COST":
-            return "Közös költség";
-        case "OTHER":
-            return "Egyéb";
-        default:
-            return type;
     }
 }
 
@@ -150,10 +141,13 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
     const { supabase, profile } = await requireRole("OWNER");
 
     const sp = (searchParams instanceof Promise) ? await searchParams : (searchParams ?? {});
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonthEnd = toDateInputValue(new Date(currentYear, now.getMonth() + 1, 0));
     const statusFilter = sp.status ? String(sp.status) : "";
     const typeFilter = sp.type ? String(sp.type) : "";
-    const fromFilter = sp.from ? String(sp.from) : "";
-    const toFilter = sp.to ? String(sp.to) : "";
+    const fromFilter = sp.from ? String(sp.from) : `${currentYear}-01-01`;
+    const toFilter = sp.to ? String(sp.to) : currentMonthEnd;
     const notice = sp.notice ? String(sp.notice) : "";
     const message = sp.message ? String(sp.message) : "";
     const pageParam = sp.page ? Number(sp.page) : 1;
@@ -190,9 +184,8 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
 
     const { data: charges, error, count } = await listQuery.range(rangeFrom, rangeTo);
 
-    const currentYear = new Date().getFullYear();
     const totalsFrom = fromFilter || `${currentYear}-01-01`;
-    const totalsTo = toFilter || `${currentYear}-12-31`;
+    const totalsTo = toFilter || currentMonthEnd;
     let totalsQuery = supabase
         .from("charges")
         .select("amount,status")
@@ -368,10 +361,9 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                             <span className="field-label">Típus</span>
                             <select name="type" defaultValue={typeFilter} className="select">
                                 <option value="">Minden típus</option>
-                                <option value="RENT">Bérleti díj</option>
-                                <option value="UTILITY">Rezsi</option>
-                                <option value="COMMON_COST">Közös költség</option>
-                                <option value="OTHER">Egyéb</option>
+                                {ALL_CHARGE_TYPE_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
                             </select>
                         </label>
                         <label className="field-stack">
@@ -436,7 +428,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                         <div>
                                             <div className="card-title">{charge.title}</div>
                                             <div className="charge-meta">
-                                                <span>{typeLabel(charge.type)}</span>
+                                                <span>{getChargeTypeLabel(charge.type)}</span>
                                                 <span>{formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))}</span>
                                                 <span>Esedékes: {charge.due_date}</span>
                                                 {charge.status === "PAID" && charge.paid_at ? (
@@ -523,6 +515,26 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                 <ConfirmActionForm
                                                     action={async () => {
                                                         "use server";
+                                                        const res = await undoChargePaid(charge.id);
+                                                        if (!res.ok) {
+                                                            redirect(buildNoticeHref(basePath, activeQuery, "error", res.error ?? "Ismeretlen hiba."));
+                                                        }
+                                                        redirect(buildNoticeHref(basePath, activeQuery, "success", "A fizetett státusz vissza lett vonva."));
+                                                    }}
+                                                    confirmMessage="Biztosan visszavonod a fizetett státuszt ennél a díjnál?"
+                                                >
+                                                    <PendingSubmitButton
+                                                        className="btn btn-secondary btn-sm"
+                                                        label="Fizetett visszavonása"
+                                                        pendingLabel="Mentés..."
+                                                    />
+                                                </ConfirmActionForm>
+                                            ) : null}
+
+                                            {charge.status === "PAID" ? (
+                                                <ConfirmActionForm
+                                                    action={async () => {
+                                                        "use server";
                                                         const res = await archiveCharge(charge.id);
                                                         if (!res.ok) {
                                                             redirect(buildNoticeHref(basePath, activeQuery, "error", res.error ?? "Ismeretlen hiba."));
@@ -539,7 +551,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                 </ConfirmActionForm>
                                             ) : null}
 
-                                            {charge.status === "CANCELLED" ? (
+                                            {charge.status === "CANCELLED" || charge.status === "ARCHIVED" ? (
                                                 <ConfirmActionForm
                                                     action={async () => {
                                                         "use server";
@@ -547,14 +559,14 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                         if (!res.ok) {
                                                             redirect(buildNoticeHref(basePath, activeQuery, "error", res.error ?? "Ismeretlen hiba."));
                                                         }
-                                                        redirect(buildNoticeHref(basePath, activeQuery, "success", "A díj vissza lett állítva."));
+                                                        redirect(buildNoticeHref(basePath, activeQuery, "success", charge.status === "ARCHIVED" ? "A díj újra meg lett nyitva." : "A díj vissza lett állítva."));
                                                     }}
-                                                confirmMessage="Visszaállítod ezt a díjat aktívra?"
+                                                confirmMessage={charge.status === "ARCHIVED" ? "Újranyitod ezt az archivált díjat?" : "Visszaállítod ezt a díjat aktívra?"}
                                             >
                                                 <PendingSubmitButton
                                                     className="btn btn-success btn-sm"
-                                                    label="Visszaállítás"
-                                                    pendingLabel="Visszaállítás..."
+                                                    label={charge.status === "ARCHIVED" ? "Újranyitás" : "Visszaállítás"}
+                                                    pendingLabel={charge.status === "ARCHIVED" ? "Újranyitás..." : "Visszaállítás..."}
                                                 />
                                                 </ConfirmActionForm>
                                             ) : null}

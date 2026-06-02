@@ -2,6 +2,7 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import { updateCharge } from "./actions";
+import { ALL_CHARGE_TYPE_OPTIONS } from "@/lib/chargeTypes";
 
 type Props = {
     charge: {
@@ -55,10 +56,9 @@ export default function EditChargeForm({ charge }: Props) {
                     defaultValue={charge.type}
                     className="select"
                 >
-                    <option value="RENT">Bérleti díj</option>
-                    <option value="UTILITY">Rezsi</option>
-                    <option value="COMMON_COST">Közös költség</option>
-                    <option value="OTHER">Egyéb</option>
+                    {ALL_CHARGE_TYPE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
                 </select>
                 <input
                     name="amount"

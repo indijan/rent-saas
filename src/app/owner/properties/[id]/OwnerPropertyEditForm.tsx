@@ -11,8 +11,8 @@ type Props = {
 
 export default function OwnerPropertyEditForm({ action, name, address, status }: Props) {
     return (
-        <form action={action} className="card form-shell">
-            <div className="section-header">
+        <form action={action} className="card dashboard-section-card form-shell property-editor-card">
+            <div className="dashboard-section-head">
                 <div>
                     <div className="card-title">Ingatlan szerkesztése</div>
                     <p className="muted-note">Az alapadatok és az aktív állapot innen módosítható.</p>

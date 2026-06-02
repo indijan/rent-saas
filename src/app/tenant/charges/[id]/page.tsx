@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
+import AppHeader from "@/components/AppHeader";
+import DesignIcon from "@/components/dashboard/DesignIcon";
 import { formatCurrency } from "@/lib/formatters";
 import { createDocumentSignedUrl } from "@/lib/documentStorage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { listTenantPropertyIds } from "@/lib/propertyTenants";
+import { getChargeTypeLabel } from "@/lib/chargeTypes";
+import { listTenantProperties } from "@/lib/propertyTenants";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -18,30 +21,70 @@ type ChargeDocumentWithUrl = ChargeDocument & {
     signed_url: string;
 };
 
-function getDueState(dueDate: string, status: string) {
-    if (status === "PAID" || status === "ARCHIVED" || status === "CANCELLED") {
-        return { cardClass: "", pillClass: "due-fresh", label: "Lezárt" };
-    }
-
+function startOfToday() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    return today;
+}
+
+function formatDisplayDate(dateValue: string) {
+    return new Intl.DateTimeFormat("hu-HU", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(new Date(`${dateValue}T00:00:00`));
+}
+
+function getDueState(dueDate: string, status: string) {
+    if (status === "PAID" || status === "ARCHIVED" || status === "CANCELLED") {
+        return { label: "Lezárt", tone: "dashboard-inline-badge-green" };
+    }
+
+    const today = startOfToday();
     const due = new Date(`${dueDate}T00:00:00`);
     const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
     if (diffDays < 0) {
-        return { cardClass: " charge-overdue", pillClass: "due-overdue", label: `${Math.abs(diffDays)} napja lejárt` };
+        return { label: `${Math.abs(diffDays)} napja lejárt`, tone: "dashboard-inline-badge-red" };
     }
     if (diffDays <= 5) {
-        return { cardClass: " charge-soon", pillClass: "due-soon", label: diffDays === 0 ? "Ma esedékes" : `${diffDays} napon belül esedékes` };
+        return { label: diffDays === 0 ? "Ma esedékes" : `${diffDays} napon belül esedékes`, tone: "dashboard-inline-badge-amber" };
     }
-    return { cardClass: " charge-fresh", pillClass: "due-fresh", label: "Rendben, még nem járt le" };
+    return { label: "Határidőn belül", tone: "dashboard-inline-badge-blue" };
+}
+
+function statusLabel(status: string, dueDate: string) {
+    if (status === "UNPAID" && new Date(`${dueDate}T00:00:00`).getTime() < startOfToday().getTime()) {
+        return "Lejárt";
+    }
+    switch (status) {
+        case "UNPAID":
+            return "Aktív";
+        case "PAID":
+            return "Fizetett";
+        case "ARCHIVED":
+            return "Archivált";
+        case "CANCELLED":
+            return "Sztornó";
+        default:
+            return status;
+    }
+}
+
+function statusTone(status: string) {
+    if (status === "Fizetett") return "dashboard-inline-badge-green";
+    if (status === "Lejárt") return "dashboard-inline-badge-red";
+    if (status === "Aktív") return "dashboard-inline-badge-blue";
+    if (status === "Archivált") return "dashboard-inline-badge-purple";
+    return "dashboard-inline-badge-amber";
 }
 
 export default async function TenantChargeDetailPage({ params }: Props) {
     const { id } = await params;
-    const { user } = await requireRole("TENANT");
+    const { user, profile } = await requireRole("TENANT");
     const admin = createSupabaseAdminClient();
-    const propertyIds = await listTenantPropertyIds(user.id);
+    const tenantProperties = await listTenantProperties(user.id);
+    const propertyIds = tenantProperties.map((property) => property.id);
 
     const { data: charge, error } = await admin
         .from("charges")
@@ -71,78 +114,127 @@ export default async function TenantChargeDetailPage({ params }: Props) {
 
     const property = Array.isArray(charge.properties) ? charge.properties[0] : charge.properties;
     const dueState = getDueState(String(charge.due_date), String(charge.status));
+    const displayStatus = statusLabel(String(charge.status), String(charge.due_date));
 
     return (
-        <main className="app-shell page-enter space-y-4">
-            <Link className="link text-sm" href="/tenant/charges">
-                ← Vissza a díjakhoz
-            </Link>
+        <main className="app-shell page-enter">
+            <AppHeader
+                profile={profile}
+                dashboardContext={{
+                    label: "Ingatlan",
+                    items: tenantProperties.map((propertyRow) => ({ id: propertyRow.id, label: propertyRow.name })),
+                    value: charge.property_id,
+                    baseHref: "/tenant/charges",
+                }}
+            />
 
-            <section className="card section-stack">
-                <div className="section-header">
-                    <div>
-                        <div className="eyebrow">Tétel részletei</div>
-                        <h1>{charge.title}</h1>
-                        <p>Itt látod az adott díj állapotát, esedékességét és a kapcsolódó dokumentumokat.</p>
+            <div className="dashboard-stack">
+                <section className="card dashboard-section-card property-detail-hero">
+                    <div className="dashboard-page-header property-detail-heading">
+                        <div className="tenant-charge-detail-copy">
+                            <Link className="link text-sm property-detail-backlink" href="/tenant/charges">
+                                ← Vissza a díjakhoz
+                            </Link>
+                            <div className="eyebrow">Tétel részletei</div>
+                            <h1>{charge.title}</h1>
+                            <p>{property?.name ? `${property.name} · ${property.address || ""}` : "A kiválasztott tétel teljes pénzügyi és dokumentum adatai."}</p>
+                        </div>
+                        <div className="property-detail-hero-actions">
+                            <span className={`dashboard-inline-badge ${dueState.tone}`}>{dueState.label}</span>
+                            <span className={`dashboard-inline-badge ${statusTone(displayStatus)}`}>{displayStatus}</span>
+                        </div>
                     </div>
-                    <span className={`due-pill ${dueState.pillClass}`}>{dueState.label}</span>
+                </section>
+
+                <section className="dashboard-summary-strip">
+                    <article className="dashboard-summary-card">
+                        <DesignIcon name="ingatlanok" alt="Ingatlan" />
+                        <div className="dashboard-summary-copy">
+                            <div className="dashboard-summary-label">Ingatlan</div>
+                            <strong>{property?.name || "-"}</strong>
+                            <span>{property?.address || "Nincs címinformáció"}</span>
+                        </div>
+                    </article>
+                    <article className="dashboard-summary-card">
+                        <DesignIcon name="bevetel" alt="Összeg" tone="design-icon-badge-green" />
+                        <div className="dashboard-summary-copy">
+                            <div className="dashboard-summary-label">Összeg</div>
+                            <strong>{formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))}</strong>
+                            <span>{getChargeTypeLabel(String(charge.type), user.id)}</span>
+                        </div>
+                    </article>
+                    <article className="dashboard-summary-card">
+                        <DesignIcon name="kozelgo_feladatok" alt="Esedékesség" tone="design-icon-badge-amber" />
+                        <div className="dashboard-summary-copy">
+                            <div className="dashboard-summary-label">Esedékesség</div>
+                            <strong>{formatDisplayDate(String(charge.due_date))}</strong>
+                            <span>{dueState.label}</span>
+                        </div>
+                    </article>
+                    <article className="dashboard-summary-card">
+                        <DesignIcon name="sikeresen_feldolgozva" alt="Státusz" tone="design-icon-badge-purple" />
+                        <div className="dashboard-summary-copy">
+                            <div className="dashboard-summary-label">Státusz</div>
+                            <strong>{displayStatus}</strong>
+                            <span>{charge.status === "PAID" && charge.paid_at ? `Fizetve: ${new Date(charge.paid_at).toLocaleString("hu-HU")}` : "Tenant oldali információs nézet"}</span>
+                        </div>
+                    </article>
+                </section>
+
+                <div className="dashboard-split-grid property-detail-grid">
+                    <section className="card dashboard-section-card">
+                        <div className="dashboard-section-head">
+                            <div>
+                                <div className="card-title">Pénzügyi adatok</div>
+                                <p>A tétel típusát, összegét és a kapcsolódó megjegyzést itt látod egy tömbben.</p>
+                            </div>
+                        </div>
+                        <div className="account-card-list">
+                            <div className="account-list-card">
+                                <strong>Tétel típusa</strong>
+                                <span>{getChargeTypeLabel(String(charge.type), user.id)}</span>
+                            </div>
+                            <div className="account-list-card">
+                                <strong>Elszámolási pénznem</strong>
+                                <span>{charge.currency || "HUF"}</span>
+                            </div>
+                            <div className="account-list-card">
+                                <strong>Megjegyzés</strong>
+                                <span>{String(charge.notes || "").trim() || "Nincs megjegyzés a tételhez."}</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="card dashboard-section-card">
+                        <div className="dashboard-section-head">
+                            <div>
+                                <div className="card-title">Dokumentumok</div>
+                                <p>Itt tudod megnyitni a csatolt PDF-et vagy mellékletet.</p>
+                            </div>
+                        </div>
+                        {(documentsWithUrls ?? []).length === 0 ? (
+                            <div className="dashboard-empty-state">
+                                <strong>Nincs feltöltött dokumentum.</strong>
+                                <span>Ha a bérbeadó később csatol PDF-et, itt fog megjelenni.</span>
+                            </div>
+                        ) : (
+                            <div className="account-card-list">
+                                {(documentsWithUrls as ChargeDocumentWithUrl[]).map((doc) => {
+                                    const pathParts = doc.bucket_path.split("/");
+                                    const fileName = pathParts[pathParts.length - 1];
+
+                                    return (
+                                        <a key={doc.id} className="account-channel-card" href={doc.signed_url} target="_blank" rel="noreferrer">
+                                            <strong>{fileName}</strong>
+                                            <span>Megnyitás új fülön</span>
+                                            <small>{new Date(doc.created_at).toLocaleString("hu-HU")}</small>
+                                        </a>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </section>
                 </div>
-            </section>
-
-            <div className={`card section-stack${dueState.cardClass}`}>
-                <div className="card-title">Pénzügyi adatok</div>
-                <div className="form-grid">
-                    <div className="form-panel">
-                        <div className="field-label">Ingatlan</div>
-                        <div>{property?.name ?? "-"}</div>
-                        {property?.address ? <div className="muted-note">{property.address}</div> : null}
-                    </div>
-                    <div className="form-panel">
-                        <div className="field-label">Összeg</div>
-                        <div>{formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))}</div>
-                    </div>
-                    <div className="form-panel">
-                        <div className="field-label">Esedékesség</div>
-                        <div>{charge.due_date}</div>
-                    </div>
-                    <div className="form-panel">
-                        <div className="field-label">Státusz</div>
-                        <span className={`status-badge status-${String(charge.status).toLowerCase()}`}>
-                            {charge.status === "UNPAID" ? "Aktív" : charge.status === "PAID" ? "Fizetett" : charge.status === "ARCHIVED" ? "Archivált" : "Törölt"}
-                        </span>
-                        {charge.status === "PAID" && charge.paid_at ? (
-                            <div className="muted-note">Fizetve: {new Date(charge.paid_at).toLocaleString("hu-HU")}</div>
-                        ) : null}
-                    </div>
-                </div>
-            </div>
-
-            <div className="card section-stack">
-                <div className="section-header">
-                    <div>
-                        <div className="card-title">Dokumentumok</div>
-                        <p className="muted-note">Itt nyithatod meg a feltöltött számlát vagy mellékletet.</p>
-                    </div>
-                </div>
-                {(documentsWithUrls ?? []).length === 0 ? (
-                    <p className="text-sm text-gray-600">Nincs feltöltött dokumentum.</p>
-                ) : (
-                    <div className="charge-docs">
-                        {(documentsWithUrls as ChargeDocumentWithUrl[]).map((doc) => {
-                            const pathParts = doc.bucket_path.split("/");
-                            const fileName = pathParts[pathParts.length - 1];
-
-                            return (
-                                <div key={doc.id} className="form-panel">
-                                    <a className="link" href={doc.signed_url} target="_blank" rel="noreferrer">
-                                        Dokumentum: {fileName}
-                                    </a>{" "}
-                                    <span className="muted-note">{new Date(doc.created_at).toLocaleString("hu-HU")}</span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
             </div>
         </main>
     );

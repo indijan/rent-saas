@@ -5,6 +5,7 @@ import { useRef, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createCharge } from "./actions";
 import { formatCurrency } from "@/lib/formatters";
+import { ALL_CHARGE_TYPE_OPTIONS } from "@/lib/chargeTypes";
 
 type Props = {
     propertyId: string;
@@ -109,10 +110,9 @@ export default function CreateChargeForm({ propertyId }: Props) {
                                     value={type}
                                     onChange={(e) => setType(e.target.value)}
                                 >
-                                    <option value="RENT">Bérleti díj</option>
-                                    <option value="UTILITY">Rezsi</option>
-                                    <option value="COMMON_COST">Közös költség</option>
-                                    <option value="OTHER">Egyéb</option>
+                                    {ALL_CHARGE_TYPE_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
                                 </select>
                             </label>
 

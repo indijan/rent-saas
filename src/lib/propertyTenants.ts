@@ -29,6 +29,7 @@ export async function listTenantPropertyIds(tenantId: string) {
             const propertyId = row.property_id as string | null;
             if (propertyId) ids.add(propertyId);
         });
+        return Array.from(ids);
     } catch {
         // A tábla migráció előtt még nem biztos, hogy létezik.
     }
@@ -60,6 +61,16 @@ export async function listPropertyTenants(propertyId: string) {
             const tenantId = row.tenant_id as string | null;
             if (tenantId) ids.add(tenantId);
         });
+
+        if (ids.size === 0) return [] as TenantProfile[];
+
+        const { data: profiles } = await admin
+            .from("profiles")
+            .select("id,email,full_name")
+            .in("id", Array.from(ids))
+            .order("email");
+
+        return (profiles ?? []) as TenantProfile[];
     } catch {
         // A tábla migráció előtt még nem biztos, hogy létezik.
     }
@@ -98,16 +109,6 @@ export async function ensurePropertyPrimaryTenant(propertyId: string) {
         .from("properties")
         .update({ tenant_id: nextPrimaryTenantId })
         .eq("id", propertyId);
-
-    await admin
-        .from("charges")
-        .update({ tenant_id: nextPrimaryTenantId })
-        .eq("property_id", propertyId);
-
-    await admin
-        .from("documents")
-        .update({ tenant_id: nextPrimaryTenantId })
-        .eq("property_id", propertyId);
 
     return nextPrimaryTenantId;
 }

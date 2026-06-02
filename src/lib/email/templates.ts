@@ -19,6 +19,17 @@ type ReminderInput = {
     propertyName?: string | null;
 };
 
+type ChargeUpdatedInput = {
+    tenantEmail: string;
+    title: string;
+    amount: number;
+    currency: string;
+    dueDate: string;
+    propertyName?: string | null;
+    changedFields: string[];
+    count?: number;
+};
+
 type OwnerOverdueCheckInput = {
     ownerEmail: string;
     ownerName?: string | null;
@@ -131,6 +142,15 @@ type TenantExitRequestInput = {
     openUrl: string;
 };
 
+type TenantExitDecisionInput = {
+    tenantEmail: string;
+    tenantName?: string | null;
+    ownerName?: string | null;
+    propertyName: string;
+    propertyAddress?: string | null;
+    openUrl?: string | null;
+};
+
 type UnknownInboundInvoiceInput = {
     ownerEmail: string;
     ownerName?: string | null;
@@ -192,6 +212,38 @@ export function renderReminderEmail(input: ReminderInput) {
                 <li><b>Megnevezés:</b> ${input.title}</li>
                 <li><b>Összeg:</b> ${input.amount} ${input.currency}</li>
                 <li><b>Esedékes:</b> ${input.dueDate}</li>
+            </ul>
+            <p><a href="${SITE_URL}/tenant/charges">Részletek megnyitása</a></p>
+        </div>
+    `;
+
+    return { to: input.tenantEmail, subject, html, text };
+}
+
+export function renderChargeUpdatedEmail(input: ChargeUpdatedInput) {
+    const propertyLine = input.propertyName ? `Ingatlan: ${input.propertyName}` : "Ingatlan: -";
+    const countText = input.count && input.count > 1 ? ` (${input.count} tétel)` : "";
+    const changedLabel = input.changedFields.join(", ");
+    const subject = `Frissült díj${countText}`;
+    const text = [
+        "Egy korábban rögzített díj adatai módosultak.",
+        propertyLine,
+        `Megnevezés: ${input.title}`,
+        `Összeg: ${input.amount} ${input.currency}`,
+        `Esedékes: ${input.dueDate}`,
+        `Módosult mezők: ${changedLabel}`,
+        `Részletek: ${SITE_URL}/tenant/charges`,
+    ].join("\n");
+
+    const html = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+            <h2>Frissült egy korábban rögzített díj${countText}</h2>
+            <p>${propertyLine}</p>
+            <ul>
+                <li><b>Megnevezés:</b> ${input.title}</li>
+                <li><b>Összeg:</b> ${input.amount} ${input.currency}</li>
+                <li><b>Esedékes:</b> ${input.dueDate}</li>
+                <li><b>Módosult mezők:</b> ${changedLabel}</li>
             </ul>
             <p><a href="${SITE_URL}/tenant/charges">Részletek megnyitása</a></p>
         </div>
@@ -454,6 +506,73 @@ export function renderTenantExitRequestEmail(input: TenantExitRequestInput) {
     `;
 
     return { to: input.ownerEmail, subject, html, text };
+}
+
+export function renderTenantExitRejectedEmail(input: TenantExitDecisionInput) {
+    const greeting = input.tenantName ? `Szia ${input.tenantName},` : "Szia,";
+    const ownerLine = input.ownerName ? `Bérbeadó: ${input.ownerName}` : null;
+    const subject = "Kilépési kérelmedet elutasították";
+    const text = [
+        greeting,
+        "A bérbeadó most nem hagyta jóvá a kilépési kérelmedet.",
+        `Ingatlan: ${input.propertyName}`,
+        input.propertyAddress ? `Cím: ${input.propertyAddress}` : null,
+        ownerLine,
+        input.openUrl ? `Részletek: ${input.openUrl}` : null,
+    ].filter(Boolean).join("\n");
+
+    const actionButtons = input.openUrl
+        ? renderActionButtons([{ label: "Fiókom megnyitása", href: input.openUrl, primary: true }])
+        : "";
+
+    const html = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+            <p>${greeting}</p>
+            <p>A bérbeadó most nem hagyta jóvá a kilépési kérelmedet.</p>
+            <ul>
+                <li><b>Ingatlan:</b> ${input.propertyName}</li>
+                ${input.propertyAddress ? `<li><b>Cím:</b> ${input.propertyAddress}</li>` : ""}
+                ${input.ownerName ? `<li><b>Bérbeadó:</b> ${input.ownerName}</li>` : ""}
+            </ul>
+            <p>Ha továbbra is szeretnél lekerülni erről az ingatlanról, új kérelmet tudsz küldeni a fiókodban.</p>
+            ${actionButtons}
+        </div>
+    `;
+
+    return { to: input.tenantEmail, subject, html, text };
+}
+
+export function renderTenantExitApprovedEmail(input: TenantExitDecisionInput) {
+    const greeting = input.tenantName ? `Szia ${input.tenantName},` : "Szia,";
+    const ownerLine = input.ownerName ? `Bérbeadó: ${input.ownerName}` : null;
+    const subject = "Sikeresen lekerültél az ingatlanról";
+    const text = [
+        greeting,
+        "A bérbeadó jóváhagyta a kilépési kérelmedet, ezért lekerültél az alábbi ingatlanról.",
+        `Ingatlan: ${input.propertyName}`,
+        input.propertyAddress ? `Cím: ${input.propertyAddress}` : null,
+        ownerLine,
+        input.openUrl ? `Fiókom: ${input.openUrl}` : null,
+    ].filter(Boolean).join("\n");
+
+    const actionButtons = input.openUrl
+        ? renderActionButtons([{ label: "Fiókom megnyitása", href: input.openUrl, primary: true }])
+        : "";
+
+    const html = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+            <p>${greeting}</p>
+            <p>A bérbeadó jóváhagyta a kilépési kérelmedet, ezért lekerültél az alábbi ingatlanról.</p>
+            <ul>
+                <li><b>Ingatlan:</b> ${input.propertyName}</li>
+                ${input.propertyAddress ? `<li><b>Cím:</b> ${input.propertyAddress}</li>` : ""}
+                ${input.ownerName ? `<li><b>Bérbeadó:</b> ${input.ownerName}</li>` : ""}
+            </ul>
+            ${actionButtons}
+        </div>
+    `;
+
+    return { to: input.tenantEmail, subject, html, text };
 }
 
 export function renderUnknownInboundInvoiceEmail(input: UnknownInboundInvoiceInput) {

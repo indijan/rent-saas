@@ -13,10 +13,10 @@ export default function DeletePropertyForm({ action }: Props) {
                     event.preventDefault();
                 }
             }}
-            className="card space-y-3"
+            className="card dashboard-section-card form-shell property-danger-card"
         >
             <div className="card-title">Ingatlan törlése</div>
-            <p className="text-sm text-gray-600">
+            <p className="muted-note">
                 A törlés a kapcsolódó díjakat és dokumentumokat is eltávolítja.
             </p>
             <button className="btn btn-danger">

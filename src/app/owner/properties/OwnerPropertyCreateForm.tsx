@@ -8,8 +8,8 @@ type Props = {
 
 export default function OwnerPropertyCreateForm({ action }: Props) {
     return (
-        <form action={action} className="card form-shell">
-            <div className="section-header">
+        <form action={action} className="card dashboard-section-card form-shell property-editor-card">
+            <div className="dashboard-section-head">
                 <div>
                     <div className="card-title">Új ingatlan felvétele</div>
                     <p className="muted-note">Az új ingatlan automatikusan aktív státuszban jön létre.</p>

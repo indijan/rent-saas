@@ -7,6 +7,8 @@ import { suggestOwnerPropertyForIngestion } from "@/lib/propertyMatching";
 import { extractInvoiceFromBuffer } from "@/app/owner/properties/[id]/charges/actions";
 import { downloadDocumentObject } from "@/lib/documentStorage";
 import { createEmailActionToken } from "@/lib/emailActionTokens";
+import { isOwnExpenseRestrictedChargeType, isOwnOnlyChargeType } from "@/lib/chargeTypes";
+import type { ImportMode } from "@/lib/importModes";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu";
 
@@ -41,7 +43,8 @@ async function createDraftFromNormalized(
         gross_amount: number;
         currency: string;
         charge_type: string;
-    }
+    },
+    tenantId: string | null
 ): Promise<DraftCreateResult> {
     const admin = createSupabaseAdminClient();
 
@@ -50,7 +53,7 @@ async function createDraftFromNormalized(
         .insert({
             property_id: property.id,
             owner_id: ownerId,
-            tenant_id: property.tenant_id,
+            tenant_id: tenantId,
             type: normalized.charge_type,
             title: normalized.issuer_name || ingestion.source_attachment_name?.replace(/\.pdf$/i, "") || "Importált számla",
             amount: normalized.gross_amount,
@@ -69,7 +72,7 @@ async function createDraftFromNormalized(
         .from("documents")
         .insert({
             owner_id: ownerId,
-            tenant_id: property.tenant_id,
+            tenant_id: tenantId,
             property_id: property.id,
             charge_id: createdCharge.id,
             bucket_path: ingestion.storage_key,
@@ -158,6 +161,7 @@ export async function processStoredIngestion(ingestionId: string) {
     const propertyHint = typeof normalizedData.property_hint === "string" && normalizedData.property_hint.trim()
         ? normalizedData.property_hint
         : null;
+    const importMode = String(normalizedData.import_mode || "FORWARDED").trim().toUpperCase() as ImportMode;
 
     const normalized = {
         issuer_name: extraction.data.name,
@@ -167,7 +171,15 @@ export async function processStoredIngestion(ingestionId: string) {
         charge_type: extraction.data.type || "OTHER",
         property_id: propertyId,
         property_hint: propertyHint,
+        import_mode: importMode,
     };
+
+    if (normalized.import_mode === "OWN_EXPENSE" && isOwnExpenseRestrictedChargeType(normalized.charge_type)) {
+        normalized.charge_type = "OTHER";
+    }
+    if (normalized.import_mode === "FORWARDED" && isOwnOnlyChargeType(normalized.charge_type)) {
+        normalized.import_mode = "OWN_EXPENSE";
+    }
 
     if (normalized.issuer_name) {
         const supplierProfile = await findOwnerSupplierProfile(ingestionRow.owner_id, normalized.issuer_name);
@@ -178,6 +190,10 @@ export async function processStoredIngestion(ingestionId: string) {
                 : normalized.charge_type;
             normalized.property_id = normalized.property_id || supplierProfile.default_property_id || null;
         }
+    }
+
+    if (normalized.import_mode === "OWN_EXPENSE" && isOwnExpenseRestrictedChargeType(normalized.charge_type)) {
+        normalized.charge_type = "OTHER";
     }
 
     let suggestedProperty:
@@ -269,7 +285,8 @@ export async function processStoredIngestion(ingestionId: string) {
             gross_amount: normalized.gross_amount,
             currency: normalized.currency,
             charge_type: normalized.charge_type,
-        }
+        },
+        normalized.import_mode === "OWN_EXPENSE" ? null : (property as PropertyRow).tenant_id
     );
 
     if (!draftResult.ok) {
@@ -331,7 +348,7 @@ export async function processStoredIngestion(ingestionId: string) {
             propertyName: property.name,
             openUrl: `${SITE_URL}/owner/importok`,
             reviewUrl: `${SITE_URL}/owner/importok/${ingestionId}`,
-            chargeUrl: `${SITE_URL}/owner/properties/${property.id}/charges?status=IMPORT_DRAFT#charge-${draftResult.chargeId}`,
+            chargeUrl: `${SITE_URL}/owner/charges?property=${property.id}&status=IMPORT_DRAFT#charge-${draftResult.chargeId}`,
             publishUrl: `${SITE_URL}/email-action?token=${encodeURIComponent(createEmailActionToken("charge_publish", draftResult.chargeId))}`,
         }));
     }

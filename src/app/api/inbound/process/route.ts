@@ -6,8 +6,9 @@ import { renderUnknownInboundInvoiceEmail } from "@/lib/email/templates";
 import { sendEmail } from "@/lib/email/resend";
 import { createInboundApprovalToken } from "@/lib/inboundApprovalTokens";
 import { suggestPropertyAcrossOwnersForIngestion } from "@/lib/propertyMatching";
-import { getOrCreateInboundMailbox, getSharedInboundEmail } from "@/lib/inboundMailboxes";
+import { getOrCreateInboundMailbox, getOwnExpenseInboundEmail, getSharedInboundEmail } from "@/lib/inboundMailboxes";
 import { resolveAvailableRoles } from "@/lib/auth/availableRoles";
+import type { ImportMode } from "@/lib/importModes";
 
 type InboundAttachment = {
     fileName: string;
@@ -29,6 +30,7 @@ type MailboxLookup = {
     ownerId: string;
     emailAddress: string;
     isShared: boolean;
+    importMode: ImportMode;
 };
 
 function normalizeSenderEmail(value: string | undefined) {
@@ -36,6 +38,30 @@ function normalizeSenderEmail(value: string | undefined) {
     if (!raw) return "";
     const match = raw.match(/<([^>]+)>/);
     return (match?.[1] || raw).trim();
+}
+
+async function resolveSenderOwner(admin: ReturnType<typeof createSupabaseAdminClient>, from: string) {
+    const senderEmail = normalizeSenderEmail(from);
+    if (!senderEmail) {
+        return null;
+    }
+
+    const { data: senderProfile } = await admin
+        .from("profiles")
+        .select("id,email,role")
+        .eq("email", senderEmail)
+        .maybeSingle();
+
+    if (!senderProfile) {
+        return null;
+    }
+
+    const roles = await resolveAvailableRoles(senderProfile.id as string, senderProfile.role as "ADMIN" | "OWNER" | "TENANT");
+    if (!roles.includes("OWNER")) {
+        return null;
+    }
+
+    return senderProfile.id as string;
 }
 
 async function resolveOwnerMailbox(admin: ReturnType<typeof createSupabaseAdminClient>, recipient: string, from: string): Promise<MailboxLookup | null> {
@@ -50,51 +76,38 @@ async function resolveOwnerMailbox(admin: ReturnType<typeof createSupabaseAdminC
             ownerId: directMailbox.owner_id as string,
             emailAddress: directMailbox.email_address as string,
             isShared: false,
+            importMode: "FORWARDED",
         };
     }
 
     const sharedEmail = getSharedInboundEmail();
-    if (!sharedEmail || recipient !== sharedEmail) {
+    const ownExpenseEmail = getOwnExpenseInboundEmail();
+    const isForwardedShared = sharedEmail && recipient === sharedEmail;
+    const isOwnExpenseShared = ownExpenseEmail && recipient === ownExpenseEmail;
+
+    if (!isForwardedShared && !isOwnExpenseShared) {
         return null;
     }
 
-    const senderEmail = normalizeSenderEmail(from);
-    if (!senderEmail) {
+    const senderOwnerId = await resolveSenderOwner(admin, from);
+    const ownerId = senderOwnerId || "";
+    const importMode: ImportMode = isOwnExpenseShared ? "OWN_EXPENSE" : "FORWARDED";
+
+    if (!senderOwnerId) {
         return {
-            ownerId: "",
-            emailAddress: sharedEmail,
+            ownerId,
+            emailAddress: isOwnExpenseShared ? ownExpenseEmail : sharedEmail,
             isShared: true,
+            importMode,
         };
     }
 
-    const { data: senderProfile } = await admin
-        .from("profiles")
-        .select("id,email,role")
-        .eq("email", senderEmail)
-        .maybeSingle();
-
-    if (!senderProfile) {
-        return {
-            ownerId: "",
-            emailAddress: sharedEmail,
-            isShared: true,
-        };
-    }
-
-    const roles = await resolveAvailableRoles(senderProfile.id as string, senderProfile.role as "ADMIN" | "OWNER" | "TENANT");
-    if (!roles.includes("OWNER")) {
-        return {
-            ownerId: "",
-            emailAddress: sharedEmail,
-            isShared: true,
-        };
-    }
-
-    const mailbox = await getOrCreateInboundMailbox(senderProfile.id as string);
+    const mailbox = await getOrCreateInboundMailbox(senderOwnerId);
     return {
-        ownerId: senderProfile.id as string,
-        emailAddress: mailbox.email_address,
+        ownerId: senderOwnerId,
+        emailAddress: isOwnExpenseShared ? ownExpenseEmail : mailbox.email_address,
         isShared: true,
+        importMode,
     };
 }
 
@@ -178,6 +191,7 @@ export async function POST(request: Request) {
         let ownerId = mailbox.ownerId;
         let presetPropertyId: string | null = attachment.propertyId || null;
         let pendingApproval = false;
+        const importMode = mailbox.importMode;
 
         if (!ownerId && mailbox.isShared) {
             try {
@@ -221,7 +235,7 @@ export async function POST(request: Request) {
                 source_attachment_name: fileName,
                 storage_bucket: attachment.storageBucket || "documents",
                 storage_key: storageKey,
-                normalized_data: presetPropertyId ? { property_id: presetPropertyId } : {},
+                normalized_data: presetPropertyId ? { property_id: presetPropertyId, import_mode: importMode } : { import_mode: importMode },
                 status: pendingApproval ? "NEEDS_REVIEW" : "RECEIVED",
             })
             .select("id,source_attachment_name,status")

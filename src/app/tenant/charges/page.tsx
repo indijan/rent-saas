@@ -2,17 +2,18 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth/requireRole";
 import { formatCurrency } from "@/lib/formatters";
 import AppHeader from "@/components/AppHeader";
-import { archiveTenantCharge } from "./actions";
-import FilterDateInput from "@/components/FilterDateInput";
+import FinancePeriodFilter from "@/app/owner/charges/FinancePeriodFilter";
+import DesignIcon from "@/components/dashboard/DesignIcon";
 import { createDocumentSignedUrl } from "@/lib/documentStorage";
-import PendingSubmitButton from "@/components/PendingSubmitButton";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { listTenantPropertyIds } from "@/lib/propertyTenants";
+import { listTenantProperties } from "@/lib/propertyTenants";
+import { ALL_CHARGE_TYPE_OPTIONS, getChargeTypeLabel, type ChargeType } from "@/lib/chargeTypes";
 
 type ChargeStatus = "UNPAID" | "PAID" | "ARCHIVED" | "CANCELLED";
-type ChargeType = "RENT" | "UTILITY" | "COMMON_COST" | "OTHER";
+type PeriodPreset = "CURRENT_MONTH" | "LAST_30_DAYS" | "LAST_3_MONTHS" | "LAST_6_MONTHS" | "LAST_12_MONTHS" | "MAX" | "CUSTOM";
 
 type SearchParams = {
+    preset?: string;
     property?: string;
     status?: string;
     type?: string;
@@ -70,30 +71,125 @@ type Props = {
     searchParams?: Promise<SearchParams> | SearchParams;
 };
 
-function buildQueryString(input: SearchParams) {
+function toDateInputValue(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function startOfToday() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+}
+
+function startOfCurrentMonth() {
+    const now = new Date();
+    return toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
+}
+
+function endOfCurrentMonth() {
+    const now = new Date();
+    return toDateInputValue(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+}
+
+function previousMonthRange() {
+    const now = new Date();
+    return {
+        from: toDateInputValue(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
+        to: toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 0)),
+    };
+}
+
+function shiftMonths(base: Date, months: number) {
+    const next = new Date(base);
+    next.setMonth(next.getMonth() + months);
+    return next;
+}
+
+function normalizePeriodPreset(value: string | undefined): PeriodPreset {
+    const preset = String(value || "CURRENT_MONTH").trim().toUpperCase();
+    if (["CURRENT_MONTH", "LAST_30_DAYS", "LAST_3_MONTHS", "LAST_6_MONTHS", "LAST_12_MONTHS", "MAX", "CUSTOM"].includes(preset)) {
+        return preset as PeriodPreset;
+    }
+    return "CURRENT_MONTH";
+}
+
+function resolvePeriodRange(preset: PeriodPreset, requestedFrom?: string, requestedTo?: string) {
+    const today = startOfToday();
+    const todayValue = toDateInputValue(today);
+
+    switch (preset) {
+        case "LAST_30_DAYS":
+            {
+                const previousMonth = previousMonthRange();
+                return {
+                    from: previousMonth.from,
+                    to: previousMonth.to,
+                    label: "Elmúlt hónap",
+                };
+            }
+        case "LAST_3_MONTHS":
+            return {
+                from: toDateInputValue(shiftMonths(today, -3)),
+                to: todayValue,
+                label: "Elmúlt 3 hónap",
+            };
+        case "LAST_6_MONTHS":
+            return {
+                from: toDateInputValue(shiftMonths(today, -6)),
+                to: todayValue,
+                label: "Elmúlt fél év",
+            };
+        case "LAST_12_MONTHS":
+            return {
+                from: toDateInputValue(shiftMonths(today, -12)),
+                to: todayValue,
+                label: "Elmúlt 1 év",
+            };
+        case "MAX":
+            return {
+                from: "2000-01-01",
+                to: todayValue,
+                label: "Maximum",
+            };
+        case "CUSTOM":
+            return {
+                from: requestedFrom || startOfCurrentMonth(),
+                to: requestedTo || endOfCurrentMonth(),
+                label: "Egyedi időszak",
+            };
+        default:
+            return {
+                from: startOfCurrentMonth(),
+                to: endOfCurrentMonth(),
+                label: "Aktuális hónap",
+            };
+    }
+}
+
+function buildQuery(input: Record<string, string | undefined>) {
     const params = new URLSearchParams();
-    if (input.property) params.set("property", input.property);
-    if (input.status) params.set("status", input.status);
-    if (input.type) params.set("type", input.type);
-    if (input.from) params.set("from", input.from);
-    if (input.to) params.set("to", input.to);
-    if (input.page && input.page !== "1") params.set("page", input.page);
-    return params.toString();
+    Object.entries(input).forEach(([key, value]) => {
+        if (value) params.set(key, value);
+    });
+    const query = params.toString();
+    return query ? `?${query}` : "";
 }
 
-function buildStatusHref(current: SearchParams, nextStatus: string) {
-    return `/tenant/charges?${buildQueryString({
-        ...current,
-        status: nextStatus,
-        page: undefined,
-    })}`;
+function formatDisplayDate(dateValue: string) {
+    return new Intl.DateTimeFormat("hu-HU", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(new Date(`${dateValue}T00:00:00`));
 }
 
-function todayIsoDate() {
-    return new Date().toISOString().slice(0, 10);
-}
-
-function statusLabel(status: ChargeStatus) {
+function statusLabel(status: ChargeStatus, dueDate: string) {
+    if (status === "UNPAID" && new Date(`${dueDate}T00:00:00`).getTime() < startOfToday().getTime()) {
+        return "Lejárt";
+    }
     switch (status) {
         case "UNPAID":
             return "Aktív";
@@ -102,164 +198,147 @@ function statusLabel(status: ChargeStatus) {
         case "ARCHIVED":
             return "Archivált";
         case "CANCELLED":
-            return "Törölt";
+            return "Sztornó";
         default:
             return status;
     }
 }
 
-function typeLabel(type: ChargeType) {
+function typeTone(type: ChargeType) {
     switch (type) {
         case "RENT":
-            return "Bérleti díj";
+            return "dashboard-inline-badge-green";
         case "UTILITY":
-            return "Rezsi";
+            return "dashboard-inline-badge-blue";
+        case "INSURANCE":
+            return "dashboard-inline-badge-amber";
         case "COMMON_COST":
-            return "Közös költség";
-        case "OTHER":
-            return "Egyéb";
+            return "dashboard-inline-badge-purple";
+        case "RENOVATION":
+            return "dashboard-inline-badge-green";
         default:
-            return type;
+            return "dashboard-inline-badge-red";
     }
+}
+
+function statusTone(status: string) {
+    if (status === "Fizetett") return "dashboard-inline-badge-green";
+    if (status === "Lejárt") return "dashboard-inline-badge-red";
+    if (status === "Aktív") return "dashboard-inline-badge-blue";
+    if (status === "Archivált") return "dashboard-inline-badge-purple";
+    return "dashboard-inline-badge-amber";
 }
 
 function getDueState(dueDate: string, status: ChargeStatus) {
     if (status === "PAID" || status === "ARCHIVED" || status === "CANCELLED") {
-        return { cardClass: "", pillClass: "due-fresh", label: "Lezárt" };
+        return { label: "Lezárt", overdue: false, soon: false };
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = startOfToday();
     const due = new Date(`${dueDate}T00:00:00`);
     const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
     if (diffDays < 0) {
-        return { cardClass: " charge-overdue", pillClass: "due-overdue", label: `${Math.abs(diffDays)} napja lejárt` };
+        return { label: `${Math.abs(diffDays)} napja lejárt`, overdue: true, soon: false };
     }
     if (diffDays <= 5) {
-        return { cardClass: " charge-soon", pillClass: "due-soon", label: diffDays === 0 ? "Ma esedékes" : `${diffDays} napon belül esedékes` };
+        return { label: diffDays === 0 ? "Ma esedékes" : `${diffDays} napon belül esedékes`, overdue: false, soon: true };
     }
-    return { cardClass: " charge-fresh", pillClass: "due-fresh", label: "Rendben, még nem járt le" };
+    return { label: "Határidőn belül", overdue: false, soon: false };
 }
 
 function firstProperty(value: ChargeProperty | ChargeProperty[] | null | undefined) {
     return Array.isArray(value) ? value[0] : value;
 }
 
+function PdfIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 3.5h6l4 4V20a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20V5A1.5 1.5 0 0 1 7.5 3.5Z" />
+            <path d="M14 3.5V8h4" />
+            <path d="M8.5 16.5h7" />
+        </svg>
+    );
+}
+
+function DetailIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z" />
+            <circle cx="12" cy="12" r="2.6" />
+        </svg>
+    );
+}
+
 export default async function TenantChargesPage({ searchParams }: Props) {
     const { user, profile } = await requireRole("TENANT");
     const admin = createSupabaseAdminClient();
-    const propertyIds = await listTenantPropertyIds(user.id);
+    const tenantProperties = await listTenantProperties(user.id);
+    const propertyIds = tenantProperties.map((property) => property.id);
 
-    const sp = (searchParams instanceof Promise) ? await searchParams : (searchParams ?? {});
+    const sp = searchParams instanceof Promise ? await searchParams : (searchParams ?? {});
+    const preset = normalizePeriodPreset(sp.preset ? String(sp.preset) : undefined);
+    const periodRange = resolvePeriodRange(preset, sp.from ? String(sp.from) : undefined, sp.to ? String(sp.to) : undefined);
+    const from = periodRange.from;
+    const to = periodRange.to;
     const selectedPropertyId = sp.property ? String(sp.property) : "";
     const statusFilter = sp.status ? String(sp.status) : "";
     const typeFilter = sp.type ? String(sp.type) : "";
-    const fromFilter = sp.from ? String(sp.from) : "";
-    const toFilter = sp.to ? String(sp.to) : "";
     const pageParam = sp.page ? Number(sp.page) : 1;
     const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
-    const pageSize = 12;
+    const pageSize = 10;
     const rangeFrom = (page - 1) * pageSize;
     const rangeTo = rangeFrom + pageSize - 1;
-    const todayIso = todayIsoDate();
 
-    const { data: chargeProperties, error: propErr } = propertyIds.length === 0
-        ? { data: [], error: null }
-        : await admin
-            .from("charges")
-            .select("property_id,properties(id,name,address,status)")
-            .in("property_id", propertyIds)
-            .neq("status", "IMPORT_DRAFT")
-            .order("due_date", { ascending: false });
-
-    if (propErr) {
-        return (
-            <main className="app-shell page-enter">
-                <AppHeader profile={profile} />
-                <div className="card space-y-2">
-                    <h1>Saját díjaim</h1>
-                    <p className="mt-2 text-red-600">Hiba (properties): {propErr.message}</p>
-                </div>
-            </main>
-        );
-    }
-
-    const propertyRows = Array.from(
-        new Map(
-            ((chargeProperties ?? []) as Array<{ property_id: string; properties?: ChargeProperty | ChargeProperty[] | null }>)
-                .map((row) => {
-                    const property = firstProperty(row.properties);
-                    if (!property) return null;
-                    return [property.id, {
-                        id: property.id,
-                        name: property.name,
-                        address: property.address,
-                        status: "ACTIVE",
-                    } satisfies PropertyRow];
-                })
-                .filter((item): item is [string, PropertyRow] => Boolean(item))
-        ).values()
-    );
-    const selectedProperty = selectedPropertyId
-        ? propertyRows.find((property) => property.id === selectedPropertyId) ?? null
-        : null;
+    const propertyRows = tenantProperties.map((property) => ({
+        id: property.id,
+        name: property.name,
+        address: property.address,
+        status: "ACTIVE",
+    } satisfies PropertyRow));
+    const propertyById = new Map(propertyRows.map((property) => [property.id, property]));
+    const selectedProperty = selectedPropertyId ? propertyById.get(selectedPropertyId) ?? null : null;
 
     let listQuery = admin
         .from("charges")
         .select("id,title,type,amount,currency,due_date,status,paid_at,property_id,recurring_group,recurring_index,recurring_count,properties(id,name,address)", { count: "exact" })
         .in("property_id", propertyIds.length > 0 ? propertyIds : ["00000000-0000-0000-0000-000000000000"])
         .neq("status", "IMPORT_DRAFT")
-        .order("due_date", { ascending: false });
+        .gte("due_date", from)
+        .lte("due_date", to)
+        .order("due_date", { ascending: true });
 
     if (selectedPropertyId) listQuery = listQuery.eq("property_id", selectedPropertyId);
     if (statusFilter === "OVERDUE") {
-        listQuery = listQuery.eq("status", "UNPAID").lt("due_date", todayIso);
+        listQuery = listQuery.eq("status", "UNPAID").lt("due_date", toDateInputValue(startOfToday()));
     } else if (statusFilter) {
         listQuery = listQuery.eq("status", statusFilter);
     }
     if (typeFilter) listQuery = listQuery.eq("type", typeFilter);
-    if (fromFilter) listQuery = listQuery.gte("due_date", fromFilter);
-    if (toFilter) listQuery = listQuery.lte("due_date", toFilter);
 
     const { data: charges, error, count } = await listQuery.range(rangeFrom, rangeTo);
 
-    const currentYear = new Date().getFullYear();
-    const totalsFrom = fromFilter || `${currentYear}-01-01`;
-    const totalsTo = toFilter || `${currentYear}-12-31`;
-    let totalsQuery = admin
+    const totalsQuery = admin
         .from("charges")
-        .select("amount,status")
+        .select("amount,status,due_date")
         .in("property_id", propertyIds.length > 0 ? propertyIds : ["00000000-0000-0000-0000-000000000000"])
         .neq("status", "IMPORT_DRAFT")
-        .gte("due_date", totalsFrom)
-        .lte("due_date", totalsTo);
+        .gte("due_date", from)
+        .lte("due_date", to);
 
-    if (selectedPropertyId) totalsQuery = totalsQuery.eq("property_id", selectedPropertyId);
-    if (typeFilter) totalsQuery = totalsQuery.eq("type", typeFilter);
-    const { data: totalsRows } = await totalsQuery;
+    const { data: totalsRows } = selectedPropertyId
+        ? await totalsQuery.eq("property_id", selectedPropertyId)
+        : await totalsQuery;
 
     const chargeIds = ((charges ?? []) as ChargeRow[]).map((charge) => charge.id);
 
-    let attentionQuery = admin
-        .from("charges")
-        .select("id,title,type,amount,currency,due_date,status,paid_at,property_id,recurring_group,recurring_index,recurring_count,properties(id,name,address)")
-        .in("property_id", propertyIds.length > 0 ? propertyIds : ["00000000-0000-0000-0000-000000000000"])
-        .eq("status", "UNPAID")
-        .order("due_date", { ascending: true })
-        .limit(12);
-
-    if (selectedPropertyId) attentionQuery = attentionQuery.eq("property_id", selectedPropertyId);
-    if (typeFilter) attentionQuery = attentionQuery.eq("type", typeFilter);
-
-    const { data: attentionCharges } = await attentionQuery;
     const { data: documents } = chargeIds.length === 0
         ? { data: [] }
         : await admin
-        .from("documents")
-        .select("id,charge_id,bucket_path,created_at")
-        .in("charge_id", chargeIds)
-        .order("created_at", { ascending: false });
+            .from("documents")
+            .select("id,charge_id,bucket_path,created_at")
+            .in("charge_id", chargeIds)
+            .order("created_at", { ascending: false });
 
     const documentsWithUrls = await Promise.all(
         ((documents ?? []) as DocumentRow[]).map(async (doc) => {
@@ -279,345 +358,392 @@ export default async function TenantChargesPage({ searchParams }: Props) {
         documentsByCharge.set(doc.charge_id, list);
     });
 
-    const summary = ((totalsRows ?? []) as TotalsRow[]).reduce(
+    const summary = ((totalsRows ?? []) as Array<TotalsRow & { due_date: string }>).reduce(
         (acc, row) => {
             const amount = Number(row.amount) || 0;
+            const overdue = row.status === "UNPAID" && new Date(`${row.due_date}T00:00:00`).getTime() < startOfToday().getTime();
+            const diffDays = Math.ceil((new Date(`${row.due_date}T00:00:00`).getTime() - startOfToday().getTime()) / (1000 * 60 * 60 * 24));
+            const soon = row.status === "UNPAID" && diffDays >= 0 && diffDays <= 5;
+
             acc.total += row.status !== "CANCELLED" ? amount : 0;
             acc.paid += row.status === "PAID" || row.status === "ARCHIVED" ? amount : 0;
             acc.unpaid += row.status === "UNPAID" ? amount : 0;
-            acc.closed += row.status === "PAID" || row.status === "ARCHIVED" ? 1 : 0;
+            acc.overdueCount += overdue ? 1 : 0;
+            acc.overdueAmount += overdue ? amount : 0;
+            acc.soonCount += soon ? 1 : 0;
+            acc.archivedCount += row.status === "ARCHIVED" ? 1 : 0;
             return acc;
         },
-        { total: 0, paid: 0, unpaid: 0, closed: 0 }
+        { total: 0, paid: 0, unpaid: 0, overdueCount: 0, overdueAmount: 0, soonCount: 0, archivedCount: 0 }
     );
 
     if (error) {
         return (
             <main className="app-shell page-enter">
                 <AppHeader profile={profile} />
-                <div className="card space-y-2">
+                <section className="card">
                     <h1>Saját díjaim</h1>
-                    <p className="mt-2 text-red-600">Hiba (charges): {error.message}</p>
-                </div>
+                    <p className="text-red-600">Hiba: {error.message}</p>
+                </section>
             </main>
         );
     }
 
-    const activeQuery = {
-        property: selectedPropertyId,
-        status: statusFilter,
-        type: typeFilter,
-        from: fromFilter,
-        to: toFilter,
-    };
     const totalPages = Math.max(1, Math.ceil((count ?? 0) / pageSize));
     const chargeRows = (charges ?? []) as ChargeRow[];
-    const formatMoney = (value: number) => formatCurrency(value, "HUF");
-    const attentionItems = ((attentionCharges ?? []) as ChargeRow[])
-        .filter((charge) => charge.status === "UNPAID")
-        .map((charge) => ({ charge, dueState: getDueState(charge.due_date, charge.status) }))
-        .filter(({ dueState }) => dueState.pillClass === "due-overdue" || dueState.pillClass === "due-soon")
-        .slice(0, 3);
+    const periodLabel = preset === "CUSTOM" ? `${formatDisplayDate(from)} - ${formatDisplayDate(to)}` : periodRange.label;
 
     return (
-        <main className="app-shell page-enter space-y-4">
-            <AppHeader profile={profile} />
+        <main className="app-shell page-enter">
+            <AppHeader
+                profile={profile}
+                dashboardContext={{
+                    label: "Ingatlan",
+                    items: propertyRows.map((property) => ({ id: property.id, label: property.name })),
+                    value: selectedPropertyId || "__all__",
+                    baseHref: "/tenant/charges",
+                    query: {
+                        preset,
+                        from: preset === "CUSTOM" ? from : undefined,
+                        to: preset === "CUSTOM" ? to : undefined,
+                        status: statusFilter || undefined,
+                        type: typeFilter || undefined,
+                    },
+                }}
+            />
 
-            <section className="card section-stack">
-                <div className="section-header">
+            <div className="finance-page-grid">
+                <section className="dashboard-page-header">
                     <div>
-                        <div className="eyebrow">Bérlői áttekintés</div>
                         <h1>Saját díjaim</h1>
-                        <p>
-                            {selectedProperty
-                                ? `${selectedProperty.name} · ${selectedProperty.address}`
-                                : "Az összes hozzád rendelt díj egy helyen."}
-                        </p>
+                        <p>{selectedProperty ? `${selectedProperty.name} · ${selectedProperty.address}` : "A hozzád rendelt bérleti díjak és költségek egy helyen."}</p>
                     </div>
-                    <div className="muted-note">
-                        A kártya színe jelzi, hogy a díj rendben van, közeleg vagy már lejárt.
-                    </div>
-                </div>
-
-                <div className="kpi-grid stagger">
-                    <div className="kpi-card">
-                        <div className="kpi-label">Összes terhelés</div>
-                        <div className="kpi-value">{formatMoney(summary.total)}</div>
-                        <div className="muted-note">{totalsFrom} - {totalsTo}</div>
-                    </div>
-                    <div className="kpi-card">
-                        <div className="kpi-label">Nyitott egyenleg</div>
-                        <div className="kpi-value">{formatMoney(summary.unpaid)}</div>
-                        <div className="muted-note">még nem rendezett díjak</div>
-                    </div>
-                    <div className="kpi-card">
-                        <div className="kpi-label">Már fizetett</div>
-                        <div className="kpi-value">{formatMoney(summary.paid)}</div>
-                        <div className="muted-note">{summary.closed} lezárt tétel</div>
-                    </div>
-                </div>
-            </section>
-
-            <section className="card section-stack">
-                <div className="section-header">
-                    <div>
-                        <div className="card-title">Figyelmet igényel</div>
-                        <p className="muted-note">Itt látod a leginkább sürgős nyitott tételeket.</p>
-                    </div>
-                </div>
-                {attentionItems.length === 0 ? (
-                    <p className="muted-note">Nincs lejárt vagy közelgő nyitott díj.</p>
-                ) : (
-                    <div className="feature-list">
-                        {attentionItems.map(({ charge, dueState }) => {
-                            const property = firstProperty(charge.properties);
-                            return (
-                                <Link key={charge.id} className="feature-item" href={`/tenant/charges/${charge.id}`}>
-                                    {charge.title} · {property?.name ?? "Ingatlan"} · {formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))} · {dueState.label}
-                                </Link>
-                            );
-                        })}
-                    </div>
-                )}
-            </section>
-
-            <section className="card section-stack">
-                <div className="section-header">
-                    <div>
-                        <div className="card-title">Szűrők és nézetek</div>
-                        <p className="muted-note">Az áttekintés a teljes kiválasztott időszakra számol, nem csak erre az oldalra.</p>
-                    </div>
-                    <a className="btn btn-secondary" href={`/tenant/charges/export?${buildQueryString(activeQuery)}`}>
-                        Exportálás CSV-be
-                    </a>
-                </div>
-
-                <div className="nav-pills">
-                    <Link className={`pill${!statusFilter ? " pill-active" : ""}`} href={buildStatusHref(activeQuery, "")}>
-                        Összes
-                    </Link>
-                    <Link className={`pill${statusFilter === "UNPAID" ? " pill-active" : ""}`} href={buildStatusHref(activeQuery, "UNPAID")}>
-                        Aktív
-                    </Link>
-                    <Link className={`pill${statusFilter === "OVERDUE" ? " pill-active" : ""}`} href={buildStatusHref(activeQuery, "OVERDUE")}>
-                        Lejárt
-                    </Link>
-                    <Link className={`pill${statusFilter === "PAID" ? " pill-active" : ""}`} href={buildStatusHref(activeQuery, "PAID")}>
-                        Fizetett
-                    </Link>
-                    <Link className={`pill${statusFilter === "ARCHIVED" ? " pill-active" : ""}`} href={buildStatusHref(activeQuery, "ARCHIVED")}>
-                        Archivált
-                    </Link>
-                </div>
-
-                <form method="GET" className="section-stack">
-                    <div className="filter-grid">
-                        <label className="field-stack">
-                            <span className="field-label">Ingatlan</span>
-                            <select name="property" defaultValue={selectedPropertyId} className="select">
-                                <option value="">Minden ingatlan</option>
-                                {propertyRows.map((property) => (
-                                    <option key={property.id} value={property.id}>
-                                        {property.name} - {property.address}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
-                        <label className="field-stack">
-                            <span className="field-label">Státusz</span>
-                            <select name="status" defaultValue={statusFilter} className="select">
-                                <option value="">Minden státusz</option>
-                                <option value="UNPAID">Aktív</option>
-                                <option value="OVERDUE">Lejárt</option>
-                                <option value="PAID">Fizetett</option>
-                                <option value="ARCHIVED">Archivált</option>
-                                <option value="CANCELLED">Törölt</option>
-                            </select>
-                        </label>
-                        <label className="field-stack">
-                            <span className="field-label">Típus</span>
-                            <select name="type" defaultValue={typeFilter} className="select">
-                                <option value="">Minden típus</option>
-                                <option value="RENT">Bérleti díj</option>
-                                <option value="UTILITY">Rezsi</option>
-                                <option value="COMMON_COST">Közös költség</option>
-                                <option value="OTHER">Egyéb</option>
-                            </select>
-                        </label>
-                        <label className="field-stack">
-                            <span className="field-label">Dátumtól</span>
-                            <FilterDateInput name="from" defaultValue={fromFilter} placeholder="ÉÉÉÉ-HH-NN" className="input input-date" />
-                            <span className="muted-note">Ha üresen hagyod, az év elejétől számolunk.</span>
-                        </label>
-                        <label className="field-stack">
-                            <span className="field-label">Dátumig</span>
-                            <FilterDateInput name="to" defaultValue={toFilter} placeholder="ÉÉÉÉ-HH-NN" className="input input-date" />
-                            <span className="muted-note">Ha üresen hagyod, az év végéig számolunk.</span>
-                        </label>
-                    </div>
-                    <div className="charge-actions">
-                        <button className="btn btn-primary">Szűrés frissítése</button>
-                        <Link className="btn btn-secondary" href="/tenant/charges">
-                            Szűrők törlése
-                        </Link>
-                        {(fromFilter || toFilter || selectedPropertyId || statusFilter || typeFilter) ? (
-                            <span className="muted-note">Aktív szűrők vannak beállítva.</span>
-                        ) : (
-                            <span className="muted-note">Nincs aktív szűrő.</span>
-                        )}
-                    </div>
-                </form>
-            </section>
-
-            {selectedProperty ? (
-                <section className="card section-stack">
-                    <div className="card-title">Kiválasztott ingatlan</div>
-                    <div className="charge-meta">
-                        <span>{selectedProperty.name}</span>
-                        <span>{selectedProperty.address}</span>
-                        <span>Státusz: {selectedProperty.status}</span>
-                    </div>
+                    <FinancePeriodFilter
+                        property={selectedPropertyId || undefined}
+                        status={statusFilter || undefined}
+                        type={typeFilter || undefined}
+                        preset={preset}
+                        from={from}
+                        to={to}
+                        propertyLabel={selectedProperty ? selectedProperty.name : "Összes ingatlan"}
+                    />
                 </section>
-            ) : null}
 
-            {chargeRows.length === 0 ? (
-                <div className="card">
-                    <p className="card-title">Nincs megjeleníthető díj ebben a nézetben.</p>
-                    <p className="muted-note">Válts ingatlant, módosíts dátumtartományt, vagy várj új tulajdonosi rögzítésre.</p>
-                </div>
-            ) : (
+                <section className="card dashboard-summary-strip">
+                    <article className="dashboard-summary-card">
+                        <DesignIcon name="lejart_dij" alt="Lejárt díjak" tone="design-icon-badge-danger" size={58} />
+                        <div className="dashboard-summary-copy">
+                            <div className="dashboard-summary-title">Lejárt díjak</div>
+                            <div className="dashboard-summary-value">{summary.overdueCount}</div>
+                            <div className="muted-note">{formatCurrency(summary.overdueAmount, "HUF")}</div>
+                        </div>
+                    </article>
+                    <article className="dashboard-summary-card">
+                        <DesignIcon name="kozelgo_feladatok" alt="Közelgő tételek" tone="design-icon-badge-amber" size={58} />
+                        <div className="dashboard-summary-copy">
+                            <div className="dashboard-summary-title">Közelgő tételek</div>
+                            <div className="dashboard-summary-value">{summary.soonCount}</div>
+                            <div className="muted-note">5 napon belül esedékes</div>
+                        </div>
+                    </article>
+                    <article className="dashboard-summary-card">
+                        <DesignIcon name="kintlevoseg" alt="Nyitott egyenleg" tone="design-icon-badge-blue" size={58} />
+                        <div className="dashboard-summary-copy">
+                            <div className="dashboard-summary-title">Nyitott egyenleg</div>
+                            <div className="dashboard-summary-value">{formatCurrency(summary.unpaid, "HUF")}</div>
+                            <div className="muted-note">{periodLabel}</div>
+                        </div>
+                    </article>
+                    <article className="dashboard-summary-card">
+                        <DesignIcon name="bevetel" alt="Fizetett tételek" tone="design-icon-badge-green" size={58} />
+                        <div className="dashboard-summary-copy">
+                            <div className="dashboard-summary-title">Fizetett / lezárt</div>
+                            <div className="dashboard-summary-value">{formatCurrency(summary.paid, "HUF")}</div>
+                            <div className="muted-note">{summary.archivedCount} archivált tétel</div>
+                        </div>
+                    </article>
+                </section>
+
                 <section className="card section-stack">
                     <div className="section-header">
                         <div>
-                            <div className="card-title">Tétellista</div>
-                            <p className="muted-note">{count ?? chargeRows.length} tétel, oldalméret {pageSize}.</p>
+                            <div className="card-title">Gyors elérés</div>
+                            <p className="muted-note">Ha költözöl, kérdésed van vagy áttekintenéd a lezárt tételeket, innen egyből eléred.</p>
+                        </div>
+                    </div>
+                    <div className="quick-action-grid">
+                        <Link className="quick-action-card" href="/account#kilepesi-kerelem-kuldes">
+                            <DesignIcon name="kilepesi_kerelem_folyamatban" alt="Kilépési kérelem" tone="design-icon-badge-amber" />
+                            <strong>Kilépési kérelem</strong>
+                        </Link>
+                        <Link className="quick-action-card" href="/account#kapcsolat">
+                            <DesignIcon name="level" alt="Kapcsolat" tone="design-icon-badge-purple" />
+                            <strong>Kapcsolat</strong>
+                        </Link>
+                        <Link className="quick-action-card" href="/account#otletlada">
+                            <DesignIcon name="level" alt="Ötletláda" tone="design-icon-badge-blue" />
+                            <strong>Ötletláda</strong>
+                        </Link>
+                        <Link className="quick-action-card" href="/tenant/charges?status=PAID">
+                            <DesignIcon name="beerkezett" alt="Fizetett tételek" tone="design-icon-badge-green" />
+                            <strong>Fizetett tételek</strong>
+                        </Link>
+                    </div>
+                </section>
+
+                <section className="card finance-filter-shell">
+                    <div>
+                        <div className="card-title">Szűrők</div>
+                        <p className="muted-note">Az időszakot a felső vezérlő határozza meg, itt már csak a lista nézetét finomítod.</p>
+                    </div>
+                    <div className="finance-filter-period-note">
+                        <span className="field-label">Aktív időszak</span>
+                        <strong>{periodLabel}</strong>
+                        <span>{selectedProperty ? selectedProperty.name : "Összes ingatlan"}</span>
+                    </div>
+                    <form method="GET" className="finance-filter-form">
+                        {selectedPropertyId ? <input type="hidden" name="property" value={selectedPropertyId} /> : null}
+                        <input type="hidden" name="preset" value={preset} />
+                        <input type="hidden" name="from" value={from} />
+                        <input type="hidden" name="to" value={to} />
+                        <div className="finance-filter-grid">
+                            <label className="field-stack">
+                                <span className="field-label">Státusz</span>
+                                <select name="status" className="select" defaultValue={statusFilter}>
+                                    <option value="">Minden státusz</option>
+                                    <option value="UNPAID">Aktív</option>
+                                    <option value="OVERDUE">Lejárt</option>
+                                    <option value="PAID">Fizetett</option>
+                                    <option value="ARCHIVED">Archivált</option>
+                                    <option value="CANCELLED">Sztornó</option>
+                                </select>
+                            </label>
+                            <label className="field-stack">
+                                <span className="field-label">Típus</span>
+                                <select name="type" className="select" defaultValue={typeFilter}>
+                                    <option value="">Minden típus</option>
+                                    {ALL_CHARGE_TYPE_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
+                                </select>
+                            </label>
+                        </div>
+                        <div className="finance-filter-actions">
+                            <div className="charge-actions">
+                                <button className="btn btn-primary" type="submit">Szűrés frissítése</button>
+                                <Link
+                                    className="btn btn-secondary"
+                                    href={`/tenant/charges${buildQuery({
+                                        property: selectedPropertyId || undefined,
+                                        preset,
+                                        from,
+                                        to,
+                                    })}`}
+                                >
+                                    Szűrők törlése
+                                </Link>
+                                <a
+                                    className="btn btn-secondary"
+                                    href={`/tenant/charges/export${buildQuery({
+                                        property: selectedPropertyId || undefined,
+                                        from,
+                                        to,
+                                        status: statusFilter || undefined,
+                                        type: typeFilter || undefined,
+                                    })}`}
+                                >
+                                    Export Excelbe
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </section>
+
+                <section className="card finance-table-shell">
+                    <div className="section-header">
+                        <div>
+                            <div className="card-title">Tételek</div>
+                            <p className="muted-note">Összesen {count ?? chargeRows.length} tétel</p>
                         </div>
                     </div>
 
-                    <div className="charge-list">
-                        {chargeRows.map((charge) => {
-                            const property = firstProperty(charge.properties);
-                            const dueState = getDueState(charge.due_date, charge.status);
-                            const docList = documentsByCharge.get(charge.id) ?? [];
-                            const recurringLabel = charge.recurring_group && charge.recurring_index && charge.recurring_count
-                                ? `Ismétlődés ${charge.recurring_index}/${charge.recurring_count}`
-                                : null;
+                    <div className="finance-table-scroll">
+                        <table className="finance-table">
+                            <colgroup>
+                                <col className="finance-col-date" />
+                                <col className="finance-col-type" />
+                                <col className="finance-col-title" />
+                                <col className="finance-col-property" />
+                                <col className="finance-col-partner" />
+                                <col className="finance-col-amount" />
+                                <col className="finance-col-status" />
+                                <col className="finance-col-document" />
+                                <col className="finance-col-actions" />
+                            </colgroup>
+                            <thead>
+                                <tr>
+                                    <th>Dátum</th>
+                                    <th>Típus</th>
+                                    <th>Megnevezés</th>
+                                    <th>Ingatlan</th>
+                                    <th>Határidő</th>
+                                    <th>Összeg</th>
+                                    <th>Státusz</th>
+                                    <th>Dokumentum</th>
+                                    <th>Műveletek</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {chargeRows.map((charge) => {
+                                    const property = firstProperty(charge.properties);
+                                    const documentUrl = (documentsByCharge.get(charge.id) ?? []).find((doc) => doc.signed_url)?.signed_url ?? "";
+                                    const status = statusLabel(charge.status, charge.due_date);
+                                    const dueState = getDueState(charge.due_date, charge.status);
+                                    const recurringLabel = charge.recurring_group && charge.recurring_index && charge.recurring_count
+                                        ? `Ismétlődés ${charge.recurring_index}/${charge.recurring_count}`
+                                        : "Egyszeri tétel";
+                                    return (
+                                        <tr key={charge.id} className={charge.status === "ARCHIVED" ? "finance-row-muted" : ""}>
+                                            <td>{formatDisplayDate(charge.due_date)}</td>
+                                            <td>
+                                                <span className={`dashboard-inline-badge ${typeTone(charge.type)}`}>
+                                                    {getChargeTypeLabel(charge.type, user.id)}
+                                                </span>
+                                            </td>
+                                            <td className="finance-cell-title">
+                                                <div className="dashboard-table-main">
+                                                    <strong>{charge.title}</strong>
+                                                    <span className="dashboard-table-subtitle">{recurringLabel}</span>
+                                                </div>
+                                            </td>
+                                            <td className="finance-cell-property">{property?.name ?? "Ismeretlen ingatlan"}</td>
+                                            <td className="finance-cell-partner">{dueState.label}</td>
+                                            <td className="finance-cell-amount">{formatCurrency(Number(charge.amount), charge.currency || "HUF")}</td>
+                                            <td>
+                                                <span className={`dashboard-inline-badge ${statusTone(status)}`}>{status}</span>
+                                            </td>
+                                            <td className="finance-cell-document">
+                                                {documentUrl ? (
+                                                    <a className="dashboard-icon-button dashboard-icon-button-danger" href={documentUrl} target="_blank" rel="noreferrer" aria-label="PDF megnyitása" title="PDF megnyitása" data-tooltip="PDF megnyitása">
+                                                        <PdfIcon />
+                                                    </a>
+                                                ) : (
+                                                    <button type="button" className="dashboard-icon-button" aria-label="Nincs dokumentum" title="Nincs dokumentum" data-tooltip="Nincs dokumentum" disabled>
+                                                        <PdfIcon />
+                                                    </button>
+                                                )}
+                                            </td>
+                                            <td className="finance-cell-actions">
+                                                <div className="dashboard-table-actions">
+                                                    <Link className="dashboard-icon-button" href={`/tenant/charges/${charge.id}`} aria-label="Részletek" title="Részletek" data-tooltip="Részletek">
+                                                        <DetailIcon />
+                                                    </Link>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {chargeRows.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={9} className="dashboard-empty-note">Nincs találat a megadott szűrőkkel.</td>
+                                    </tr>
+                                ) : null}
+                            </tbody>
+                        </table>
+                    </div>
 
+                    <div className="finance-mobile-list">
+                        {chargeRows.length === 0 ? (
+                            <div className="dashboard-empty-note">Nincs találat a megadott szűrőkkel.</div>
+                        ) : chargeRows.map((charge) => {
+                            const property = firstProperty(charge.properties);
+                            const documentUrl = (documentsByCharge.get(charge.id) ?? []).find((doc) => doc.signed_url)?.signed_url ?? "";
+                            const status = statusLabel(charge.status, charge.due_date);
+                            const dueState = getDueState(charge.due_date, charge.status);
                             return (
-                                <article
-                                    key={charge.id}
-                                    className={`charge-card${dueState.cardClass}${charge.status === "ARCHIVED" ? " charge-archived" : ""}`}
-                                >
-                                    <div className="section-header">
-                                        <div>
-                                            <div className="card-title">{charge.title}</div>
-                                            <div className="charge-meta">
-                                                {property?.name ? <span>{property.name}</span> : null}
-                                                {property?.address ? <span>{property.address}</span> : null}
-                                                <span>{typeLabel(charge.type)}</span>
-                                                <span>{formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))}</span>
-                                                <span>Esedékes: {charge.due_date}</span>
-                                                {charge.status === "PAID" && charge.paid_at ? (
-                                                    <span>Fizetve: {new Date(charge.paid_at).toLocaleDateString("hu-HU")}</span>
-                                                ) : null}
-                                                {recurringLabel ? <span>{recurringLabel}</span> : null}
-                                            </div>
+                                <article key={`${charge.id}-mobile`} className={`finance-mobile-card${charge.status === "ARCHIVED" ? " finance-row-muted" : ""}`}>
+                                    <div className="finance-mobile-head">
+                                        <div className="dashboard-table-main">
+                                            <strong>{charge.title}</strong>
+                                            <span className="dashboard-table-subtitle">{property?.name ?? "Ismeretlen ingatlan"}</span>
                                         </div>
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <div className={`due-pill ${dueState.pillClass}`}>
-                                                {dueState.label}
-                                            </div>
-                                            <div className={`status-badge status-${String(charge.status).toLowerCase()}`}>
-                                                {statusLabel(charge.status)}
-                                            </div>
+                                        <span className={`dashboard-inline-badge ${statusTone(status)}`}>{status}</span>
+                                    </div>
+                                    <div className="finance-mobile-grid">
+                                        <div className="finance-mobile-item">
+                                            <span>Dátum</span>
+                                            <strong>{formatDisplayDate(charge.due_date)}</strong>
+                                        </div>
+                                        <div className="finance-mobile-item">
+                                            <span>Típus</span>
+                                            <strong>{getChargeTypeLabel(charge.type, user.id)}</strong>
+                                        </div>
+                                        <div className="finance-mobile-item">
+                                            <span>Határidő</span>
+                                            <strong>{dueState.label}</strong>
+                                        </div>
+                                        <div className="finance-mobile-item">
+                                            <span>Összeg</span>
+                                            <strong>{formatCurrency(Number(charge.amount), charge.currency || "HUF")}</strong>
                                         </div>
                                     </div>
-
-                                    {docList.length > 0 ? (
-                                        <div className="charge-docs">
-                                            {docList.map((doc) => {
-                                                const pathParts = doc.bucket_path.split("/");
-                                                const fileName = pathParts[pathParts.length - 1];
-
-                                                return (
-                                                    <div key={doc.id}>
-                                                        <a className="link" href={doc.signed_url} target="_blank" rel="noreferrer">
-                                                            Dokumentum: {fileName}
-                                                        </a>{" "}
-                                                        · {new Date(doc.created_at).toLocaleString("hu-HU")}
-                                                    </div>
-                                                );
-                                            })}
+                                    <div className="finance-mobile-actions">
+                                        <div className="finance-mobile-document">
+                                            <span>Dokumentum</span>
+                                            {documentUrl ? (
+                                                <a className="dashboard-icon-button dashboard-icon-button-danger" href={documentUrl} target="_blank" rel="noreferrer" aria-label="PDF megnyitása" title="PDF megnyitása" data-tooltip="PDF megnyitása">
+                                                    <PdfIcon />
+                                                </a>
+                                            ) : (
+                                                <button type="button" className="dashboard-icon-button" aria-label="Nincs dokumentum" title="Nincs dokumentum" data-tooltip="Nincs dokumentum" disabled>
+                                                    <PdfIcon />
+                                                </button>
+                                            )}
                                         </div>
-                                    ) : (
-                                        <div className="charge-docs">
-                                            <span>Nincs feltöltött dokumentum.</span>
-                                        </div>
-                                    )}
-
-                                    <div className="charge-actions action-box">
-                                        <div className="charge-actions-primary">
-                                            <Link className="btn btn-primary btn-sm" href={`/tenant/charges/${charge.id}`}>
-                                                Részletek
+                                        <div className="finance-mobile-action-row">
+                                            <Link className="dashboard-icon-button" href={`/tenant/charges/${charge.id}`} aria-label="Részletek" title="Részletek" data-tooltip="Részletek">
+                                                <DetailIcon />
                                             </Link>
                                         </div>
-
-                                        {charge.status === "PAID" ? (
-                                            <>
-                                                <div className="action-divider" />
-                                                <div className="charge-actions-secondary">
-                                                    <form
-                                                        action={async () => {
-                                                            "use server";
-                                                            await archiveTenantCharge(charge.id);
-                                                        }}
-                                                    >
-                                                        <PendingSubmitButton
-                                                            className="btn btn-secondary btn-sm"
-                                                            label="Archiválás"
-                                                            pendingLabel="Archiválás..."
-                                                        />
-                                                    </form>
-                                                </div>
-                                            </>
-                                        ) : null}
                                     </div>
                                 </article>
                             );
                         })}
                     </div>
-                </section>
-            )}
 
-            {count && count > pageSize ? (
-                <div className="card section-header">
-                    <div className="muted-note">
-                        Oldal {page} / {totalPages}
-                    </div>
-                    <div className="flex gap-2">
-                        {page > 1 ? (
-                            <Link
-                                className="btn btn-secondary btn-sm"
-                                href={`/tenant/charges?${buildQueryString({ ...activeQuery, page: String(page - 1) })}`}
-                            >
-                                Előző
-                            </Link>
-                        ) : (
-                            <span className="btn btn-secondary btn-sm" aria-disabled="true">Előző</span>
-                        )}
-                        {page < totalPages ? (
-                            <Link
-                                className="btn btn-secondary btn-sm"
-                                href={`/tenant/charges?${buildQueryString({ ...activeQuery, page: String(page + 1) })}`}
-                            >
-                                Következő
-                            </Link>
-                        ) : (
-                            <span className="btn btn-secondary btn-sm" aria-disabled="true">Következő</span>
-                        )}
-                    </div>
-                </div>
-            ) : null}
+                    {totalPages > 1 ? (
+                        <div className="charge-actions">
+                            {page > 1 ? (
+                                <Link className="btn btn-secondary btn-sm" href={`/tenant/charges${buildQuery({
+                                    property: selectedPropertyId || undefined,
+                                    preset,
+                                    from,
+                                    to,
+                                    status: statusFilter || undefined,
+                                    type: typeFilter || undefined,
+                                    page: String(page - 1),
+                                })}`}>
+                                    Előző
+                                </Link>
+                            ) : <span />}
+                            <span className="muted-note">Oldal {page} / {totalPages}</span>
+                            {page < totalPages ? (
+                                <Link className="btn btn-secondary btn-sm" href={`/tenant/charges${buildQuery({
+                                    property: selectedPropertyId || undefined,
+                                    preset,
+                                    from,
+                                    to,
+                                    status: statusFilter || undefined,
+                                    type: typeFilter || undefined,
+                                    page: String(page + 1),
+                                })}`}>
+                                    Következő
+                                </Link>
+                            ) : <span />}
+                        </div>
+                    ) : null}
+                </section>
+            </div>
         </main>
     );
 }

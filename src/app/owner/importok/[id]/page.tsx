@@ -7,6 +7,8 @@ import { createDocumentSignedUrl } from "@/lib/documentStorage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import PendingSubmitButton from "@/components/PendingSubmitButton";
 import PdfPreview from "@/components/PdfPreview";
+import { ALL_CHARGE_TYPE_OPTIONS, getChargeTypeLabel } from "@/lib/chargeTypes";
+import { getImportModeLabel, IMPORT_MODE_OPTIONS } from "@/lib/importModes";
 
 type Props = {
     params: Promise<{ id: string }>;
@@ -107,7 +109,7 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
     const normalized = (ingestionRow.normalized_data ?? {}) as Record<string, unknown>;
     const selectedPropertyId = asString(normalized.property_id);
     const chargeLink = ingestionRow.created_charge_id && selectedPropertyId
-        ? `/owner/properties/${selectedPropertyId}/charges?status=IMPORT_DRAFT#charge-${ingestionRow.created_charge_id}`
+        ? `/owner/charges?property=${selectedPropertyId}&status=IMPORT_DRAFT#charge-${ingestionRow.created_charge_id}`
         : "/owner/importok";
     let previewUrl = "";
     try {
@@ -151,7 +153,8 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
                         <div className="feature-item">Összeg: {asNumberString(normalized.gross_amount) || "-"}</div>
                         <div className="feature-item">Valuta: {asString(normalized.currency) || "HUF"}</div>
                         <div className="feature-item">Esedékesség: {asString(normalized.due_date) || "-"}</div>
-                        <div className="feature-item">Típus: {asString(normalized.charge_type) || "OTHER"}</div>
+                        <div className="feature-item">Típus: {getChargeTypeLabel(asString(normalized.charge_type, "OTHER"))}</div>
+                        <div className="feature-item">Import mód: {getImportModeLabel(asString(normalized.import_mode, "FORWARDED"))}</div>
                         <div className="feature-item">
                             Ajánlott ingatlan: {selectedPropertyId ? propertyLabel(propertyRows, selectedPropertyId) : "-"}
                         </div>
@@ -200,7 +203,7 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
                         const msg = res.error ?? "Ismeretlen hiba.";
                         redirect(`/owner/importok/${ingestionRow.id}?status=error&message=${encodeURIComponent(msg)}`);
                     }
-                    redirect(`/owner/properties/${res.propertyId}/charges?status=IMPORT_DRAFT#charge-${res.chargeId}`);
+                    redirect(`/owner/charges?property=${res.propertyId}&status=IMPORT_DRAFT#charge-${res.chargeId}`);
                 }}
                 className="card form-shell"
             >
@@ -242,12 +245,19 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
                             <input name="due_date" className="input" type="date" defaultValue={asString(normalized.due_date)} required />
                         </label>
                         <label className="field-stack">
+                            <span className="field-label">Import mód</span>
+                            <select name="import_mode" className="select" defaultValue={asString(normalized.import_mode, "FORWARDED")}>
+                                {IMPORT_MODE_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="field-stack">
                             <span className="field-label">Típus</span>
                             <select name="charge_type" className="select" defaultValue={asString(normalized.charge_type, "OTHER")}>
-                                <option value="RENT">Bérleti díj</option>
-                                <option value="UTILITY">Rezsi</option>
-                                <option value="COMMON_COST">Közös költség</option>
-                                <option value="OTHER">Egyéb</option>
+                                {ALL_CHARGE_TYPE_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
                             </select>
                         </label>
                     </div>

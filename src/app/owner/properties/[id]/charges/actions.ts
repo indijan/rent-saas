@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/requireRole";
 import { sendEmail } from "@/lib/email/resend";
-import { renderFriendlyArrearsReminderEmail, renderNewChargeEmail } from "@/lib/email/templates";
+import { renderChargeUpdatedEmail, renderFriendlyArrearsReminderEmail, renderNewChargeEmail } from "@/lib/email/templates";
 import { removeDocumentObjects, uploadDocumentObject } from "@/lib/documentStorage";
 import pdfParse from "pdf-parse";
 import { execFile } from "child_process";
@@ -14,6 +14,7 @@ import path from "path";
 import { writeFile, readFile, rm } from "fs/promises";
 import { extractInvoiceFields } from "@/lib/ai/invoiceExtractor";
 import { listPropertyTenants } from "@/lib/propertyTenants";
+import { isOwnExpenseRestrictedChargeType, isOwnOnlyChargeType } from "@/lib/chargeTypes";
 
 type ChargeIdRow = {
     id: string | null;
@@ -274,6 +275,7 @@ export async function createCharge(propertyId: string, formData: FormData) {
     const amount = parseAmount(amountRaw);
     const due_date = String(formData.get("due_date") || "").trim();
     const type = String(formData.get("type") || "RENT");
+    const billingMode = String(formData.get("billing_mode") || "FORWARDED").trim().toUpperCase();
     const currency = String(formData.get("currency") || "HUF").trim().toUpperCase() || "HUF";
     const isRecurring = String(formData.get("recurring") || "") === "on";
     const document = formData.get("document");
@@ -283,7 +285,13 @@ export async function createCharge(propertyId: string, formData: FormData) {
     if (!title || !due_date || amount === null) {
         return { ok: false, error: "A megnevezés, az összeg és az esedékesség kötelező." };
     }
-    if (documentFile && documentFile.type !== "application/pdf") {
+    if (billingMode === "OWN_EXPENSE" && isOwnExpenseRestrictedChargeType(type)) {
+        return { ok: false, error: "Saját költségnél a típus nem lehet bérleti díj." };
+    }
+    if (billingMode === "FORWARDED" && isOwnOnlyChargeType(type)) {
+        return { ok: false, error: "Az Adó típus csak saját költségként rögzíthető." };
+    }
+    if (documentFile && documentFile.type !== "application/pdf" && !documentFile.name.toLowerCase().endsWith(".pdf")) {
         return { ok: false, error: "Csak olvasható PDF tölthető fel." };
     }
 
@@ -296,12 +304,14 @@ export async function createCharge(propertyId: string, formData: FormData) {
 
     if (propErr || !property) return { ok: false, error: "Az ingatlan nem található." };
 
+    const tenantId = billingMode === "OWN_EXPENSE" ? null : (property.tenant_id as string | null);
+
     const recurringCount = isRecurring ? 12 : 1;
     const recurringGroup = isRecurring ? randomUUID() : null;
     const rows = Array.from({ length: recurringCount }, (_, i) => ({
         property_id: propertyId,
         owner_id: user.id,
-        tenant_id: property.tenant_id, // ha van tenant, automatikusan kapja
+        tenant_id: tenantId,
         type,
         title,
         amount,
@@ -336,7 +346,7 @@ export async function createCharge(propertyId: string, formData: FormData) {
 
         const { error: docErr } = await supabase.from("documents").insert({
             owner_id: user.id,
-            tenant_id: property.tenant_id,
+            tenant_id: tenantId,
             property_id: propertyId,
             charge_id: createdIds[0],
             bucket_path: path,
@@ -350,21 +360,26 @@ export async function createCharge(propertyId: string, formData: FormData) {
         }
     }
 
-    const propertyTenants = await listPropertyTenants(propertyId);
-    for (const tenantProfile of propertyTenants) {
-        if (!tenantProfile.email) continue;
-        const emailPayload = renderNewChargeEmail({
-            tenantEmail: tenantProfile.email,
-            title,
-            amount,
-            currency,
-            dueDate: due_date,
-            propertyName: property.name,
-            count: recurringCount,
-        });
-        await sendEmail(emailPayload);
+    if (tenantId) {
+        const propertyTenants = await listPropertyTenants(propertyId);
+        for (const tenantProfile of propertyTenants) {
+            if (!tenantProfile.email) continue;
+            const emailPayload = renderNewChargeEmail({
+                tenantEmail: tenantProfile.email,
+                title,
+                amount,
+                currency,
+                dueDate: due_date,
+                propertyName: property.name,
+                count: recurringCount,
+            });
+            await sendEmail(emailPayload);
+        }
     }
     revalidatePath(`/owner/properties/${propertyId}/charges`);
+    revalidatePath("/owner/charges");
+    revalidatePath("/owner/osszefoglalo");
+    revalidatePath("/owner/todo");
     return { ok: true };
 }
 
@@ -492,6 +507,39 @@ export async function markChargePaid(chargeId: string) {
 
     if (error) return { ok: false, error: error.message };
     revalidatePath(`/owner/properties/${charge.property_id}/charges`);
+    revalidatePath("/owner/charges");
+    revalidatePath("/owner/osszefoglalo");
+    revalidatePath("/owner/todo");
+    return { ok: true };
+}
+
+export async function undoChargePaid(chargeId: string) {
+    const { supabase, user } = await requireRole("OWNER");
+
+    const { data: charge, error: chargeErr } = await supabase
+        .from("charges")
+        .select("property_id,status")
+        .eq("id", chargeId)
+        .eq("owner_id", user.id)
+        .single();
+
+    if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
+    if (charge.status !== "PAID") return { ok: false, error: "Csak fizetett díj visszavonása lehetséges." };
+
+    const { error } = await supabase
+        .from("charges")
+        .update({
+            status: "UNPAID",
+            paid_at: null,
+        })
+        .eq("id", chargeId)
+        .eq("owner_id", user.id);
+
+    if (error) return { ok: false, error: error.message };
+    revalidatePath(`/owner/properties/${charge.property_id}/charges`);
+    revalidatePath("/owner/charges");
+    revalidatePath("/owner/osszefoglalo");
+    revalidatePath("/owner/todo");
     return { ok: true };
 }
 
@@ -589,6 +637,8 @@ export async function publishCharge(chargeId: string) {
     }
 
     revalidatePath(`/owner/properties/${charge.property_id}/charges`);
+    revalidatePath("/owner/charges");
+    revalidatePath("/owner/osszefoglalo");
     return { ok: true };
 }
 
@@ -600,15 +650,23 @@ export async function updateCharge(chargeId: string, formData: FormData) {
     const amount = parseAmount(amountRaw);
     const due_date = String(formData.get("due_date") || "").trim();
     const type = String(formData.get("type") || "RENT").trim();
+    const billingMode = String(formData.get("billing_mode") || "FORWARDED").trim().toUpperCase();
     const currency = String(formData.get("currency") || "HUF").trim().toUpperCase() || "HUF";
+    const applyToFuture = String(formData.get("apply_to_future") || "") === "on";
 
     if (!title || !due_date || amount === null) {
         return { ok: false, error: "A megnevezés, az összeg és az esedékesség kötelező." };
     }
+    if (billingMode === "OWN_EXPENSE" && isOwnExpenseRestrictedChargeType(type)) {
+        return { ok: false, error: "Saját költségnél a típus nem lehet bérleti díj." };
+    }
+    if (billingMode === "FORWARDED" && isOwnOnlyChargeType(type)) {
+        return { ok: false, error: "Az Adó típus csak saját költségként rögzíthető." };
+    }
 
     const { data: charge, error: chargeErr } = await supabase
         .from("charges")
-        .select("property_id,status,paid_at")
+        .select("property_id,status,paid_at,recurring_group,recurring_index,due_date,title,type,amount,currency,tenant_id")
         .eq("id", chargeId)
         .eq("owner_id", user.id)
         .single();
@@ -618,22 +676,121 @@ export async function updateCharge(chargeId: string, formData: FormData) {
         return { ok: false, error: "Csak aktív vagy piszkozat státuszú díj szerkeszthető." };
     }
 
-    const { error } = await supabase
-        .from("charges")
-        .update({
-            title,
-            type,
-            amount,
-            currency,
-            due_date,
-            status: charge.status,
-            paid_at: charge.paid_at,
-        })
-        .eq("id", chargeId)
-        .eq("owner_id", user.id);
+    const { data: property, error: propertyErr } = await supabase
+        .from("properties")
+        .select("tenant_id,name")
+        .eq("id", charge.property_id)
+        .eq("owner_id", user.id)
+        .single();
 
-    if (error) return { ok: false, error: error.message };
+    if (propertyErr || !property) {
+        return { ok: false, error: "Az ingatlan nem található." };
+    }
+
+    const tenantId = billingMode === "OWN_EXPENSE" ? null : (property.tenant_id as string | null);
+    let updatedCount = 1;
+
+    if (applyToFuture && charge.recurring_group) {
+        const { data: futureCharges, error: futureErr } = await supabase
+            .from("charges")
+            .select("id,recurring_index,due_date,status")
+            .eq("owner_id", user.id)
+            .eq("recurring_group", charge.recurring_group)
+            .gte("due_date", charge.due_date)
+            .in("status", ["UNPAID", "IMPORT_DRAFT"])
+            .order("due_date", { ascending: true });
+
+        if (futureErr) return { ok: false, error: futureErr.message };
+
+        const currentIndex = typeof charge.recurring_index === "number" ? charge.recurring_index : null;
+        const rows = (futureCharges ?? []) as Array<{ id: string; recurring_index: number | null; due_date: string; status: string }>;
+        updatedCount = rows.length || 1;
+
+        for (const row of rows) {
+            const monthOffset = currentIndex !== null && row.recurring_index !== null
+                ? row.recurring_index - currentIndex
+                : 0;
+
+            const { error: rowError } = await supabase
+                .from("charges")
+                .update({
+                    title,
+                    type,
+                    amount,
+                    currency,
+                    due_date: addMonths(due_date, monthOffset),
+                    tenant_id: tenantId,
+                })
+                .eq("id", row.id)
+                .eq("owner_id", user.id);
+
+            if (rowError) return { ok: false, error: rowError.message };
+        }
+    } else {
+        const { error } = await supabase
+            .from("charges")
+            .update({
+                title,
+                type,
+                amount,
+                currency,
+                due_date,
+                tenant_id: tenantId,
+                status: charge.status,
+                paid_at: charge.paid_at,
+            })
+            .eq("id", chargeId)
+            .eq("owner_id", user.id);
+
+        if (error) return { ok: false, error: error.message };
+    }
+
+    const previousTenantId = charge.tenant_id as string | null;
+    const hadTenantBefore = Boolean(previousTenantId);
+    const hasTenantNow = Boolean(tenantId);
+    const changedFields = [
+        charge.title !== title ? "megnevezés" : null,
+        charge.type !== type ? "kategória" : null,
+        Number(charge.amount) !== amount ? "összeg" : null,
+        String(charge.currency || "HUF").toUpperCase() !== currency ? "pénznem" : null,
+        charge.due_date !== due_date ? "esedékesség" : null,
+    ].filter((value): value is string => Boolean(value));
+
+    if (hasTenantNow && charge.status !== "IMPORT_DRAFT") {
+        const propertyTenants = await listPropertyTenants(charge.property_id);
+        for (const tenantProfile of propertyTenants) {
+            if (!tenantProfile.email) continue;
+            if (!hadTenantBefore) {
+                await sendEmail(renderNewChargeEmail({
+                    tenantEmail: tenantProfile.email,
+                    title,
+                    amount,
+                    currency,
+                    dueDate: due_date,
+                    propertyName: property.name,
+                    count: updatedCount,
+                }));
+                continue;
+            }
+
+            if (changedFields.length === 0) continue;
+            await sendEmail(renderChargeUpdatedEmail({
+                tenantEmail: tenantProfile.email,
+                title,
+                amount,
+                currency,
+                dueDate: due_date,
+                propertyName: property.name,
+                changedFields,
+                count: updatedCount,
+            }));
+        }
+    }
+
     revalidatePath(`/owner/properties/${charge.property_id}/charges`);
+    revalidatePath("/owner/charges");
+    revalidatePath("/owner/osszefoglalo");
+    revalidatePath("/owner/todo");
     return { ok: true };
 }
 
@@ -662,6 +819,8 @@ export async function cancelCharge(chargeId: string) {
 
     if (error) return { ok: false, error: error.message };
     revalidatePath(`/owner/properties/${charge.property_id}/charges`);
+    revalidatePath("/owner/charges");
+    revalidatePath("/owner/osszefoglalo");
     return { ok: true };
 }
 
@@ -670,22 +829,31 @@ export async function restoreCharge(chargeId: string) {
 
     const { data: charge, error: chargeErr } = await supabase
         .from("charges")
-        .select("property_id,status")
+        .select("property_id,status,tenant_id,type")
         .eq("id", chargeId)
         .eq("owner_id", user.id)
         .single();
 
     if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
-    if (charge.status !== "CANCELLED") return { ok: false, error: "Csak törölt díj állítható vissza." };
+    if (charge.status !== "CANCELLED" && charge.status !== "ARCHIVED") {
+        return { ok: false, error: "Csak törölt vagy archivált díj állítható vissza." };
+    }
+
+    const nextStatus = charge.status === "CANCELLED"
+        ? "UNPAID"
+        : (!charge.tenant_id && charge.type !== "RENT" ? "UNPAID" : "PAID");
 
     const { error } = await supabase
         .from("charges")
-        .update({ status: "UNPAID" })
+        .update({ status: nextStatus })
         .eq("id", chargeId)
         .eq("owner_id", user.id);
 
     if (error) return { ok: false, error: error.message };
     revalidatePath(`/owner/properties/${charge.property_id}/charges`);
+    revalidatePath("/owner/charges");
+    revalidatePath("/owner/osszefoglalo");
+    revalidatePath("/owner/todo");
     return { ok: true };
 }
 
@@ -694,13 +862,18 @@ export async function archiveCharge(chargeId: string) {
 
     const { data: charge, error: chargeErr } = await supabase
         .from("charges")
-        .select("property_id,status")
+        .select("property_id,status,tenant_id,type")
         .eq("id", chargeId)
         .eq("owner_id", user.id)
         .single();
 
     if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
-    if (charge.status !== "PAID") return { ok: false, error: "Csak fizetett díj archiválható." };
+    const isExpense = !charge.tenant_id && charge.type !== "RENT";
+    if (isExpense) {
+        if (charge.status !== "UNPAID") return { ok: false, error: "Csak rögzített saját költség archiválható." };
+    } else if (charge.status !== "PAID") {
+        return { ok: false, error: "Csak fizetett díj archiválható." };
+    }
 
     const { error } = await supabase
         .from("charges")
@@ -710,6 +883,8 @@ export async function archiveCharge(chargeId: string) {
 
     if (error) return { ok: false, error: error.message };
     revalidatePath(`/owner/properties/${charge.property_id}/charges`);
+    revalidatePath("/owner/charges");
+    revalidatePath("/owner/osszefoglalo");
     return { ok: true };
 }
 
@@ -762,5 +937,8 @@ export async function deleteCharge(chargeId: string) {
 
     if (error) return { ok: false, error: error.message };
     revalidatePath(`/owner/properties/${charge.property_id}/charges`);
+    revalidatePath("/owner/charges");
+    revalidatePath("/owner/osszefoglalo");
+    revalidatePath("/owner/todo");
     return { ok: true };
 }

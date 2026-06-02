@@ -2,192 +2,558 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth/requireRole";
 import { formatCurrency } from "@/lib/formatters";
 import AppHeader from "@/components/AppHeader";
-import FilterDateInput from "@/components/FilterDateInput";
+import DesignIcon from "@/components/dashboard/DesignIcon";
+import InteractiveTrendChart from "@/components/dashboard/InteractiveTrendChart";
+import type { ChargeType } from "@/lib/chargeTypes";
+import FinanceChargeComposer from "@/app/owner/charges/FinanceChargeComposer";
 
 type SearchParams = {
     from?: string;
     to?: string;
+    property?: string;
 };
 
-type ChargeSummaryRow = {
+type ChargeStatus = "UNPAID" | "PAID" | "ARCHIVED" | "CANCELLED" | "IMPORT_DRAFT";
+
+type ChargeRow = {
+    id: string;
     amount: number | string;
-    status: "UNPAID" | "PAID" | "ARCHIVED" | "CANCELLED" | "IMPORT_DRAFT";
+    status: ChargeStatus;
     due_date: string;
     property_id: string;
+    tenant_id: string | null;
+    type: ChargeType;
+    title: string;
     properties?: { name: string | null } | { name: string | null }[] | null;
 };
 
 type PropertyRow = {
     id: string;
     name: string;
+    address: string | null;
     status: string;
+    tenant_id: string | null;
 };
 
-function firstProperty(value: ChargeSummaryRow["properties"]) {
-    return Array.isArray(value) ? value[0] : value;
+type PropertyTenantRow = {
+    property_id: string | null;
+    tenant_id: string | null;
+};
+
+type IngestionRow = {
+    id: string;
+    status: "RECEIVED" | "EXTRACTED" | "NEEDS_REVIEW" | "DRAFTED" | "FAILED" | "PUBLISHED";
+    source_attachment_name: string | null;
+    normalized_data: { property_id?: string | null } | null;
+};
+
+type ExitRequestRow = {
+    id: string;
+    property_id: string | null;
+    properties?: { name: string | null } | { name: string | null }[] | null;
+};
+
+type Props = {
+    searchParams?: Promise<SearchParams> | SearchParams;
+};
+
+function firstRelation<T>(value: T | T[] | null | undefined): T | null {
+    return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
 }
 
-function getDayDiff(dateValue: string) {
+function toDateInputValue(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function startOfCurrentYear() {
+    const now = new Date();
+    return `${now.getFullYear()}-01-01`;
+}
+
+function endOfCurrentMonth() {
+    const now = new Date();
+    return toDateInputValue(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+}
+
+function daysUntil(dateValue: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const target = new Date(`${dateValue}T00:00:00`);
     return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-type Props = {
-    searchParams?: Promise<SearchParams> | SearchParams;
-};
+function isExpenseCharge(charge: Pick<ChargeRow, "tenant_id" | "type">) {
+    return !charge.tenant_id && charge.type !== "RENT";
+}
+
+function isRecognizedRevenueCharge(charge: Pick<ChargeRow, "tenant_id" | "type" | "status">) {
+    return !isExpenseCharge(charge) && (charge.status === "PAID" || charge.status === "ARCHIVED");
+}
+
+function formatMonthLabel(dateValue: string) {
+    return new Intl.DateTimeFormat("hu-HU", { year: "numeric", month: "long" }).format(new Date(`${dateValue}T00:00:00`));
+}
+
+function buildTrendScale(values: number[]) {
+    const max = Math.max(...values, 0);
+    const min = Math.min(...values, 0);
+    const top = max === min ? max + 1 : max;
+    return [top, top - ((top - min) / 3), top - ((top - min) * 2 / 3), min];
+}
 
 export default async function OwnerSummaryPage({ searchParams }: Props) {
     const { supabase, user, profile } = await requireRole("OWNER");
     const sp = (searchParams instanceof Promise) ? await searchParams : (searchParams ?? {});
 
-    const currentYear = new Date().getFullYear();
-    const from = sp.from ? String(sp.from) : `${currentYear}-01-01`;
-    const to = sp.to ? String(sp.to) : `${currentYear}-12-31`;
+    const from = sp.from ? String(sp.from) : startOfCurrentYear();
+    const to = sp.to ? String(sp.to) : endOfCurrentMonth();
+    const selectedPropertyId = sp.property ? String(sp.property) : null;
+    const currentMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
 
-    const [{ data: charges, error: chargeError }, { data: properties, error: propertyError }] = await Promise.all([
+    const [
+        { data: charges, error: chargeError },
+        { data: properties, error: propertyError },
+        { data: propertyTenants, error: propertyTenantError },
+        { data: ingestions, error: ingestionError },
+        { data: exitRequests, error: exitRequestError },
+    ] = await Promise.all([
         supabase
             .from("charges")
-            .select("amount,status,due_date,property_id,properties(name)")
+            .select("id,amount,status,due_date,property_id,tenant_id,type,title,properties(name)")
             .eq("owner_id", user.id)
             .gte("due_date", from)
             .lte("due_date", to),
         supabase
             .from("properties")
-            .select("id,name,status")
+            .select("id,name,address,status,tenant_id")
             .eq("owner_id", user.id)
+            .neq("status", "ARCHIVED")
             .order("name"),
+        supabase
+            .from("property_tenants")
+            .select("property_id,tenant_id")
+            .eq("owner_id", user.id),
+        supabase
+            .from("document_ingestions")
+            .select("id,status,source_attachment_name,normalized_data")
+            .eq("owner_id", user.id)
+            .in("status", ["NEEDS_REVIEW", "RECEIVED", "EXTRACTED"])
+            .order("created_at", { ascending: false })
+            .limit(50),
+        supabase
+            .from("tenant_exit_requests")
+            .select("id,property_id,properties(name)")
+            .eq("owner_id", user.id)
+            .eq("status", "PENDING")
+            .order("created_at", { ascending: false })
+            .limit(20),
     ]);
 
-    if (chargeError || propertyError) {
+    if (chargeError || propertyError || propertyTenantError || ingestionError || exitRequestError) {
         return (
             <main className="app-shell page-enter">
                 <AppHeader profile={profile} />
-                <div className="card">
-                    <h1>Összesítő</h1>
-                    <p className="text-red-600">Hiba: {chargeError?.message || propertyError?.message}</p>
-                </div>
+                <section className="card">
+                    <h1>Áttekintés</h1>
+                    <p className="text-red-600">
+                        Hiba: {chargeError?.message || propertyError?.message || propertyTenantError?.message || ingestionError?.message || exitRequestError?.message}
+                    </p>
+                </section>
             </main>
         );
     }
 
-    const chargeRows = (charges ?? []) as ChargeSummaryRow[];
+    const chargeRows = (charges ?? []) as ChargeRow[];
     const propertyRows = (properties ?? []) as PropertyRow[];
+    const propertyTenantRows = (propertyTenants ?? []) as PropertyTenantRow[];
+    const ingestionRows = (ingestions ?? []) as IngestionRow[];
+    const pendingExitRequests = (exitRequests ?? []) as ExitRequestRow[];
 
-    const summary = chargeRows.reduce(
-        (acc, row) => {
-            const amount = Number(row.amount) || 0;
-            if (row.status !== "CANCELLED") acc.total += amount;
-            if (row.status === "UNPAID") acc.unpaid += amount;
-            if (row.status === "PAID" || row.status === "ARCHIVED") acc.paid += amount;
-            if (row.status === "IMPORT_DRAFT") acc.drafts += 1;
-            if (row.status === "UNPAID" && getDayDiff(row.due_date) < 0) acc.overdue += amount;
-            return acc;
-        },
-        { total: 0, unpaid: 0, paid: 0, overdue: 0, drafts: 0 }
-    );
+    const selectedProperty = selectedPropertyId
+        ? propertyRows.find((property) => property.id === selectedPropertyId) ?? null
+        : null;
 
-    const byProperty = propertyRows.map((property) => {
-        const rows = chargeRows.filter((charge) => charge.property_id === property.id);
-        const total = rows.reduce((sum, row) => sum + (row.status !== "CANCELLED" ? Number(row.amount) || 0 : 0), 0);
-        const unpaid = rows.reduce((sum, row) => sum + (row.status === "UNPAID" ? Number(row.amount) || 0 : 0), 0);
-        const paid = rows.reduce((sum, row) => sum + (row.status === "PAID" || row.status === "ARCHIVED" ? Number(row.amount) || 0 : 0), 0);
-        const drafts = rows.filter((row) => row.status === "IMPORT_DRAFT").length;
-        return { property, total, unpaid, paid, drafts };
+    const filteredProperties = selectedPropertyId
+        ? propertyRows.filter((property) => property.id === selectedPropertyId)
+        : propertyRows;
+    const filteredPropertyTenants = selectedPropertyId
+        ? propertyTenantRows.filter((row) => row.property_id === selectedPropertyId)
+        : propertyTenantRows;
+    const filteredCharges = selectedPropertyId
+        ? chargeRows.filter((charge) => charge.property_id === selectedPropertyId)
+        : chargeRows;
+
+    const reviewRows = ingestionRows.filter((row) => {
+        if (row.status !== "NEEDS_REVIEW") return false;
+        if (!selectedPropertyId) return true;
+        return row.normalized_data?.property_id === selectedPropertyId;
     });
 
-    const recentAttention = chargeRows
-        .filter((row) => row.status === "UNPAID" && getDayDiff(row.due_date) < 0)
-        .slice(0, 6);
+    const overdueCharges = filteredCharges.filter((charge) => !isExpenseCharge(charge) && charge.status === "UNPAID" && daysUntil(charge.due_date) < 0);
+    const upcomingCharges = filteredCharges
+        .filter((charge) => charge.status === "UNPAID" && daysUntil(charge.due_date) >= 0 && daysUntil(charge.due_date) <= 10)
+        .sort((a, b) => a.due_date.localeCompare(b.due_date))
+        .slice(0, 4);
+
+    const assignedPropertyIds = new Set(
+        filteredPropertyTenants.map((row) => row.property_id).filter((value): value is string => Boolean(value))
+    );
+
+    const unassignedActiveProperties = filteredProperties.filter((property) => property.status === "ACTIVE" && !property.tenant_id && !assignedPropertyIds.has(property.id));
+
+    const uniqueTenantCount = new Set(
+        [
+            ...filteredProperties.map((property) => property.tenant_id),
+            ...filteredPropertyTenants.map((row) => row.tenant_id),
+        ].filter((value): value is string => Boolean(value))
+    ).size;
+
+    const monthlyRevenue = filteredCharges.reduce((sum, charge) => {
+        if (charge.status === "CANCELLED" || !isRecognizedRevenueCharge(charge) || !charge.due_date.startsWith(currentMonthKey)) return sum;
+        return sum + (Number(charge.amount) || 0);
+    }, 0);
+
+    const overdueReceivables = overdueCharges.reduce((sum, charge) => sum + (Number(charge.amount) || 0), 0);
+
+    const monthlySeries = Array.from({ length: 6 }, (_, index) => {
+        const date = new Date();
+        date.setMonth(date.getMonth() - (5 - index), 1);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        const net = filteredCharges.reduce((sum, charge) => {
+            if (charge.status === "CANCELLED" || !charge.due_date.startsWith(key)) return sum;
+            const amount = Number(charge.amount) || 0;
+            if (isExpenseCharge(charge)) return sum - amount;
+            return isRecognizedRevenueCharge(charge) ? sum + amount : sum;
+        }, 0);
+        return {
+            key,
+            label: new Intl.DateTimeFormat("hu-HU", { month: "short" }).format(date).replace(".", ""),
+            net,
+        };
+    });
+
+    const propertyBreakdown = filteredProperties.map((property) => {
+        const rows = filteredCharges.filter((charge) => charge.property_id === property.id);
+        const netResult = rows.reduce((sum, charge) => {
+            if (charge.status === "CANCELLED") return sum;
+            const amount = Number(charge.amount) || 0;
+            if (isExpenseCharge(charge)) return sum - amount;
+            return isRecognizedRevenueCharge(charge) ? sum + amount : sum;
+        }, 0);
+        const openReceivables = rows.reduce((sum, charge) => {
+            if (charge.status !== "UNPAID" || isExpenseCharge(charge)) return sum;
+            return sum + (Number(charge.amount) || 0);
+        }, 0);
+        const paidRevenue = rows.reduce((sum, charge) => {
+            if (!isRecognizedRevenueCharge(charge)) return sum;
+            return sum + (Number(charge.amount) || 0);
+        }, 0);
+        const ownExpenses = rows.reduce((sum, charge) => {
+            if (charge.status === "CANCELLED" || !isExpenseCharge(charge)) return sum;
+            return sum + (Number(charge.amount) || 0);
+        }, 0);
+        const drafts = rows.filter((charge) => charge.status === "IMPORT_DRAFT").length;
+        return { property, netResult, openReceivables, paidRevenue, ownExpenses, drafts };
+    }).sort((a, b) => b.netResult - a.netResult).slice(0, 4);
+
+    const trendScale = buildTrendScale(monthlySeries.map((item) => item.net));
+    const periodLabel = formatMonthLabel(to);
 
     return (
-        <main className="app-shell page-enter space-y-4">
-            <AppHeader profile={profile} />
+        <main className="app-shell page-enter">
+            <AppHeader
+                profile={profile}
+                dashboardContext={{
+                    label: "Ingatlan",
+                    items: propertyRows.map((property) => ({ id: property.id, label: property.name })),
+                    value: selectedPropertyId ?? "__all__",
+                    baseHref: "/owner/osszefoglalo",
+                    query: {
+                        from: sp.from ? String(sp.from) : undefined,
+                        to: sp.to ? String(sp.to) : undefined,
+                    },
+                }}
+            />
 
-            <section className="card section-stack">
-                <div className="section-header">
+            <div className="dashboard-overview-grid">
+                <section className="dashboard-page-header">
                     <div>
-                        <div className="eyebrow">Owner command center</div>
-                        <h1>Összes pénzügyi áttekintés, egy működő rendszerben.</h1>
-                        <p>Nem külön oldalakra bontott káosz, hanem egy tiszta operatív nézet arról, hol áll a portfóliód most.</p>
+                        <h1>Áttekintés</h1>
+                        <p>
+                            {selectedProperty ? `${selectedProperty.name} - pénzügyi és működési áttekintés` : "Összes ingatlan - összesített áttekintés"}
+                        </p>
                     </div>
-                    <div className="info-strip">
-                        <span>Időszak: {from} - {to}</span>
-                        <span>Ingatlanok száma: {propertyRows.length}</span>
+                    <div className="dashboard-period-chip">
+                        <strong>{periodLabel}</strong>
+                        <span>{selectedProperty ? `Szűrve: ${selectedProperty.name}` : "Aktuális állapot"}</span>
                     </div>
-                </div>
+                </section>
 
-                <form method="GET" className="section-stack">
-                    <div className="filter-grid">
-                        <label className="field-stack">
-                            <span className="field-label">Dátumtól</span>
-                            <FilterDateInput name="from" defaultValue={from} placeholder="ÉÉÉÉ-HH-NN" className="input input-date" />
-                        </label>
-                        <label className="field-stack">
-                            <span className="field-label">Dátumig</span>
-                            <FilterDateInput name="to" defaultValue={to} placeholder="ÉÉÉÉ-HH-NN" className="input input-date" />
-                        </label>
-                    </div>
-                    <div className="charge-actions">
-                        <button className="btn btn-primary" type="submit">Időszak frissítése</button>
-                        <Link className="btn btn-secondary" href="/owner/osszefoglalo">
-                            Szűrők törlése
-                        </Link>
-                    </div>
-                </form>
+                <section className="card dashboard-summary-strip">
+                    <article className="dashboard-summary-card">
+                        <DesignIcon name="lejart_dij" alt="Lejárt díj" tone="design-icon-badge-danger" />
+                        <div className="dashboard-summary-copy">
+                            <div className="dashboard-summary-value">{overdueCharges.length}</div>
+                            <div className="dashboard-summary-title">Lejárt díj</div>
+                        </div>
+                    </article>
+                    <article className="dashboard-summary-card">
+                        <DesignIcon name="Berlo_nelkuli_ingatlan" alt="Bérlő nélküli ingatlan" tone="design-icon-badge-amber" />
+                        <div className="dashboard-summary-copy">
+                            <div className="dashboard-summary-value">{unassignedActiveProperties.length}</div>
+                            <div className="dashboard-summary-title">Bérlő nélküli ingatlan</div>
+                        </div>
+                    </article>
+                    <article className="dashboard-summary-card">
+                        <DesignIcon name="import_review_var" alt="Import review vár" tone="design-icon-badge-purple" />
+                        <div className="dashboard-summary-copy">
+                            <div className="dashboard-summary-value">{reviewRows.length}</div>
+                            <div className="dashboard-summary-title">Import review vár</div>
+                        </div>
+                    </article>
+                    <article className="dashboard-summary-card">
+                        <DesignIcon name="kintlevoseg" alt="Kintlévőség" tone="design-icon-badge-danger" />
+                        <div className="dashboard-summary-copy">
+                            <div className="dashboard-summary-value">{formatCurrency(overdueReceivables, "HUF")}</div>
+                            <div className="dashboard-summary-title">Kintlévőség</div>
+                        </div>
+                    </article>
+                </section>
 
-                <div className="kpi-grid stagger">
-                    <div className="kpi-card kpi-card-glow">
-                        <div className="kpi-label">Összes terhelés</div>
-                        <div className="kpi-value">{formatCurrency(summary.total, "HUF")}</div>
-                    </div>
-                    <div className="kpi-card kpi-card-glow">
-                        <div className="kpi-label">Nyitott követelés</div>
-                        <div className="kpi-value">{formatCurrency(summary.unpaid, "HUF")}</div>
-                    </div>
-                    <div className="kpi-card kpi-card-glow">
-                        <div className="kpi-label">Beérkezett összeg</div>
-                        <div className="kpi-value">{formatCurrency(summary.paid, "HUF")}</div>
-                    </div>
-                    <div className="kpi-card kpi-card-glow">
-                        <div className="kpi-label">Lejárt nyitott összeg</div>
-                        <div className="kpi-value">{formatCurrency(summary.overdue, "HUF")}</div>
-                        <div className="muted-note">{summary.drafts} import piszkozat</div>
-                    </div>
-                </div>
-            </section>
+                <section className="dashboard-kpi-grid">
+                    <article className="card dashboard-kpi-card">
+                        <DesignIcon name="ingatlanok" alt="Ingatlanok" />
+                        <div className="dashboard-kpi-copy">
+                            <div className="dashboard-kpi-title">Ingatlanok</div>
+                            <div className="dashboard-kpi-value">{filteredProperties.length}</div>
+                            <div className="muted-note">{filteredProperties.filter((property) => property.status === "ACTIVE").length} aktív ingatlan</div>
+                        </div>
+                    </article>
+                    <article className="card dashboard-kpi-card">
+                        <DesignIcon name="Berlok" alt="Bérlők" tone="design-icon-badge-purple" />
+                        <div className="dashboard-kpi-copy">
+                            <div className="dashboard-kpi-title">Bérlők</div>
+                            <div className="dashboard-kpi-value">{uniqueTenantCount}</div>
+                            <div className="muted-note">{uniqueTenantCount} aktív bérlő</div>
+                        </div>
+                    </article>
+                    <article className="card dashboard-kpi-card">
+                        <DesignIcon name="havi_bevetel" alt="Havi bevétel" tone="design-icon-badge-green" />
+                        <div className="dashboard-kpi-copy">
+                            <div className="dashboard-kpi-title">Havi bevétel</div>
+                            <div className="dashboard-kpi-value dashboard-kpi-value-currency">{formatCurrency(monthlyRevenue, "HUF")}</div>
+                            <div className="dashboard-kpi-note">Aktuális havi snapshot</div>
+                        </div>
+                    </article>
+                    <article className="card dashboard-kpi-card">
+                        <DesignIcon name="kintlevoseg" alt="Kintlévőség" tone="design-icon-badge-danger" />
+                        <div className="dashboard-kpi-copy">
+                            <div className="dashboard-kpi-title">Kintlévőség</div>
+                            <div className="dashboard-kpi-value dashboard-kpi-value-currency">{formatCurrency(overdueReceivables, "HUF")}</div>
+                            <div className="muted-note">{overdueCharges.length} lejárt tétel</div>
+                        </div>
+                    </article>
+                </section>
 
-            <section className="grid">
-                <article className="card section-stack">
-                    <div className="card-title">Ingatlanonkénti bontás</div>
-                    <div className="feature-list">
-                        {byProperty.map(({ property, total, unpaid, paid, drafts }) => (
-                            <Link key={property.id} className="feature-item" href={`/owner/properties/${property.id}`}>
-                                {property.name} · összesen {formatCurrency(total, "HUF")} · nyitott {formatCurrency(unpaid, "HUF")} · fizetett {formatCurrency(paid, "HUF")} · piszkozat {drafts}
+                <section className="dashboard-main-grid">
+                    <article className="card chart-panel">
+                        <div className="chart-panel-header">
+                            <div>
+                                <div className="card-title">Nettó eredmény alakulása</div>
+                                <p className="muted-note">Az elmúlt hónapok bevétel-költség különbsége.</p>
+                            </div>
+                            <div className="chart-total">{formatCurrency(monthlySeries.reduce((sum, item) => sum + item.net, 0), "HUF")}</div>
+                        </div>
+                        <div className="trend-chart-shell">
+                            <div className="trend-chart-frame">
+                                <div className="trend-chart-y-axis">
+                                    {trendScale.map((value, index) => (
+                                        <span key={`${value}-${index}`}>{formatCurrency(value, "HUF")}</span>
+                                    ))}
+                                </div>
+                                <div className="trend-chart-canvas">
+                                    <InteractiveTrendChart
+                                        gradientId="overviewTrendGradient"
+                                        points={monthlySeries.map((item) => ({
+                                            key: item.key,
+                                            label: item.label,
+                                            value: item.net,
+                                        }))}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article className="card">
+                        <div className="card-title">Következő események</div>
+                        <div className="dashboard-event-list">
+                            {upcomingCharges.map((charge) => (
+                                <Link key={charge.id} className="dashboard-event-item" href={`/owner/charges?property=${encodeURIComponent(charge.property_id)}`}>
+                                    <div className="dashboard-event-main">
+                                        <DesignIcon name="kozelgo_feladatok" alt="Esedékes díj" />
+                                        <div className="dashboard-event-copy">
+                                            <strong>{firstRelation(charge.properties)?.name ?? charge.title}</strong>
+                                            <span>{charge.title} · {charge.due_date}</span>
+                                        </div>
+                                    </div>
+                                    <span className="metric-chip metric-chip-blue">{formatCurrency(Number(charge.amount), "HUF")}</span>
+                                </Link>
+                            ))}
+                            {reviewRows.slice(0, 2).map((row) => (
+                                <Link key={row.id} className="dashboard-event-item" href={`/owner/importok/${row.id}`}>
+                                    <div className="dashboard-event-main">
+                                        <DesignIcon name="import_review_var" alt="Import review" tone="design-icon-badge-purple" />
+                                        <div className="dashboard-event-copy">
+                                            <strong>Import review vár</strong>
+                                            <span>{row.source_attachment_name || "Név nélküli dokumentum"}</span>
+                                        </div>
+                                    </div>
+                                    <span className="metric-chip metric-chip-amber">Review</span>
+                                </Link>
+                            ))}
+                            {pendingExitRequests.slice(0, 2).map((request) => (
+                                <Link key={request.id} className="dashboard-event-item" href="/owner/tenants">
+                                    <div className="dashboard-event-main">
+                                        <DesignIcon name="kilepesi_kerelem_folyamatban" alt="Kilépési kérelem" tone="design-icon-badge-amber" />
+                                        <div className="dashboard-event-copy">
+                                            <strong>Kilépési kérelem</strong>
+                                            <span>{firstRelation(request.properties)?.name ?? "Bérleti egység"}</span>
+                                        </div>
+                                    </div>
+                                    <span className="metric-chip metric-chip-red">Folyamatban</span>
+                                </Link>
+                            ))}
+                            {upcomingCharges.length === 0 && reviewRows.length === 0 && pendingExitRequests.length === 0 ? (
+                                <p className="dashboard-empty-note">Most nincs olyan tétel, ami emberi döntést kérne.</p>
+                            ) : null}
+                        </div>
+                    </article>
+                </section>
+
+                <section className="dashboard-lower-grid">
+                    <article className="card">
+                        <div className="card-title">Azonnali figyelmet igényel</div>
+                        <div className="attention-list">
+                            <Link href="/owner/todo" className="attention-row">
+                                <div className="attention-main">
+                                    <DesignIcon name="lejart_dij" alt="Lejárt díjak" tone="design-icon-badge-danger" />
+                                    <div className="attention-copy">
+                                        <strong>Lejárt díjak</strong>
+                                        <span>Nyitott, fizetetlen és lejárt tételek</span>
+                                    </div>
+                                </div>
+                                <span className="metric-chip metric-chip-red">{overdueCharges.length} tétel</span>
+                            </Link>
+                            <Link href="/owner/importok" className="attention-row">
+                                <div className="attention-main">
+                                    <DesignIcon name="import_review_var" alt="Import review vár" tone="design-icon-badge-purple" />
+                                    <div className="attention-copy">
+                                        <strong>Import review vár</strong>
+                                        <span>Kézi ellenőrzést igénylő számlák</span>
+                                    </div>
+                                </div>
+                                <span className="metric-chip metric-chip-amber">{reviewRows.length} tétel</span>
+                            </Link>
+                            <Link href="/owner/todo" className="attention-row">
+                                <div className="attention-main">
+                                    <DesignIcon name="Berlo_nelkuli_ingatlan" alt="Bérlő nélküli ingatlan" tone="design-icon-badge-amber" />
+                                    <div className="attention-copy">
+                                        <strong>Bérlő nélküli ingatlan</strong>
+                                        <span>Aktív portfólió, hozzárendelés nélkül</span>
+                                    </div>
+                                </div>
+                                <span className="metric-chip metric-chip-amber">{unassignedActiveProperties.length} ingatlan</span>
+                            </Link>
+                            <Link href="/owner/tenants" className="attention-row">
+                                <div className="attention-main">
+                                    <DesignIcon name="kilepesi_kerelem_folyamatban" alt="Kilépési kérelem" tone="design-icon-badge-amber" />
+                                    <div className="attention-copy">
+                                        <strong>Kilépési kérelem vár jóváhagyásra</strong>
+                                        <span>Tenant oldali kezdeményezések</span>
+                                    </div>
+                                </div>
+                                <span className="metric-chip metric-chip-red">{pendingExitRequests.length} kérelem</span>
+                            </Link>
+                        </div>
+                    </article>
+
+                    <article className="card">
+                        <div className="card-title">Gyors műveletek</div>
+                        <div className="quick-action-grid quick-action-grid-quad">
+                            <Link href="/owner/properties" className="quick-action-card">
+                                <DesignIcon name="ingatlanok" alt="Új ingatlan" tone="design-icon-badge-blue" />
+                                <strong>Új ingatlan</strong>
+                            </Link>
+                            <Link href="/owner/tenants" className="quick-action-card">
+                                <DesignIcon name="Berlok" alt="Új bérlő" tone="design-icon-badge-purple" />
+                                <strong>Új bérlő</strong>
+                            </Link>
+                            <FinanceChargeComposer
+                                properties={propertyRows.map((property) => ({
+                                    id: property.id,
+                                    name: property.name,
+                                    address: property.address || "",
+                                }))}
+                                selectedPropertyId={selectedPropertyId ?? ""}
+                                triggerVariant="card"
+                                triggerLabel="Új díj rögzítése"
+                                defaultMode="manual"
+                            />
+                            <FinanceChargeComposer
+                                properties={propertyRows.map((property) => ({
+                                    id: property.id,
+                                    name: property.name,
+                                    address: property.address || "",
+                                }))}
+                                selectedPropertyId={selectedPropertyId ?? ""}
+                                triggerVariant="card"
+                                triggerLabel="Számla feltöltése"
+                                defaultMode="upload"
+                            />
+                        </div>
+                    </article>
+                </section>
+
+                <section className="card">
+                    <div className="card-title">Pénzügyi bontás ingatlanonként</div>
+                    <div className="ops-list">
+                        {propertyBreakdown.map(({ property, netResult, openReceivables, paidRevenue, ownExpenses, drafts }) => (
+                            <Link key={property.id} className="ops-list-item" href={`/owner/charges?property=${encodeURIComponent(property.id)}`}>
+                                <div className="ops-list-copy">
+                                    <strong>{property.name}</strong>
+                                    <span>{property.status === "ACTIVE" ? "Aktív ingatlan" : property.status}</span>
+                                </div>
+                                <div className="property-breakdown-grid">
+                                    <div className="property-breakdown-metric">
+                                        <span>Nettó eredmény</span>
+                                        <strong>{formatCurrency(netResult, "HUF")}</strong>
+                                    </div>
+                                    <div className="property-breakdown-metric property-breakdown-metric-blue">
+                                        <span>Nyitott bérlői díj</span>
+                                        <strong>{formatCurrency(openReceivables, "HUF")}</strong>
+                                    </div>
+                                    <div className="property-breakdown-metric property-breakdown-metric-green">
+                                        <span>Rögzített bevétel</span>
+                                        <strong>{formatCurrency(paidRevenue, "HUF")}</strong>
+                                    </div>
+                                    <div className="property-breakdown-metric property-breakdown-metric-red">
+                                        <span>Saját költség</span>
+                                        <strong>{formatCurrency(ownExpenses, "HUF")}</strong>
+                                    </div>
+                                    <div className="property-breakdown-metric property-breakdown-metric-amber">
+                                        <span>Piszkozat</span>
+                                        <strong>{drafts}</strong>
+                                    </div>
+                                </div>
                             </Link>
                         ))}
                     </div>
-                </article>
-
-                <article className="card section-stack">
-                    <div className="card-title">Azonnali figyelmet igényel</div>
-                    {recentAttention.length === 0 ? (
-                        <p className="muted-note">Nincs lejárt, nyitott tétel.</p>
-                    ) : (
-                        <div className="feature-list">
-                            {recentAttention.map((charge) => {
-                                const property = firstProperty(charge.properties);
-                                return (
-                                    <Link key={`${charge.property_id}-${charge.due_date}-${charge.amount}`} className="feature-item" href={`/owner/properties/${charge.property_id}/charges`}>
-                                        {property?.name ?? "Ingatlan"} · {charge.due_date} · {formatCurrency(Number(charge.amount), "HUF")}
-                                    </Link>
-                                );
-                            })}
-                        </div>
-                    )}
-                </article>
-            </section>
+                </section>
+            </div>
         </main>
     );
 }

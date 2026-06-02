@@ -7,11 +7,11 @@ type Props = {
 
 export default function PrivateLayout({ children }: Props) {
     return (
-        <>
+        <div className="private-skin">
             {children}
             <Suspense fallback={null}>
                 <RouteTransitionOverlay />
             </Suspense>
-        </>
+        </div>
     );
 }

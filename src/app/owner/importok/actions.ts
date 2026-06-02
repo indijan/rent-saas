@@ -11,6 +11,8 @@ import { rotateInboundMailbox } from "@/lib/inboundMailboxes";
 import { findOwnerSupplierProfile } from "@/lib/supplierProfiles";
 import { getConfiguredStorageBucketName, removeDocumentObjects, uploadDocumentObject } from "@/lib/documentStorage";
 import { createEmailActionToken } from "@/lib/emailActionTokens";
+import { isOwnExpenseRestrictedChargeType, isOwnOnlyChargeType } from "@/lib/chargeTypes";
+import type { ImportMode } from "@/lib/importModes";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu";
 
@@ -49,14 +51,15 @@ async function updateDraftFromNormalized(
     documentId: string | null,
     property: PropertyRow,
     ingestion: IngestionRow,
-    normalized: NormalizedDraftInput
+    normalized: NormalizedDraftInput,
+    tenantId: string | null
 ) {
     const { error: chargeError } = await admin
         .from("charges")
         .update({
             property_id: property.id,
             owner_id: ownerId,
-            tenant_id: property.tenant_id,
+            tenant_id: tenantId,
             type: normalized.charge_type,
             title: normalized.issuer_name || ingestion.source_attachment_name?.replace(/\.pdf$/i, "") || "Importált számla",
             amount: normalized.gross_amount,
@@ -72,13 +75,13 @@ async function updateDraftFromNormalized(
 
     if (documentId) {
         const { error: documentError } = await admin
-            .from("documents")
-            .update({
-                owner_id: ownerId,
-                tenant_id: property.tenant_id,
-                property_id: property.id,
-                charge_id: chargeId,
-                bucket_path: ingestion.storage_key,
+        .from("documents")
+        .update({
+            owner_id: ownerId,
+            tenant_id: tenantId,
+            property_id: property.id,
+            charge_id: chargeId,
+            bucket_path: ingestion.storage_key,
                 type: "INVOICE",
             })
             .eq("id", documentId)
@@ -97,14 +100,15 @@ async function createDraftFromNormalized(
     ownerId: string,
     property: PropertyRow,
     ingestion: IngestionRow,
-    normalized: NormalizedDraftInput
+    normalized: NormalizedDraftInput,
+    tenantId: string | null
 ) {
     const { data: createdCharge, error: chargeError } = await supabase
         .from("charges")
         .insert({
             property_id: property.id,
             owner_id: ownerId,
-            tenant_id: property.tenant_id,
+            tenant_id: tenantId,
             type: normalized.charge_type,
             title: normalized.issuer_name || ingestion.source_attachment_name?.replace(/\.pdf$/i, "") || "Importált számla",
             amount: normalized.gross_amount,
@@ -123,7 +127,7 @@ async function createDraftFromNormalized(
         .from("documents")
         .insert({
             owner_id: ownerId,
-            tenant_id: property.tenant_id,
+            tenant_id: tenantId,
             property_id: property.id,
             charge_id: createdCharge.id,
             bucket_path: ingestion.storage_key,
@@ -149,6 +153,7 @@ export async function createManualIngestion(formData: FormData) {
     const admin = createSupabaseAdminClient();
 
     const propertyId = String(formData.get("property_id") || "").trim();
+    const importMode = String(formData.get("import_mode") || "FORWARDED").trim().toUpperCase();
     const document = formData.get("document");
     const documentFile = document instanceof File ? document : null;
 
@@ -216,6 +221,11 @@ export async function createManualIngestion(formData: FormData) {
             storage_bucket: getConfiguredStorageBucketName(),
             storage_key: storageKey,
             status: "RECEIVED",
+            normalized_data: {
+                property_id: property.id,
+                property_name: property.name,
+                import_mode: importMode,
+            },
         });
 
     if (ingestionInsertError) {
@@ -247,7 +257,15 @@ export async function createManualIngestion(formData: FormData) {
         property_id: property.id,
         property_name: property.name,
         document_text: extraction.text,
+        import_mode: importMode,
     };
+
+    if (importMode === "OWN_EXPENSE" && isOwnExpenseRestrictedChargeType(normalized.charge_type)) {
+        normalized.charge_type = "OTHER";
+    }
+    if (importMode === "FORWARDED" && isOwnOnlyChargeType(normalized.charge_type)) {
+        normalized.import_mode = "OWN_EXPENSE";
+    }
 
     if (normalized.issuer_name) {
         const supplierProfile = await findOwnerSupplierProfile(user.id, normalized.issuer_name);
@@ -257,6 +275,10 @@ export async function createManualIngestion(formData: FormData) {
                 ? supplierProfile.default_charge_type
                 : normalized.charge_type;
         }
+    }
+
+    if (normalized.import_mode === "OWN_EXPENSE" && isOwnExpenseRestrictedChargeType(normalized.charge_type)) {
+        normalized.charge_type = "OTHER";
     }
 
     if (!normalized.gross_amount || !normalized.due_date) {
@@ -310,7 +332,8 @@ export async function createManualIngestion(formData: FormData) {
             gross_amount: normalized.gross_amount,
             currency: normalized.currency,
             charge_type: normalized.charge_type,
-        }
+        },
+        importMode === "OWN_EXPENSE" ? null : property.tenant_id
     );
 
     if (!draftResult.ok) {
@@ -367,7 +390,7 @@ export async function createManualIngestion(formData: FormData) {
             propertyName: property.name,
             openUrl: `${SITE_URL}/owner/importok`,
             reviewUrl: `${SITE_URL}/owner/importok/${ingestionId}`,
-            chargeUrl: `${SITE_URL}/owner/properties/${property.id}/charges?status=IMPORT_DRAFT#charge-${draftResult.chargeId}`,
+            chargeUrl: `${SITE_URL}/owner/charges?property=${property.id}&status=IMPORT_DRAFT#charge-${draftResult.chargeId}`,
             publishUrl: `${SITE_URL}/email-action?token=${encodeURIComponent(createEmailActionToken("charge_publish", draftResult.chargeId))}`,
         }));
     }
@@ -412,12 +435,17 @@ export async function finalizeIngestionReview(ingestionId: string, formData: For
     if (ingestionError || !ingestion) return { ok: false, error: "Az import nem található." };
 
     const ingestionRow = ingestion as IngestionRow & { created_charge_id?: string | null };
+    const existingNormalized = (ingestionRow.normalized_data ?? {}) as Record<string, unknown>;
+    const importMode = String(formData.get("import_mode") || existingNormalized.import_mode || "FORWARDED").trim().toUpperCase() as ImportMode;
+    const effectiveImportMode = importMode === "FORWARDED" && isOwnOnlyChargeType(chargeType) ? "OWN_EXPENSE" : importMode;
+    const normalizedChargeType = effectiveImportMode === "OWN_EXPENSE" && isOwnExpenseRestrictedChargeType(chargeType) ? "OTHER" : chargeType;
+    const tenantId = effectiveImportMode === "OWN_EXPENSE" ? null : (property as PropertyRow).tenant_id;
     const normalizedInput = {
         issuer_name: issuerName,
         due_date: dueDate,
         gross_amount: amount,
         currency,
-        charge_type: chargeType,
+        charge_type: normalizedChargeType,
     };
 
     const draftResult = ingestionRow.created_charge_id
@@ -428,14 +456,16 @@ export async function finalizeIngestionReview(ingestionId: string, formData: For
             ingestionRow.created_document_id,
             property as PropertyRow,
             ingestionRow,
-            normalizedInput
+            normalizedInput,
+            tenantId
         )
         : await createDraftFromNormalized(
             supabase,
             user.id,
             property as PropertyRow,
             ingestionRow,
-            normalizedInput
+            normalizedInput,
+            tenantId
         );
 
     if (!draftResult.ok) {
@@ -447,9 +477,10 @@ export async function finalizeIngestionReview(ingestionId: string, formData: For
         due_date: dueDate,
         gross_amount: amount,
         currency,
-        charge_type: chargeType,
+        charge_type: normalizedChargeType,
         property_id: property.id,
         property_name: property.name,
+        import_mode: effectiveImportMode,
     };
 
     await admin.from("extraction_reviews").insert({
@@ -477,6 +508,8 @@ export async function finalizeIngestionReview(ingestionId: string, formData: For
     revalidatePath("/owner/importok");
     revalidatePath(`/owner/importok/${ingestionId}`);
     revalidatePath(`/owner/properties/${property.id}/charges`);
+    revalidatePath("/owner/charges");
+    revalidatePath("/owner/osszefoglalo");
     return { ok: true, chargeId: draftResult.chargeId, propertyId: property.id };
 }
 

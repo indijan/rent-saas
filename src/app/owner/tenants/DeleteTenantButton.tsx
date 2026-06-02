@@ -7,6 +7,7 @@ type Props = {
 export default function DeleteTenantButton({ action }: Props) {
     return (
         <form
+            className="tenant-directory-delete-form"
             action={action}
             onSubmit={(event) => {
                 if (!window.confirm("Biztosan törlöd ezt a bérlőt?")) {
@@ -14,7 +15,7 @@ export default function DeleteTenantButton({ action }: Props) {
                 }
             }}
         >
-            <button className="btn btn-secondary" type="submit">
+            <button className="btn btn-secondary btn-sm tenant-directory-delete-button" type="submit">
                 Törlés
             </button>
         </form>

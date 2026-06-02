@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { ChargeType } from "@/lib/chargeTypes";
 
 export function issuerFingerprint(value: string) {
     return value
@@ -15,7 +16,7 @@ type SupplierProfileRow = {
     issuer_name: string;
     issuer_fingerprint: string;
     default_property_id: string | null;
-    default_charge_type: "RENT" | "UTILITY" | "COMMON_COST" | "OTHER" | null;
+    default_charge_type: ChargeType | null;
     currency_hint: string | null;
     field_rules_json: Record<string, unknown> | null;
     is_global: boolean;

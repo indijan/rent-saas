@@ -1,19 +1,20 @@
 import OpenAI from "openai";
+import { CHARGE_TYPES, type ChargeType } from "@/lib/chargeTypes";
 
-const allowedTypes = ["RENT", "UTILITY", "COMMON_COST", "OTHER"] as const;
+const allowedTypes = CHARGE_TYPES;
 export type InvoiceExtract = {
     amount: number | null;
     currency: string | null;
     due_date: string | null;
     name: string | null;
-    type: (typeof allowedTypes)[number] | null;
+    type: ChargeType | null;
 };
 
 const client = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
-const providerHints: { match: RegExp; name: string; type: (typeof allowedTypes)[number] }[] = [
+const providerHints: { match: RegExp; name: string; type: ChargeType }[] = [
     { match: /\bM\s*V\s*M\b|Magyar\s+Villamos\s+M[uű]vek/i, name: "MVM", type: "UTILITY" },
     { match: /\bTelekom\b|Magyar\s+Telekom/i, name: "Magyar Telekom", type: "UTILITY" },
     { match: /\bMIH[ŐO]\b|Miskolci\s+h[őo]szolg[aá]ltat[oó]/i, name: "MIHŐ", type: "UTILITY" },
@@ -172,7 +173,7 @@ export async function extractInvoiceFields(text: string) {
             {
                 role: "system",
                 content:
-                    "Te egy magyar számlaadat-kinyerő asszisztens vagy. Csak olyan adatot adj vissza, ami a szövegben explicit módon szerepel (kulcsszóval vagy egyértelmű címkével). Ha nem biztos, null. Ne találj ki értéket. A type mező legyen RENT, UTILITY, COMMON_COST vagy OTHER. A due_date ISO (YYYY-MM-DD). A currency legyen 3 betűs kód (pl. HUF, EUR, USD). Figyelj a magyar kulcsszavakra: fizetési határidő/esedékesség, összeg/fizetendő. Az összeget magyar formátumból is értelmezd (pl. 1 234,56 HUF). A name legyen a szolgáltató/kibocsátó neve, ne a vevő/számlázási cím.",
+                    "Te egy magyar számlaadat-kinyerő asszisztens vagy. Csak olyan adatot adj vissza, ami a szövegben explicit módon szerepel (kulcsszóval vagy egyértelmű címkével). Ha nem biztos, null. Ne találj ki értéket. A type mező legyen RENT, UTILITY, INSURANCE, COMMON_COST, RENOVATION vagy OTHER. A due_date ISO (YYYY-MM-DD). A currency legyen 3 betűs kód (pl. HUF, EUR, USD). Figyelj a magyar kulcsszavakra: fizetési határidő/esedékesség, összeg/fizetendő. Az összeget magyar formátumból is értelmezd (pl. 1 234,56 HUF). A name legyen a szolgáltató/kibocsátó neve, ne a vevő/számlázási cím.",
             },
             {
                 role: "user",
@@ -290,8 +291,8 @@ export async function extractInvoiceFields(text: string) {
     const amount = Number.isFinite(parsed.amount ?? NaN) ? Number(parsed.amount) : null;
     const dueDate = normalizeDate(parsed.due_date ?? null);
     const name = parsed.name ? String(parsed.name).trim() : null;
-    const type = parsed.type && allowedTypes.includes(parsed.type as (typeof allowedTypes)[number])
-        ? (parsed.type as (typeof allowedTypes)[number])
+    const type = parsed.type && allowedTypes.includes(parsed.type as ChargeType)
+        ? (parsed.type as ChargeType)
         : null;
 
     const labeledAmountParsedRaw = parseHungarianAmount(labeledAmount);

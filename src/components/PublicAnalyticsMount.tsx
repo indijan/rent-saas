@@ -9,10 +9,6 @@ const MetaPixel = dynamic(() => import("@/components/MetaPixel"), {
     ssr: false,
 });
 
-const SupportChatMount = dynamic(() => import("@/components/SupportChatMount"), {
-    ssr: false,
-});
-
 type Props = {
     initialConsent: boolean;
 };
@@ -73,7 +69,6 @@ export default function PublicAnalyticsMount({ initialConsent }: Props) {
     return (
         <>
             {pixelPath === pathname ? <MetaPixel /> : null}
-            <SupportChatMount />
         </>
     );
 }

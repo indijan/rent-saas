@@ -75,6 +75,15 @@ export async function removeTenantFromProperty(propertyId: string, tenantId: str
     const isOwned = await isTenantOwnedByOwner(user.id, tenantId);
     if (!isOwned) return { ok: false, error: "Ezt a bérlőt nem kezelheted." };
 
+    const { data: property, error: propertyError } = await admin
+        .from("properties")
+        .select("tenant_id")
+        .eq("id", propertyId)
+        .eq("owner_id", user.id)
+        .single();
+
+    if (propertyError || !property) return { ok: false, error: "Az ingatlan nem található." };
+
     const { error } = await admin
         .from("property_tenants")
         .delete()
@@ -83,6 +92,44 @@ export async function removeTenantFromProperty(propertyId: string, tenantId: str
         .eq("owner_id", user.id);
 
     if (error) return { ok: false, error: error.message };
+
+    const removedWasPrimary = property.tenant_id === tenantId;
+
+    if (removedWasPrimary) {
+        const { error: propertyUpdateError } = await admin
+            .from("properties")
+            .update({ tenant_id: null })
+            .eq("id", propertyId)
+            .eq("owner_id", user.id);
+        if (propertyUpdateError) return { ok: false, error: propertyUpdateError.message };
+    }
+
+    const { error: chargeUpdateError } = await admin
+        .from("charges")
+        .update({ tenant_id: null })
+        .eq("property_id", propertyId)
+        .eq("tenant_id", tenantId)
+        .eq("owner_id", user.id);
+    if (chargeUpdateError) return { ok: false, error: chargeUpdateError.message };
+
+    const { error: documentUpdateError } = await admin
+        .from("documents")
+        .update({ tenant_id: null })
+        .eq("property_id", propertyId)
+        .eq("tenant_id", tenantId)
+        .eq("owner_id", user.id);
+    if (documentUpdateError) return { ok: false, error: documentUpdateError.message };
+
+    await admin
+        .from("tenant_exit_requests")
+        .update({
+            status: "APPROVED",
+            reviewed_at: new Date().toISOString(),
+        })
+        .eq("property_id", propertyId)
+        .eq("tenant_id", tenantId)
+        .eq("owner_id", user.id)
+        .eq("status", "PENDING");
 
     await ensurePropertyPrimaryTenant(propertyId);
     await syncOwnerTenantMembership(user.id, tenantId);

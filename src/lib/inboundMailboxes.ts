@@ -2,6 +2,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { randomBytes } from "crypto";
 
 const DEFAULT_SHARED_INBOUND_EMAIL = "szamla@in.rentapp.hu";
+const DEFAULT_OWN_EXPENSE_INBOUND_EMAIL = "sajat@in.rentapp.hu";
 
 export type InboundMailboxRow = {
     id: string;
@@ -14,6 +15,10 @@ export type InboundMailboxRow = {
 
 export function getSharedInboundEmail() {
     return (process.env.INBOUND_SHARED_EMAIL || DEFAULT_SHARED_INBOUND_EMAIL).trim().toLowerCase();
+}
+
+export function getOwnExpenseInboundEmail() {
+    return (process.env.INBOUND_OWN_EXPENSE_EMAIL || DEFAULT_OWN_EXPENSE_INBOUND_EMAIL).trim().toLowerCase();
 }
 
 function buildRandomLocalPart() {

@@ -149,7 +149,11 @@ Az érvénytelenítés nem végleges törlés. A tétel megmarad, csak nem aktí
 
 ### Sztornó
 
-A sztornó a végleges törlést jelenti. A kapcsolódó rekordok és dokumentumok is eltűnhetnek. Ez nem visszavonható.
+Az UI-ban a sztornó érvénytelenített állapotot jelent. Innen még visszaállítható a tétel, vagy külön végleges törlés is indítható.
+
+### Végleges törlés
+
+Csak már érvénytelenített tételnél elérhető. Ilyenkor a kapcsolódó rekordok és dokumentumok is eltűnhetnek. Ez nem visszavonható.
 
 ## Dokumentumkezelés
 
@@ -170,13 +174,12 @@ Az Importok oldalon látható:
 
 Az owner megadhat ingatlan-aliasokat, hogy a rendszer könnyebben felismerje, melyik ingatlanhoz tartozik egy bejövő számla.
 
-### Közös bejövő e-mail-cím
+### Közös bejövő e-mail-címek
 
-A számlák központi bejövő címe:
+A számlák központi bejövő címei:
 
-- `szamla@in.rentapp.hu`
-
-A bérbeadóknak ide kell küldeniük a PDF számlákat.
+- `szamla@in.rentapp.hu` a továbbított, bérlő felé terhelendő költségekhez
+- `sajat@in.rentapp.hu` a saját költségként könyvelendő számlákhoz
 
 ### Hogyan azonosítja a rendszer a számlát?
 
@@ -328,9 +331,10 @@ Igen. Ugyanaz az e-mail-cím lehet bérlői és bérbeadói hozzáféréshez is 
 
 ### Mindenki ugyanarra az email-címre küldi a számlát?
 
-Igen. A központi bejövő cím:
+Nem teljesen. Két központi cím van:
 
-- `szamla@in.rentapp.hu`
+- `szamla@in.rentapp.hu` a továbbított költségekhez
+- `sajat@in.rentapp.hu` a saját költségekhez
 
 Innen a rendszer próbálja felismerni, hogy melyik bérbeadóhoz és melyik ingatlanhoz tartozik a számla.
 

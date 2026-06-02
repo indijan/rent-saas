@@ -17,7 +17,7 @@ export default function SupportChatMount() {
         const handlePointerDown = () => activate();
         const handleKeyDown = () => activate();
 
-        timeoutId = window.setTimeout(activate, 15000);
+        timeoutId = window.setTimeout(activate, 2500);
         window.addEventListener("pointerdown", handlePointerDown, { once: true, passive: true });
         window.addEventListener("keydown", handleKeyDown, { once: true });
 

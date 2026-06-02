@@ -10,6 +10,7 @@ type AuthUserWithOwnerMeta = {
 export async function listOwnerTenantIds(ownerId: string) {
     const admin = createSupabaseAdminClient();
     const ids = new Set<string>();
+    let usedPropertyTenantMemberships = false;
     try {
         const { data: memberships, error } = await admin
             .from("tenant_memberships")
@@ -41,24 +42,13 @@ export async function listOwnerTenantIds(ownerId: string) {
         page += 1;
     }
 
-    const { data: properties, error } = await admin
-        .from("properties")
-        .select("tenant_id")
-        .eq("owner_id", ownerId)
-        .not("tenant_id", "is", null);
-    if (error) throw error;
-
-    (properties ?? []).forEach((property) => {
-        const tenantId = property.tenant_id as string | null;
-        if (tenantId) ids.add(tenantId);
-    });
-
     try {
         const { data: propertyTenants, error: propertyTenantError } = await admin
             .from("property_tenants")
             .select("tenant_id")
             .eq("owner_id", ownerId);
         if (propertyTenantError) throw propertyTenantError;
+        usedPropertyTenantMemberships = true;
 
         (propertyTenants ?? []).forEach((row) => {
             const tenantId = row.tenant_id as string | null;
@@ -66,6 +56,20 @@ export async function listOwnerTenantIds(ownerId: string) {
         });
     } catch {
         // A tábla migráció előtt még nem biztos, hogy létezik.
+    }
+
+    if (!usedPropertyTenantMemberships) {
+        const { data: properties, error } = await admin
+            .from("properties")
+            .select("tenant_id")
+            .eq("owner_id", ownerId)
+            .not("tenant_id", "is", null);
+        if (error) throw error;
+
+        (properties ?? []).forEach((property) => {
+            const tenantId = property.tenant_id as string | null;
+            if (tenantId) ids.add(tenantId);
+        });
     }
 
     return Array.from(ids);
@@ -79,6 +83,7 @@ export async function isTenantOwnedByOwner(ownerId: string, tenantId: string) {
 export async function listAllTenantIds() {
     const admin = createSupabaseAdminClient();
     const ids = new Set<string>();
+    let usedPropertyTenantMemberships = false;
 
     try {
         const { data: memberships, error } = await admin
@@ -94,22 +99,12 @@ export async function listAllTenantIds() {
         // A tábla migráció előtt még nem biztos, hogy létezik.
     }
 
-    const { data: properties, error: propertiesError } = await admin
-        .from("properties")
-        .select("tenant_id")
-        .not("tenant_id", "is", null);
-    if (propertiesError) throw propertiesError;
-
-    (properties ?? []).forEach((property) => {
-        const tenantId = property.tenant_id as string | null;
-        if (tenantId) ids.add(tenantId);
-    });
-
     try {
         const { data: propertyTenants, error: propertyTenantError } = await admin
             .from("property_tenants")
             .select("tenant_id");
         if (propertyTenantError) throw propertyTenantError;
+        usedPropertyTenantMemberships = true;
 
         (propertyTenants ?? []).forEach((row) => {
             const tenantId = row.tenant_id as string | null;
@@ -117,6 +112,19 @@ export async function listAllTenantIds() {
         });
     } catch {
         // A tábla migráció előtt még nem biztos, hogy létezik.
+    }
+
+    if (!usedPropertyTenantMemberships) {
+        const { data: properties, error: propertiesError } = await admin
+            .from("properties")
+            .select("tenant_id")
+            .not("tenant_id", "is", null);
+        if (propertiesError) throw propertiesError;
+
+        (properties ?? []).forEach((property) => {
+            const tenantId = property.tenant_id as string | null;
+            if (tenantId) ids.add(tenantId);
+        });
     }
 
     const { data: charges, error: chargesError } = await admin
