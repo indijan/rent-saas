@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { type MouseEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import type { AppRole } from "@/lib/auth/requireUser";
 
@@ -246,7 +246,6 @@ function isNavItemActive(pathname: string, item: NavItem) {
 }
 
 export default function AppHeader({ profile, dashboardContext }: Props) {
-    const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const searchKey = searchParams.toString();
@@ -376,9 +375,9 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
         event.preventDefault();
         event.stopPropagation();
         closeMobileSheets();
-        window.requestAnimationFrame(() => {
-            router.push(href);
-        });
+        window.setTimeout(() => {
+            window.location.assign(href);
+        }, 0);
     };
 
     const setThemeMode = (nextMode: ThemeMode) => {
