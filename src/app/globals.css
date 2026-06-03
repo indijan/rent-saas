@@ -6483,6 +6483,14 @@ summary::-webkit-details-marker {
     grid-template-columns: 1fr;
   }
 
+  .auth-shell {
+    place-items: start;
+  }
+
+  .auth-card {
+    order: -1;
+  }
+
   .hero-marketing {
     grid-template-columns: 1fr;
   }

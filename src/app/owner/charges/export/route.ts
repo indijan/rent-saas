@@ -88,6 +88,7 @@ export async function GET(request: NextRequest) {
     const property = url.searchParams.get("property") ?? "";
     const status = url.searchParams.get("status") ?? "";
     const type = url.searchParams.get("type") ?? "";
+    const billing = url.searchParams.get("billing") ?? "";
     const from = url.searchParams.get("from") ?? "";
     const to = url.searchParams.get("to") ?? "";
 
@@ -107,6 +108,8 @@ export async function GET(request: NextRequest) {
         query = query.eq("status", status);
     }
     if (type) query = query.eq("type", type);
+    if (billing === "OWN") query = query.is("tenant_id", null).neq("type", "RENT");
+    if (billing === "TENANT") query = query.not("tenant_id", "is", null);
     if (from) query = query.gte("due_date", from);
     if (to) query = query.lte("due_date", to);
 

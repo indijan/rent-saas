@@ -257,9 +257,11 @@ export default async function OwnerPropertyDetailPage({ params, searchParams }: 
                 </section>
 
                 <DeletePropertyForm
-                    action={async () => {
+                    chargeCount={charges.length}
+                    documentCount={documentRows?.length ?? 0}
+                    action={async (formData) => {
                         "use server";
-                        const res = await deleteProperty(property.id);
+                        const res = await deleteProperty(property.id, formData);
                         if (!res.ok) {
                             const msg = res.error ?? "Ismeretlen hiba.";
                             redirect(`/owner/properties/${property.id}?status=error&message=${encodeURIComponent(msg)}`);

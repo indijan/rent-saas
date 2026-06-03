@@ -20,6 +20,7 @@ type SearchParams = {
     property?: string;
     status?: string;
     type?: string;
+    billing?: string;
     page?: string;
     compose?: string;
 };
@@ -410,6 +411,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
     const selectedPropertyId = sp.property ? String(sp.property) : "";
     const statusFilter = sp.status ? String(sp.status) : "";
     const typeFilter = sp.type ? String(sp.type) : "";
+    const billingFilter = sp.billing ? String(sp.billing).toUpperCase() : "";
     const page = Math.max(1, Number(sp.page || 1) || 1);
     const pageSize = 10;
     const composeMode = sp.compose === "upload" ? "upload" : sp.compose === "manual" ? "manual" : null;
@@ -423,6 +425,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
         to: preset === "CUSTOM" ? to : undefined,
         status: statusFilter || undefined,
         type: typeFilter || undefined,
+        billing: billingFilter || undefined,
         page: page > 1 ? String(page) : undefined,
     })}`;
 
@@ -477,6 +480,8 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
             return false;
         }
         if (typeFilter && charge.type !== typeFilter) return false;
+        if (billingFilter === "OWN" && !isExpenseCharge(charge)) return false;
+        if (billingFilter === "TENANT" && isExpenseCharge(charge)) return false;
         return true;
     };
 
@@ -569,6 +574,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                         to,
                         status: statusFilter || undefined,
                         type: typeFilter || undefined,
+                        billing: billingFilter || undefined,
                     },
                 }}
             />
@@ -583,6 +589,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                         property={selectedPropertyId || undefined}
                         status={statusFilter || undefined}
                         type={typeFilter || undefined}
+                        billing={billingFilter || undefined}
                         preset={preset}
                         from={from}
                         to={to}
@@ -708,6 +715,14 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                         {preset === "CUSTOM" ? <input type="hidden" name="to" value={to} /> : null}
                         <div className="finance-filter-grid">
                             <label className="field-stack">
+                                <span className="field-label">Nézet</span>
+                                <select name="billing" className="select" defaultValue={billingFilter}>
+                                    <option value="">Saját és bérlői</option>
+                                    <option value="OWN">Saját</option>
+                                    <option value="TENANT">Bérlő</option>
+                                </select>
+                            </label>
+                            <label className="field-stack">
                                 <span className="field-label">Státusz</span>
                                 <select name="status" className="select" defaultValue={statusFilter}>
                                     <option value="">Minden státusz</option>
@@ -753,6 +768,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                         to,
                                         status: statusFilter || undefined,
                                         type: typeFilter || undefined,
+                                        billing: billingFilter || undefined,
                                     })}`}
                                 >
                                     Export Excelbe
@@ -1141,6 +1157,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                     to,
                                     status: statusFilter || undefined,
                                     type: typeFilter || undefined,
+                                    billing: billingFilter || undefined,
                                     page: String(page - 1),
                                 })}`}>
                                     Előző
@@ -1155,6 +1172,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                     to,
                                     status: statusFilter || undefined,
                                     type: typeFilter || undefined,
+                                    billing: billingFilter || undefined,
                                     page: String(page + 1),
                                 })}`}>
                                     Következő

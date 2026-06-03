@@ -7,6 +7,7 @@ import DesignIcon from "@/components/dashboard/DesignIcon";
 import PendingSubmitButton from "@/components/PendingSubmitButton";
 import { markChargePaid, sendManualChargeReminder } from "@/app/owner/properties/[id]/charges/actions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { buildMissingInvoiceSuggestions } from "@/lib/invoiceSuggestions";
 
 type ChargeTodoRow = {
     id: string;
@@ -32,6 +33,18 @@ type ExitRequestRow = {
     tenant_id: string | null;
     property_id: string | null;
     created_at: string;
+    properties?: { name: string | null } | { name: string | null }[] | null;
+};
+
+type ExpenseHistoryRow = {
+    id: string;
+    owner_id: string;
+    property_id: string;
+    tenant_id: string | null;
+    title: string;
+    type: "UTILITY" | "INSURANCE" | "COMMON_COST" | "RENOVATION" | "TAX" | "OTHER" | "RENT";
+    due_date: string;
+    status: string;
     properties?: { name: string | null } | { name: string | null }[] | null;
 };
 
@@ -91,6 +104,14 @@ function stateTone(state: TaskRow["state"]) {
     return "dashboard-task-status-open";
 }
 
+function formatIsoDate(dateValue: string) {
+    return new Intl.DateTimeFormat("hu-HU", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(new Date(`${dateValue}T00:00:00`));
+}
+
 type Props = {
     searchParams?: Promise<{ status?: string; message?: string; view?: string }> | { status?: string; message?: string; view?: string };
 };
@@ -102,8 +123,12 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
     const status = sp.status ? String(sp.status) : "";
     const message = sp.message ? String(sp.message) : "";
     const selectedView = (["all", "high", "medium", "low", "done"].includes(String(sp.view || "")) ? String(sp.view) : "all") as TaskView;
+    const historyFromDate = new Date();
+    historyFromDate.setDate(historyFromDate.getDate() - 400);
+    const historyFrom = historyFromDate.toISOString().slice(0, 10);
+    const todayIso = new Date().toISOString().slice(0, 10);
 
-    const [{ data: charges, error: chargeError }, { data: properties, error: propertyError }, { data: exitRequests }] = await Promise.all([
+    const [{ data: charges, error: chargeError }, { data: properties, error: propertyError }, { data: exitRequests }, { data: expenseHistoryRows, error: expenseHistoryError }] = await Promise.all([
         supabase
             .from("charges")
             .select("id,title,amount,currency,due_date,status,paid_at,property_id,properties(name)")
@@ -119,15 +144,22 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
             .eq("owner_id", user.id)
             .eq("status", "PENDING")
             .order("created_at", { ascending: true }),
+        supabase
+            .from("charges")
+            .select("id,owner_id,property_id,tenant_id,title,type,due_date,status,properties(name)")
+            .eq("owner_id", user.id)
+            .is("tenant_id", null)
+            .neq("type", "RENT")
+            .gte("due_date", historyFrom),
     ]);
 
-    if (chargeError || propertyError) {
+    if (chargeError || propertyError || expenseHistoryError) {
         return (
             <main className="app-shell page-enter">
                 <AppHeader profile={profile} />
                 <div className="card">
                     <h1>Feladatok</h1>
-                    <p className="text-red-600">Hiba: {chargeError?.message || propertyError?.message}</p>
+                    <p className="text-red-600">Hiba: {chargeError?.message || propertyError?.message || expenseHistoryError?.message}</p>
                 </div>
             </main>
         );
@@ -184,6 +216,7 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
     const importDrafts = chargeRows.filter((charge) => charge.status === "IMPORT_DRAFT");
     const completedCharges = chargeRows.filter((charge) => charge.status === "PAID" && charge.paid_at).slice(0, 8);
     const pendingExitRequests = (exitRequests ?? []) as ExitRequestRow[];
+    const invoiceSuggestions = buildMissingInvoiceSuggestions((expenseHistoryRows ?? []) as ExpenseHistoryRow[], todayIso);
     const unassignedProperties = propertyRows.filter((property) => !assignedPropertyIds.has(property.id) && !property.tenant_id && property.status === "ACTIVE");
 
     const taskRows: TaskRow[] = [
@@ -338,6 +371,57 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                         <div className={status === "error" ? "text-red-600" : "text-green-600"}>{message}</div>
                     </section>
                 ) : null}
+
+                <section className="card dashboard-section-card">
+                    <div className="dashboard-section-head">
+                        <div>
+                            <div className="card-title">Számla tétel javaslatok</div>
+                            <p>A rendszer a korábbi saját költség minták alapján jelzi, ha egy szokásos számla most hiányozhat.</p>
+                        </div>
+                        <span className="dashboard-inline-badge dashboard-inline-badge-amber">{invoiceSuggestions.length} nyitott jelzés</span>
+                    </div>
+
+                    {invoiceSuggestions.length === 0 ? (
+                        <div className="dashboard-empty-note">Jelenleg nincs olyan visszatérő saját költség, amelynél kimaradt számlára utaló mintát látnánk.</div>
+                    ) : (
+                        <div className="todo-link-list">
+                            {invoiceSuggestions.slice(0, 6).map((suggestion) => (
+                                <article key={suggestion.suggestionKey} className="todo-link-card">
+                                    <div className="todo-task-head">
+                                        <div className="todo-task-copy">
+                                            <strong>{suggestion.title}</strong>
+                                            <span className="dashboard-table-subtitle">
+                                                Lehetségesen hiányzó saját költség tétel. Ellenőrizd, hogy nem maradt-e el a rögzítés.
+                                            </span>
+                                        </div>
+                                        <div className="todo-task-meta">
+                                            <span>{suggestion.propertyName || "Ingatlan nélkül"}</span>
+                                            <span>Várt időpont: {formatIsoDate(suggestion.expectedDate)}</span>
+                                            <span>Utolsó hasonló: {formatIsoDate(suggestion.lastSeenDate)}</span>
+                                            <span>Kb. {suggestion.cadenceDays} naponta</span>
+                                        </div>
+                                        <div className="todo-task-meta">
+                                            <span className={`dashboard-inline-badge ${suggestion.daysLate > 7 ? "dashboard-inline-badge-red" : "dashboard-inline-badge-amber"}`}>
+                                                {suggestion.daysLate} nap csúszás
+                                            </span>
+                                            <span className={`dashboard-inline-badge ${suggestion.confidence === "high" ? "dashboard-inline-badge-green" : "dashboard-inline-badge-blue"}`}>
+                                                {suggestion.confidence === "high" ? "Erős minta" : "Közepes minta"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="todo-task-actions">
+                                        <Link className="btn btn-primary btn-sm" href={`/owner/charges?property=${suggestion.propertyId}&billing=OWN&compose=manual`}>
+                                            Tétel rögzítése
+                                        </Link>
+                                        <Link className="btn btn-secondary btn-sm" href={`/owner/charges?property=${suggestion.propertyId}&billing=OWN`}>
+                                            Pénzügyek megnyitása
+                                        </Link>
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+                    )}
+                </section>
 
                 <section className="card dashboard-section-card finance-table-shell">
                     <div className="dashboard-toolbar">

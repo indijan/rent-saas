@@ -169,8 +169,13 @@ export async function updateProperty(propertyId: string, formData: FormData) {
     return { ok: true };
 }
 
-export async function deleteProperty(propertyId: string) {
+export async function deleteProperty(propertyId: string, formData: FormData) {
     const { supabase, user } = await requireRole("OWNER");
+    const confirmation = String(formData.get("delete_confirmation") || "").trim();
+
+    if (confirmation !== "DELETE") {
+        return { ok: false, error: "Az ingatlan törléséhez írd be pontosan, hogy DELETE." };
+    }
 
     const { data: property, error: propErr } = await supabase
         .from("properties")

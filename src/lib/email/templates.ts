@@ -17,6 +17,7 @@ type ReminderInput = {
     currency: string;
     dueDate: string;
     propertyName?: string | null;
+    reminderLabel?: string | null;
 };
 
 type ChargeUpdatedInput = {
@@ -162,6 +163,20 @@ type UnknownInboundInvoiceInput = {
     reviewUrl: string;
 };
 
+type MissingInvoiceSuggestionEmailInput = {
+    ownerEmail: string;
+    ownerName?: string | null;
+    openUrl: string;
+    suggestions: Array<{
+        title: string;
+        propertyName?: string | null;
+        expectedDate: string;
+        lastSeenDate: string;
+        cadenceDays: number;
+        daysLate: number;
+    }>;
+};
+
 export function renderNewChargeEmail(input: NewChargeInput) {
     const countText = input.count && input.count > 1 ? ` (${input.count} alkalom)` : "";
     const propertyLine = input.propertyName ? `Ingatlan: ${input.propertyName}` : "Ingatlan: -";
@@ -193,9 +208,10 @@ export function renderNewChargeEmail(input: NewChargeInput) {
 
 export function renderReminderEmail(input: ReminderInput) {
     const propertyLine = input.propertyName ? `Ingatlan: ${input.propertyName}` : "Ingatlan: -";
+    const reminderLabel = input.reminderLabel || "Az alábbi díj hamarosan esedékes.";
     const subject = "Fizetési emlékeztető";
     const text = [
-        "Fizetési emlékeztető: 2 nap múlva esedékes díj.",
+        `Fizetési emlékeztető: ${reminderLabel}`,
         propertyLine,
         `Megnevezés: ${input.title}`,
         `Összeg: ${input.amount} ${input.currency}`,
@@ -206,7 +222,7 @@ export function renderReminderEmail(input: ReminderInput) {
     const html = `
         <div style="font-family: Arial, sans-serif; line-height: 1.5;">
             <h2>Fizetési emlékeztető</h2>
-            <p>2 nap múlva esedékes díj.</p>
+            <p>${reminderLabel}</p>
             <p>${propertyLine}</p>
             <ul>
                 <li><b>Megnevezés:</b> ${input.title}</li>
@@ -324,6 +340,56 @@ export function renderFriendlyArrearsReminderEmail(input: FriendlyArrearsReminde
     `;
 
     return { to: input.tenantEmail, subject, html, text };
+}
+
+export function renderMissingInvoiceSuggestionsEmail(input: MissingInvoiceSuggestionEmailInput) {
+    const ownerName = input.ownerName ? `Szia ${input.ownerName},` : "Szia,";
+    const subject = "Lehetségesen hiányzó számlatételek";
+    const previewLines = input.suggestions.slice(0, 5).map((suggestion) => [
+        suggestion.propertyName ? `Ingatlan: ${suggestion.propertyName}` : null,
+        `Tétel: ${suggestion.title}`,
+        `Várt időpont: ${suggestion.expectedDate}`,
+        `Utolsó hasonló tétel: ${suggestion.lastSeenDate}`,
+        `Szokásos ciklus: kb. ${suggestion.cadenceDays} nap`,
+        `Csúszás: ${suggestion.daysLate} nap`,
+    ].filter(Boolean).join(" · "));
+
+    const text = [
+        ownerName,
+        "A rendszer a korábbi számlázási szokások alapján olyan saját költség jellegű tételeket talált, amelyek most valószínűleg hiányoznak.",
+        "Ellenőrizd, hogy ezek közül valamelyik számlát nem felejtetted-e el rögzíteni:",
+        ...previewLines,
+        `Megnyitás: ${input.openUrl}`,
+    ].join("\n");
+
+    const actionButtons = renderActionButtons([
+        { label: "Feladatok megnyitása", href: input.openUrl, primary: true },
+    ]);
+
+    const html = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+            <p>${ownerName}</p>
+            <p>A rendszer a korábbi számlázási szokások alapján olyan saját költség jellegű tételeket talált, amelyek most valószínűleg hiányoznak.</p>
+            <p>Ellenőrizd, hogy ezek közül valamelyik számlát nem felejtetted-e el rögzíteni:</p>
+            <ul>
+                ${input.suggestions.slice(0, 5).map((suggestion) => `
+                    <li>
+                        <b>${suggestion.title}</b>
+                        ${suggestion.propertyName ? ` · ${suggestion.propertyName}` : ""}
+                        <br />
+                        Várt időpont: ${suggestion.expectedDate}
+                        <br />
+                        Utolsó hasonló tétel: ${suggestion.lastSeenDate}
+                        <br />
+                        Szokásos ciklus: kb. ${suggestion.cadenceDays} nap · Csúszás: ${suggestion.daysLate} nap
+                    </li>
+                `).join("")}
+            </ul>
+            ${actionButtons}
+        </div>
+    `;
+
+    return { to: input.ownerEmail, subject, html, text };
 }
 
 export function renderTenantInviteEmail(input: TenantInviteInput) {
