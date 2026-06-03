@@ -6,7 +6,7 @@ import ActionPendingScreen from "@/components/ActionPendingScreen";
 
 type Props = {
     chargeId: string;
-    variant?: "button" | "icon";
+    variant?: "button" | "icon" | "mobile";
 };
 
 function UploadCloudIcon() {
@@ -58,12 +58,18 @@ export default function UploadInvoice({ chargeId, variant = "button" }: Props) {
         }
     }
 
-    if (variant === "icon") {
+    if (variant === "icon" || variant === "mobile") {
         return (
             <>
                 <div className="dashboard-inline-upload">
-                    <label className="dashboard-icon-button" aria-label={busy ? "Feltöltés..." : "Dokumentum feltöltése"} title={busy ? "Feltöltés..." : "Dokumentum feltöltése"} data-tooltip={busy ? "Feltöltés..." : "Dokumentum feltöltése"}>
+                    <label
+                        className={variant === "mobile" ? "dashboard-icon-button finance-mobile-action-button" : "dashboard-icon-button"}
+                        aria-label={busy ? "Feltöltés..." : "Dokumentum feltöltése"}
+                        title={busy ? "Feltöltés..." : "Dokumentum feltöltése"}
+                        data-tooltip={busy ? "Feltöltés..." : "Dokumentum feltöltése"}
+                    >
                         <UploadCloudIcon />
+                        {variant === "mobile" ? <span>{busy ? "Feltöltés..." : "Feltöltés"}</span> : null}
                         <input
                             type="file"
                             accept="application/pdf,image/*"

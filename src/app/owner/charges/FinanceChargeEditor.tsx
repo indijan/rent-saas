@@ -20,13 +20,14 @@ type EditableCharge = {
 
 type Props = {
     charge: EditableCharge;
+    mobileLabel?: string;
 };
 
 function inferBillingMode(charge: EditableCharge) {
     return !charge.tenant_id && charge.type !== "RENT" ? "OWN_EXPENSE" : "FORWARDED";
 }
 
-export default function FinanceChargeEditor({ charge }: Props) {
+export default function FinanceChargeEditor({ charge, mobileLabel }: Props) {
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
     const [billingMode, setBillingMode] = useState<"FORWARDED" | "OWN_EXPENSE">(inferBillingMode(charge));
@@ -69,22 +70,38 @@ export default function FinanceChargeEditor({ charge }: Props) {
 
     if (isLocked) {
         return (
-            <button type="button" className="dashboard-icon-button" aria-label="Szerkesztés letiltva" title="Csak aktív vagy piszkozat tétel szerkeszthető" data-tooltip="Csak aktív vagy piszkozat tétel szerkeszthető" disabled>
+            <button
+                type="button"
+                className={mobileLabel ? "dashboard-icon-button finance-mobile-action-button" : "dashboard-icon-button"}
+                aria-label="Szerkesztés letiltva"
+                title="Csak aktív vagy piszkozat tétel szerkeszthető"
+                data-tooltip="Csak aktív vagy piszkozat tétel szerkeszthető"
+                disabled
+            >
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M4 20h4l10-10-4-4L4 16v4Z" />
                     <path d="m12.5 5.5 4 4" />
                 </svg>
+                {mobileLabel ? <span>{mobileLabel}</span> : null}
             </button>
         );
     }
 
     return (
         <>
-            <button type="button" className="dashboard-icon-button" aria-label="Tétel szerkesztése" title="Tétel szerkesztése" data-tooltip="Tétel szerkesztése" onClick={() => setIsOpen(true)}>
+            <button
+                type="button"
+                className={mobileLabel ? "dashboard-icon-button finance-mobile-action-button" : "dashboard-icon-button"}
+                aria-label="Tétel szerkesztése"
+                title="Tétel szerkesztése"
+                data-tooltip="Tétel szerkesztése"
+                onClick={() => setIsOpen(true)}
+            >
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M4 20h4l10-10-4-4L4 16v4Z" />
                     <path d="m12.5 5.5 4 4" />
                 </svg>
+                {mobileLabel ? <span>{mobileLabel}</span> : null}
             </button>
 
             {isOpen ? (

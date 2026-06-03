@@ -655,21 +655,21 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                             </div>
 
                             <div className="dashboard-mobile-more-grid dashboard-mobile-context-grid">
-                                <Link href={buildContextHref("__all__")} className="dashboard-mobile-more-link" onClick={handleMobileNavigate(buildContextHref("__all__"))}>
+                                <button type="button" className="dashboard-mobile-more-link" onClick={handleMobileNavigate(buildContextHref("__all__"))}>
                                     Összes ingatlan
-                                </Link>
+                                </button>
                                 {dashboardContext.items.map((item) => (
-                                    <Link key={item.id} href={buildContextHref(item.id)} className="dashboard-mobile-more-link" onClick={handleMobileNavigate(buildContextHref(item.id))}>
+                                    <button key={item.id} type="button" className="dashboard-mobile-more-link" onClick={handleMobileNavigate(buildContextHref(item.id))}>
                                         {item.label}
-                                    </Link>
+                                    </button>
                                 ))}
                             </div>
 
                             {profile.role === "OWNER" ? (
                                 <div className="dashboard-mobile-more-section">
-                                    <Link href="/owner/properties" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/owner/properties")}>
+                                    <button type="button" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/owner/properties")}>
                                         + Új ingatlan
-                                    </Link>
+                                    </button>
                                 </div>
                             ) : null}
                         </div>
@@ -683,40 +683,37 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                             </div>
 
                             <div className="dashboard-mobile-more-grid">
-                                <Link href="/valassz-nezetet" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/valassz-nezetet")}>
+                                <button type="button" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/valassz-nezetet")}>
                                     Nézetváltás
-                                </Link>
-                                <Link href="/account" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/account")}>
+                                </button>
+                                <button type="button" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/account")}>
                                     Profil
-                                </Link>
+                                </button>
                                 {profile.role !== "TENANT" ? (
-                                    <Link href="/account" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/account")}>
+                                    <button type="button" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/account")}>
                                         Saját adatok
-                                    </Link>
+                                    </button>
                                 ) : null}
                                 {profile.role === "OWNER" ? (
                                     <>
-                                        <Link href="/owner/properties" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/owner/properties")}>
+                                        <button type="button" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/owner/properties")}>
                                             Ingatlanok kezelése
-                                        </Link>
-                                        <Link href="/owner/properties" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/owner/properties")}>
+                                        </button>
+                                        <button type="button" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/owner/properties")}>
                                             + Új ingatlan
-                                        </Link>
+                                        </button>
                                     </>
                                 ) : null}
                                 {profile.role === "TENANT" ? (
-                                    <Link href="/account#kilepesi-kerelem-kuldes" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/account#kilepesi-kerelem-kuldes")}>
+                                    <button type="button" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/account#kilepesi-kerelem-kuldes")}>
                                         Kilépés ingatlanból
-                                    </Link>
+                                    </button>
                                 ) : null}
                                 {navConfig.secondary.map((item) => (
-                                    <Link key={item.href} href={item.href} className="dashboard-mobile-more-link" onClick={handleMobileNavigate(item.href)}>
+                                    <button key={item.href} type="button" className="dashboard-mobile-more-link" onClick={handleMobileNavigate(item.href)}>
                                         {item.label}
-                                    </Link>
+                                    </button>
                                 ))}
-                                <Link href="/auth/sign-out" className="dashboard-mobile-more-link dashboard-mobile-more-link-danger" onClick={handleMobileNavigate("/auth/sign-out")}>
-                                    Kijelentkezés
-                                </Link>
                             </div>
 
                             <div className="dashboard-mobile-more-section">
@@ -745,20 +742,26 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                                     </button>
                                 </div>
                             </div>
+
+                            <div className="dashboard-mobile-more-section">
+                                <button type="button" className="dashboard-mobile-more-link dashboard-mobile-more-link-danger" onClick={handleMobileNavigate("/auth/sign-out")}>
+                                    Kijelentkezés
+                                </button>
+                            </div>
                         </div>
                     ) : null}
 
                     <nav className="dashboard-mobile-nav" aria-label="Mobil navigáció">
                         {mobileNavItems.map((item) => (
-                            <Link
+                            <button
                                 key={item.href}
-                                href={item.href}
+                                type="button"
                                 className={`dashboard-mobile-nav-item${isNavItemActive(pathname, item) ? " is-active" : ""}`}
                                 onClick={handleMobileNavigate(item.href)}
                             >
                                 <span className="dashboard-mobile-nav-icon">{item.icon}</span>
                                 <span>{item.label}</span>
-                            </Link>
+                            </button>
                         ))}
                         {profile.role === "OWNER" || navConfig.secondary.length > 0 ? (
                             <button

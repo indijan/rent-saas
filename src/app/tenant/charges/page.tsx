@@ -691,18 +691,21 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                         <div className="finance-mobile-document">
                                             <span>Dokumentum</span>
                                             {documentUrl ? (
-                                                <a className="dashboard-icon-button dashboard-icon-button-danger" href={documentUrl} target="_blank" rel="noreferrer" aria-label="PDF megnyitása" title="PDF megnyitása" data-tooltip="PDF megnyitása">
+                                                <a className="dashboard-icon-button dashboard-icon-button-danger finance-mobile-action-button" href={documentUrl} target="_blank" rel="noreferrer" aria-label="PDF megnyitása" title="PDF megnyitása" data-tooltip="PDF megnyitása">
                                                     <PdfIcon />
+                                                    <span>PDF</span>
                                                 </a>
                                             ) : (
-                                                <button type="button" className="dashboard-icon-button" aria-label="Nincs dokumentum" title="Nincs dokumentum" data-tooltip="Nincs dokumentum" disabled>
+                                                <button type="button" className="dashboard-icon-button finance-mobile-action-button" aria-label="Nincs dokumentum" title="Nincs dokumentum" data-tooltip="Nincs dokumentum" disabled>
                                                     <PdfIcon />
+                                                    <span>Nincs PDF</span>
                                                 </button>
                                             )}
                                         </div>
                                         <div className="finance-mobile-action-row">
-                                            <Link className="dashboard-icon-button" href={`/tenant/charges/${charge.id}`} aria-label="Részletek" title="Részletek" data-tooltip="Részletek">
+                                            <Link className="dashboard-icon-button finance-mobile-action-button" href={`/tenant/charges/${charge.id}`} aria-label="Részletek" title="Részletek" data-tooltip="Részletek">
                                                 <DetailIcon />
+                                                <span>Részletek</span>
                                             </Link>
                                         </div>
                                     </div>

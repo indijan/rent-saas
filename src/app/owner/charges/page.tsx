@@ -1017,11 +1017,12 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                         <div className="finance-mobile-document">
                                             <span>Dokumentum</span>
                                             {documentUrl ? (
-                                                <a className="dashboard-icon-button dashboard-icon-button-danger" href={documentUrl} target="_blank" rel="noreferrer" aria-label="PDF megnyitása" title="PDF megnyitása" data-tooltip="PDF megnyitása">
+                                                <a className="dashboard-icon-button dashboard-icon-button-danger finance-mobile-action-button" href={documentUrl} target="_blank" rel="noreferrer" aria-label="PDF megnyitása" title="PDF megnyitása" data-tooltip="PDF megnyitása">
                                                     <PdfIcon />
+                                                    <span>PDF</span>
                                                 </a>
                                             ) : (
-                                                <UploadInvoice chargeId={charge.id} variant="icon" />
+                                                <UploadInvoice chargeId={charge.id} variant="mobile" />
                                             )}
                                         </div>
                                         <div className="finance-mobile-action-row">
@@ -1037,6 +1038,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                                     status: charge.status,
                                                     recurring_group: charge.recurring_group ?? null,
                                                 }}
+                                                mobileLabel="Szerkesztés"
                                             />
                                             {canMarkPaid ? (
                                                 <ConfirmActionForm
@@ -1046,8 +1048,9 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                                     }}
                                                     confirmMessage="Biztosan fizetettnek jelölöd ezt a tételt?"
                                                 >
-                                                    <button type="submit" className="dashboard-icon-button dashboard-icon-button-success" aria-label="Fizetettnek jelölés" title="Fizetettnek jelölés" data-tooltip="Fizetettnek jelölés">
+                                                    <button type="submit" className="dashboard-icon-button dashboard-icon-button-success finance-mobile-action-button" aria-label="Fizetettnek jelölés" title="Fizetettnek jelölés" data-tooltip="Fizetettnek jelölés">
                                                         <CheckIcon />
+                                                        <span>Fizetett</span>
                                                     </button>
                                                 </ConfirmActionForm>
                                             ) : null}
@@ -1059,8 +1062,9 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                                     }}
                                                     confirmMessage="Biztosan visszavonod a fizetett státuszt?"
                                                 >
-                                                    <button type="submit" className="dashboard-icon-button dashboard-icon-button-amber" aria-label="Fizetett visszavonása" title="Fizetett visszavonása" data-tooltip="Fizetett visszavonása">
+                                                    <button type="submit" className="dashboard-icon-button dashboard-icon-button-amber finance-mobile-action-button" aria-label="Fizetett visszavonása" title="Fizetett visszavonása" data-tooltip="Fizetett visszavonása">
                                                         <UndoPaidIcon />
+                                                        <span>Visszavonás</span>
                                                     </button>
                                                 </ConfirmActionForm>
                                             ) : null}
@@ -1072,8 +1076,9 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                                     }}
                                                     confirmMessage="Biztosan érvényteleníted ezt a tételt?"
                                                 >
-                                                    <button type="submit" className="dashboard-icon-button dashboard-icon-button-danger" aria-label="Sztornó" title="Sztornó" data-tooltip="Érvénytelenítés">
+                                                    <button type="submit" className="dashboard-icon-button dashboard-icon-button-danger finance-mobile-action-button" aria-label="Sztornó" title="Sztornó" data-tooltip="Érvénytelenítés">
                                                         <CancelIcon />
+                                                        <span>Sztornó</span>
                                                     </button>
                                                 </ConfirmActionForm>
                                             ) : null}
@@ -1085,8 +1090,9 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                                     }}
                                                     confirmMessage="Biztosan archiválod ezt a tételt?"
                                                 >
-                                                    <button type="submit" className="dashboard-icon-button" aria-label="Archiválás" title="Archiválás" data-tooltip="Archiválás">
+                                                    <button type="submit" className="dashboard-icon-button finance-mobile-action-button" aria-label="Archiválás" title="Archiválás" data-tooltip="Archiválás">
                                                         <ArchiveIcon />
+                                                        <span>Archiválás</span>
                                                     </button>
                                                 </ConfirmActionForm>
                                             ) : null}
@@ -1098,8 +1104,9 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                                     }}
                                                     confirmMessage={charge.status === "ARCHIVED" ? "Biztosan újranyitod ezt a tételt?" : "Biztosan visszaállítod ezt a tételt?"}
                                                 >
-                                                    <button type="submit" className="dashboard-icon-button dashboard-icon-button-success" aria-label={restoreTooltip} title={restoreTooltip} data-tooltip={restoreTooltip}>
+                                                    <button type="submit" className="dashboard-icon-button dashboard-icon-button-success finance-mobile-action-button" aria-label={restoreTooltip} title={restoreTooltip} data-tooltip={restoreTooltip}>
                                                         <RestoreIcon />
+                                                        <span>{restoreTooltip}</span>
                                                     </button>
                                                 </ConfirmActionForm>
                                             ) : null}
@@ -1111,8 +1118,9 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                                     }}
                                                     confirmMessage="Biztosan végleg törlöd ezt a sztornózott tételt? Ez nem visszavonható."
                                                 >
-                                                    <button type="submit" className="dashboard-icon-button dashboard-icon-button-danger" aria-label="Végleges törlés" title="Végleges törlés" data-tooltip="Végleges törlés">
+                                                    <button type="submit" className="dashboard-icon-button dashboard-icon-button-danger finance-mobile-action-button" aria-label="Végleges törlés" title="Végleges törlés" data-tooltip="Végleges törlés">
                                                         <DeleteIcon />
+                                                        <span>Törlés</span>
                                                     </button>
                                                 </ConfirmActionForm>
                                             ) : null}
