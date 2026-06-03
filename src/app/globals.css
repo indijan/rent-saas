@@ -5214,10 +5214,10 @@ summary::-webkit-details-marker {
   animation: rise 700ms ease both;
 }
 
-.route-loading-shell {
+.loading-overlay-shell {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: 240;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -5227,90 +5227,25 @@ summary::-webkit-details-marker {
   backdrop-filter: blur(10px);
 }
 
-.route-loading-card {
+.loading-overlay-card {
   display: grid;
   justify-items: center;
-  gap: 14px;
+  gap: 10px;
   min-width: min(280px, calc(100vw - 48px));
   padding: 28px 24px;
   border-radius: 28px;
   border: 1px solid rgba(18, 24, 31, 0.08);
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 28px 60px rgba(15, 23, 42, 0.14);
+  text-align: center;
 }
 
-.route-loading-card-compact {
+.loading-overlay-card-compact {
   min-width: auto;
   padding: 24px 22px;
 }
 
-.route-loading-mark {
-  display: grid;
-  place-items: center;
-  width: 68px;
-  height: 68px;
-  border-radius: 22px;
-  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 58%, #00a871 100%);
-  color: #f8fbff;
-  font-size: 2rem;
-  font-weight: 800;
-  box-shadow: 0 16px 34px rgba(37, 99, 235, 0.24);
-  animation: route-loading-spin 1s linear infinite;
-}
-
-.route-loading-copy {
-  display: grid;
-  gap: 4px;
-  text-align: center;
-}
-
-.route-loading-copy strong {
-  color: var(--ink-900);
-  font-size: 1.05rem;
-}
-
-.route-loading-copy span {
-  color: var(--ink-700);
-  font-size: 0.95rem;
-  font-weight: 700;
-}
-
-.action-pending-screen {
-  position: fixed;
-  inset: 0;
-  z-index: 240;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: var(--dashboard-modal-overlay-bg);
-  backdrop-filter: blur(8px);
-}
-
-.action-pending-card {
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-  min-width: min(320px, calc(100vw - 48px));
-  padding: 26px 24px;
-  border-radius: 26px;
-  border: 1px solid var(--dashboard-border);
-  background: var(--dashboard-surface);
-  box-shadow: var(--shadow-lg);
-  text-align: center;
-}
-
-.action-pending-card strong {
-  color: var(--dashboard-ink);
-  font-size: 1.02rem;
-}
-
-.action-pending-card span {
-  color: var(--dashboard-muted);
-  font-size: 0.92rem;
-  font-weight: 600;
-}
-
-.action-pending-spinner {
+.loading-overlay-spinner {
   width: 62px;
   height: 62px;
   border-radius: 20px;
@@ -5318,6 +5253,23 @@ summary::-webkit-details-marker {
   border-top-color: #2563eb;
   border-right-color: #00a871;
   animation: route-loading-spin 0.85s linear infinite;
+}
+
+.loading-overlay-copy {
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+
+.loading-overlay-copy strong {
+  color: var(--ink-900);
+  font-size: 1.05rem;
+}
+
+.loading-overlay-copy span {
+  color: var(--ink-700);
+  font-size: 0.95rem;
+  font-weight: 700;
 }
 
 .support-chat {
@@ -6659,20 +6611,20 @@ summary::-webkit-details-marker {
     color: #d5e2f0;
   }
 
-  .route-loading-shell {
+  .loading-overlay-shell {
     background:
       radial-gradient(circle at top, rgba(37, 99, 235, 0.18), transparent 38%),
       linear-gradient(180deg, rgba(7, 15, 28, 0.78), rgba(7, 15, 28, 0.88));
   }
 
-  .route-loading-card {
+  .loading-overlay-card {
     border-color: rgba(148, 163, 184, 0.14);
     background: linear-gradient(180deg, rgba(10, 19, 35, 0.96), rgba(13, 25, 44, 0.94));
     box-shadow: 0 24px 54px rgba(2, 6, 23, 0.34);
   }
 
-  .route-loading-copy strong,
-  .route-loading-copy span {
+  .loading-overlay-copy strong,
+  .loading-overlay-copy span {
     color: #eff6ff;
   }
 

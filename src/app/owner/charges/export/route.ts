@@ -89,6 +89,7 @@ export async function GET(request: NextRequest) {
     const status = url.searchParams.get("status") ?? "";
     const type = url.searchParams.get("type") ?? "";
     const billing = url.searchParams.get("billing") ?? "";
+    const sort = url.searchParams.get("sort") ?? "due_desc";
     const from = url.searchParams.get("from") ?? "";
     const to = url.searchParams.get("to") ?? "";
 
@@ -96,7 +97,7 @@ export async function GET(request: NextRequest) {
         .from("charges")
         .select("title,type,amount,currency,due_date,status,paid_at,tenant_id,property_id,properties(name,address)")
         .eq("owner_id", ctx.userId)
-        .order("due_date", { ascending: false });
+        .order("due_date", { ascending: sort === "due_asc" });
 
     if (property) query = query.eq("property_id", property);
     if (status === "OVERDUE") {

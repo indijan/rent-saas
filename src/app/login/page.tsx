@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+import LoadingOverlay from "@/components/LoadingOverlay";
 
 function humanizeAuthError(message: string) {
     const normalized = message.trim().toLowerCase();
@@ -126,6 +127,12 @@ export default function LoginPage() {
 
     return (
         <main className="auth-shell page-enter">
+            <LoadingOverlay
+                active={loading || resetSending}
+                label={loading ? "Beléptetés..." : "E-mail küldése..."}
+                sublabel={loading ? "A fiók ellenőrzése folyamatban van." : "A jelszó-visszaállító levél előkészítése folyamatban van."}
+                compact
+            />
             <div className="auth-frame">
                 <section className="auth-hero">
                     <div className="eyebrow">Automate for freedom</div>

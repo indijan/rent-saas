@@ -70,6 +70,7 @@ export async function GET(request: Request) {
     const propertyId = url.searchParams.get("property") ?? "";
     const status = url.searchParams.get("status") ?? "";
     const type = url.searchParams.get("type") ?? "";
+    const sort = url.searchParams.get("sort") ?? "due_asc";
     const from = url.searchParams.get("from") ?? "";
     const to = url.searchParams.get("to") ?? "";
 
@@ -78,7 +79,7 @@ export async function GET(request: Request) {
         .select("title,type,amount,currency,due_date,status,paid_at,properties(name,address)")
         .in("property_id", propertyIds.length > 0 ? propertyIds : ["00000000-0000-0000-0000-000000000000"])
         .neq("status", "IMPORT_DRAFT")
-        .order("due_date", { ascending: false });
+        .order("due_date", { ascending: sort === "due_asc" });
 
     if (propertyId) q = q.eq("property_id", propertyId);
     if (status === "OVERDUE") {

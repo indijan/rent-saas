@@ -19,6 +19,7 @@ type SearchParams = {
     type?: string;
     from?: string;
     to?: string;
+    sort?: string;
     page?: string;
 };
 
@@ -114,6 +115,10 @@ function normalizePeriodPreset(value: string | undefined): PeriodPreset {
         return preset as PeriodPreset;
     }
     return "CURRENT_MONTH";
+}
+
+function normalizeSortOrder(value: string | undefined) {
+    return value === "due_desc" ? "due_desc" : "due_asc";
 }
 
 function resolvePeriodRange(preset: PeriodPreset, requestedFrom?: string, requestedTo?: string) {
@@ -284,6 +289,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
     const selectedPropertyId = sp.property ? String(sp.property) : "";
     const statusFilter = sp.status ? String(sp.status) : "";
     const typeFilter = sp.type ? String(sp.type) : "";
+    const sortFilter = normalizeSortOrder(sp.sort ? String(sp.sort) : undefined);
     const pageParam = sp.page ? Number(sp.page) : 1;
     const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
     const pageSize = 10;
@@ -306,7 +312,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
         .neq("status", "IMPORT_DRAFT")
         .gte("due_date", from)
         .lte("due_date", to)
-        .order("due_date", { ascending: true });
+        .order("due_date", { ascending: sortFilter === "due_asc" });
 
     if (selectedPropertyId) listQuery = listQuery.eq("property_id", selectedPropertyId);
     if (statusFilter === "OVERDUE") {
@@ -408,6 +414,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                         to: preset === "CUSTOM" ? to : undefined,
                         status: statusFilter || undefined,
                         type: typeFilter || undefined,
+                        sort: sortFilter,
                     },
                 }}
             />
@@ -422,6 +429,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                         property={selectedPropertyId || undefined}
                         status={statusFilter || undefined}
                         type={typeFilter || undefined}
+                        sort={sortFilter}
                         preset={preset}
                         from={from}
                         to={to}
@@ -508,6 +516,13 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                         <input type="hidden" name="to" value={to} />
                         <div className="finance-filter-grid">
                             <label className="field-stack">
+                                <span className="field-label">Rendezés</span>
+                                <select name="sort" className="select" defaultValue={sortFilter}>
+                                    <option value="due_asc">Lejárat: régebbi elöl</option>
+                                    <option value="due_desc">Lejárat: újabb elöl</option>
+                                </select>
+                            </label>
+                            <label className="field-stack">
                                 <span className="field-label">Státusz</span>
                                 <select name="status" className="select" defaultValue={statusFilter}>
                                     <option value="">Minden státusz</option>
@@ -538,6 +553,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                         preset,
                                         from,
                                         to,
+                                        sort: sortFilter,
                                     })}`}
                                 >
                                     Szűrők törlése
@@ -550,6 +566,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                         to,
                                         status: statusFilter || undefined,
                                         type: typeFilter || undefined,
+                                        sort: sortFilter,
                                     })}`}
                                 >
                                     Export Excelbe
@@ -724,6 +741,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                     to,
                                     status: statusFilter || undefined,
                                     type: typeFilter || undefined,
+                                    sort: sortFilter,
                                     page: String(page - 1),
                                 })}`}>
                                     Előző
@@ -738,6 +756,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                     to,
                                     status: statusFilter || undefined,
                                     type: typeFilter || undefined,
+                                    sort: sortFilter,
                                     page: String(page + 1),
                                 })}`}>
                                     Következő
