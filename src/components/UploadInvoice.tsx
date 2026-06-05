@@ -9,13 +9,13 @@ type Props = {
     variant?: "button" | "icon" | "mobile";
 };
 
-function UploadCloudIcon() {
+function UploadSimpleIcon() {
     return (
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 16V8" />
-            <path d="m8.5 11.5 3.5-3.5 3.5 3.5" />
-            <path d="M7 18.5h9" />
-            <path d="M7 18.5A4.5 4.5 0 1 1 8.4 9.72 5.5 5.5 0 0 1 18.5 12.5 3.5 3.5 0 0 1 17 19H7" />
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 15V6.5" />
+            <path d="m8.75 9.75 3.25-3.25 3.25 3.25" />
+            <path d="M6.5 17.5h11" />
+            <path d="M8 20h8" />
         </svg>
     );
 }
@@ -68,7 +68,7 @@ export default function UploadInvoice({ chargeId, variant = "button" }: Props) {
                         title={busy ? "Feltöltés..." : "Dokumentum feltöltése"}
                         data-tooltip={busy ? "Feltöltés..." : "Dokumentum feltöltése"}
                     >
-                        <UploadCloudIcon />
+                        <UploadSimpleIcon />
                         {variant === "mobile" ? <span>{busy ? "Feltöltés..." : "Feltöltés"}</span> : null}
                         <input
                             type="file"

@@ -329,6 +329,17 @@ function CheckIcon() {
     );
 }
 
+function PublishIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 17V7.5" />
+            <path d="m8.5 11 3.5-3.5 3.5 3.5" />
+            <path d="M5.5 18.5h13" />
+            <path d="M7.5 21h9" />
+        </svg>
+    );
+}
+
 function CancelIcon() {
     return (
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -946,7 +957,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                                             confirmMessage="Biztosan publikálod ezt az importált piszkozatot a bérlő felé?"
                                                         >
                                                             <button type="submit" className="dashboard-icon-button dashboard-icon-button-success" aria-label="Publikálás" title="Publikálás" data-tooltip="Publikálás">
-                                                                <CheckIcon />
+                                                                <PublishIcon />
                                                             </button>
                                                         </ConfirmActionForm>
                                                     ) : null}
@@ -1130,7 +1141,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                                     confirmMessage="Biztosan publikálod ezt az importált piszkozatot a bérlő felé?"
                                                 >
                                                     <button type="submit" className="dashboard-icon-button dashboard-icon-button-success finance-mobile-action-button" aria-label="Publikálás" title="Publikálás" data-tooltip="Publikálás">
-                                                        <CheckIcon />
+                                                        <PublishIcon />
                                                         <span>Publikálás</span>
                                                     </button>
                                                 </ConfirmActionForm>
