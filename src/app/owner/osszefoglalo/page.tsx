@@ -473,7 +473,7 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
                                     <DesignIcon name="kilepesi_kerelem_folyamatban" alt="Kilépési kérelem" tone="design-icon-badge-amber" />
                                     <div className="attention-copy">
                                         <strong>Kilépési kérelem vár jóváhagyásra</strong>
-                                        <span>Tenant oldali kezdeményezések</span>
+                                        <span>Bérlői kezdeményezések</span>
                                     </div>
                                 </div>
                                 <span className="metric-chip metric-chip-red">{pendingExitRequests.length} kérelem</span>

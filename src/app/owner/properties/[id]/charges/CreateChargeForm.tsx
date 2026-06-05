@@ -102,6 +102,16 @@ export default function CreateChargeForm({ propertyId }: Props) {
                                 />
                             </label>
 
+                            <label className="field-stack md:col-span-2">
+                                <span className="field-label">Megjegyzés</span>
+                                <textarea
+                                    name="notes"
+                                    placeholder="Opcionális megjegyzés a tételhez"
+                                    className="input textarea"
+                                    rows={3}
+                                />
+                            </label>
+
                             <label className="field-stack">
                                 <span className="field-label">Típus</span>
                                 <select

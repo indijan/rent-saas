@@ -35,7 +35,7 @@ export default function PublicHeader({ dashboardHref }: Props) {
                     </div>
                     <div className="brand-copy">
                         <div className="brand-title">Rentapp</div>
-                        <span className="brand-meta">A landlord operating system, ami rendet tesz a káoszban.</span>
+                        <span className="brand-meta">A bérbeadói működés rendszere, ami rendet tesz a káoszban.</span>
                     </div>
                 </div>
             </a>

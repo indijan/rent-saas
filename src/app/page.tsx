@@ -97,7 +97,7 @@ export default async function HomePage() {
                         </div>
                         <div className="hero-proof-card">
                             <span className="hero-proof-label">Workspace</span>
-                            <strong>Saját landlord rendszer</strong>
+                            <strong>Saját bérbeadói rendszer</strong>
                         </div>
                     </div>
                 </div>
@@ -189,7 +189,7 @@ export default async function HomePage() {
                     <div className="eyebrow">Kontroll</div>
                     <h2>A saját rendszered. A te kontrolloddal.</h2>
                     <p>
-                        A Rentapp nem egy bonyolult könyvelőplatform. Ez a saját személyes landlord workspace-ed,
+                        A Rentapp nem egy bonyolult könyvelőplatform. Ez a saját személyes bérbeadói felületed,
                         ahol egy helyen rendszerezheted a bérbeadással kapcsolatos adminisztrációdat.
                     </p>
                     <p className="muted-note">Te döntöd el, mit kezelsz benne, mikor és hogyan.</p>

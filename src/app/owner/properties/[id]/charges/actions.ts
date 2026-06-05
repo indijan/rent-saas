@@ -271,6 +271,7 @@ export async function createCharge(propertyId: string, formData: FormData) {
     const { supabase, user } = await requireRole("OWNER");
 
     const title = String(formData.get("title") || "").trim();
+    const notes = String(formData.get("notes") || "").trim() || null;
     const amountRaw = String(formData.get("amount") || "").trim();
     const amount = parseAmount(amountRaw);
     const due_date = String(formData.get("due_date") || "").trim();
@@ -314,6 +315,7 @@ export async function createCharge(propertyId: string, formData: FormData) {
         tenant_id: tenantId,
         type,
         title,
+        notes,
         amount,
         currency,
         due_date: addMonths(due_date, i),
@@ -646,6 +648,7 @@ export async function updateCharge(chargeId: string, formData: FormData) {
     const { supabase, user } = await requireRole("OWNER");
 
     const title = String(formData.get("title") || "").trim();
+    const notes = String(formData.get("notes") || "").trim() || null;
     const amountRaw = String(formData.get("amount") || "").trim();
     const amount = parseAmount(amountRaw);
     const due_date = String(formData.get("due_date") || "").trim();
@@ -666,7 +669,7 @@ export async function updateCharge(chargeId: string, formData: FormData) {
 
     const { data: charge, error: chargeErr } = await supabase
         .from("charges")
-        .select("property_id,status,paid_at,recurring_group,recurring_index,due_date,title,type,amount,currency,tenant_id")
+        .select("property_id,status,paid_at,recurring_group,recurring_index,due_date,title,notes,type,amount,currency,tenant_id")
         .eq("id", chargeId)
         .eq("owner_id", user.id)
         .single();
@@ -715,6 +718,7 @@ export async function updateCharge(chargeId: string, formData: FormData) {
                 .from("charges")
                 .update({
                     title,
+                    notes,
                     type,
                     amount,
                     currency,
@@ -731,6 +735,7 @@ export async function updateCharge(chargeId: string, formData: FormData) {
             .from("charges")
             .update({
                 title,
+                notes,
                 type,
                 amount,
                 currency,
@@ -750,6 +755,7 @@ export async function updateCharge(chargeId: string, formData: FormData) {
     const hasTenantNow = Boolean(tenantId);
     const changedFields = [
         charge.title !== title ? "megnevezés" : null,
+        String(charge.notes || "").trim() !== String(notes || "").trim() ? "megjegyzés" : null,
         charge.type !== type ? "kategória" : null,
         Number(charge.amount) !== amount ? "összeg" : null,
         String(charge.currency || "HUF").toUpperCase() !== currency ? "pénznem" : null,

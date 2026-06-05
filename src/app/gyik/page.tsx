@@ -10,7 +10,7 @@ const sections = [
         items: [
             {
                 q: "Mi is pontosan a Rentapp?",
-                a: "A Rentapp egy személyes landlord adminisztrációs rendszer. Segít egy helyen kezelni a bérbeadással kapcsolatos adminisztrációt: ingatlanok, bérlők, számlák, dokumentumok, határidők, teendők és emlékeztetők.",
+                a: "A Rentapp egy személyes bérbeadói adminisztrációs rendszer. Segít egy helyen kezelni a bérbeadással kapcsolatos adminisztrációt: ingatlanok, bérlők, számlák, dokumentumok, határidők, teendők és emlékeztetők.",
             },
             {
                 q: "Kinek készült?",
@@ -102,7 +102,7 @@ const sections = [
             },
             {
                 q: "Más bérbeadó látja az én adataimat?",
-                a: "Nem. Minden landlord kizárólag a saját adatait látja.",
+                a: "Nem. Minden bérbeadó kizárólag a saját adatait látja.",
             },
             {
                 q: "A bérlő lát minden dokumentumot?",

@@ -8,6 +8,7 @@ type Props = {
     charge: {
         id: string;
         title: string;
+        notes: string | null;
         type: string;
         amount: number | string;
         currency: string | null;
@@ -50,6 +51,13 @@ export default function EditChargeForm({ charge }: Props) {
                     defaultValue={charge.title}
                     className="input"
                     required
+                />
+                <textarea
+                    name="notes"
+                    defaultValue={charge.notes || ""}
+                    className="input textarea md:col-span-2"
+                    rows={3}
+                    placeholder="Opcionális megjegyzés a tételhez"
                 />
                 <select
                     name="type"

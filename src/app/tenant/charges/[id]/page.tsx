@@ -176,7 +176,7 @@ export default async function TenantChargeDetailPage({ params }: Props) {
                         <div className="dashboard-summary-copy">
                             <div className="dashboard-summary-label">Státusz</div>
                             <strong>{displayStatus}</strong>
-                            <span>{charge.status === "PAID" && charge.paid_at ? `Fizetve: ${new Date(charge.paid_at).toLocaleString("hu-HU")}` : "Tenant oldali információs nézet"}</span>
+                            <span>{charge.status === "PAID" && charge.paid_at ? `Fizetve: ${new Date(charge.paid_at).toLocaleString("hu-HU")}` : "Bérlői információs nézet"}</span>
                         </div>
                     </article>
                 </section>

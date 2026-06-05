@@ -77,7 +77,7 @@ export async function GET() {
     }
 
     const zip = buildZip(entries);
-    const fileBase = activeRole === "TENANT" && availableRoles.length === 1 ? "tenant-dokumentumok" : "owner-dokumentumok";
+    const fileBase = activeRole === "TENANT" && availableRoles.length === 1 ? "berlo-dokumentumok" : "berbeado-dokumentumok";
 
     return new Response(zip, {
         status: 200,

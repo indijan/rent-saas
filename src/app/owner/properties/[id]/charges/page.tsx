@@ -27,6 +27,7 @@ type SearchParams = {
 type ChargeRow = {
     id: string;
     title: string;
+    notes: string | null;
     type: ChargeType;
     amount: number | string;
     currency: string | null;
@@ -168,7 +169,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
 
     let listQuery = supabase
         .from("charges")
-        .select("id,title,type,amount,currency,due_date,status,paid_at,created_at,recurring_group,recurring_index,recurring_count", { count: "exact" })
+        .select("id,title,notes,type,amount,currency,due_date,status,paid_at,created_at,recurring_group,recurring_index,recurring_count", { count: "exact" })
         .eq("property_id", propertyId)
         .eq("owner_id", profile.id)
         .order("due_date", { ascending: false });
@@ -427,6 +428,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                     <div className="section-header">
                                         <div>
                                             <div className="card-title">{charge.title}</div>
+                                            {charge.notes ? <div className="muted-note">{charge.notes}</div> : null}
                                             <div className="charge-meta">
                                                 <span>{getChargeTypeLabel(charge.type)}</span>
                                                 <span>{formatCurrency(Number(charge.amount), String(charge.currency || "HUF"))}</span>

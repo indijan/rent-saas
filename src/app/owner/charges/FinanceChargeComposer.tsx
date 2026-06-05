@@ -248,6 +248,10 @@ export default function FinanceChargeComposer({
                                         <span className="field-label">Megnevezés</span>
                                         <input name="title" className="input" placeholder="Pl. MVM Next májusi számla" required />
                                     </label>
+                                    <label className="field-stack finance-composer-field-wide">
+                                        <span className="field-label">Megjegyzés</span>
+                                        <textarea name="notes" className="input textarea" rows={3} placeholder="Opcionális megjegyzés a tételhez." />
+                                    </label>
                                     <label className="field-stack">
                                         <span className="field-label">Összeg</span>
                                         <input name="amount" className="input" placeholder="Pl. 28 500" required />

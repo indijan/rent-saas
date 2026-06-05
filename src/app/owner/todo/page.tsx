@@ -282,7 +282,7 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
             return {
                 id: `exit-${request.id}`,
                 label: "Kilépési kérelem",
-                description: "Válaszra váró tenant kezdeményezés.",
+                description: "Válaszra váró bérlői kezdeményezés.",
                 propertyLabel: property?.name || "Ingatlan nélkül",
                 counterparty: tenantName,
                 deadlineLabel: "Beérkezett",
@@ -440,7 +440,7 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                                 );
                             })}
                         </div>
-                        <div className="muted-note">Aktív ingatlan tenant nélkül: {unassignedProperties.length}</div>
+                        <div className="muted-note">Aktív ingatlan bérlő nélkül: {unassignedProperties.length}</div>
                     </div>
 
                     <div className="finance-table-scroll">

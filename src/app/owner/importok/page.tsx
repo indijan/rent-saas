@@ -355,7 +355,7 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
                                     <DesignIcon name="kiadas" alt="Saját költség" tone="design-icon-badge-amber" />
                                     <div className="dashboard-list-copy">
                                         <strong>Saját költség mód</strong>
-                                        <span>Tenant nélküli draft tétel jön létre, ha ezt választod feltöltéskor.</span>
+                                        <span>Bérlő nélküli draft tétel jön létre, ha ezt választod feltöltéskor.</span>
                                     </div>
                                 </div>
                             </div>

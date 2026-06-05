@@ -9,6 +9,7 @@ import { FORWARDED_CHARGE_TYPE_OPTIONS, OWN_EXPENSE_CHARGE_TYPE_OPTIONS, isOwnOn
 type EditableCharge = {
     id: string;
     title: string;
+    notes: string | null;
     type: string;
     amount: number | string;
     currency: string | null;
@@ -160,6 +161,10 @@ export default function FinanceChargeEditor({ charge, mobileLabel }: Props) {
                                 <label className="field-stack finance-composer-field-wide">
                                     <span className="field-label">Megnevezés</span>
                                     <input name="title" className="input" defaultValue={charge.title} required />
+                                </label>
+                                <label className="field-stack finance-composer-field-wide">
+                                    <span className="field-label">Megjegyzés</span>
+                                    <textarea name="notes" className="input textarea" rows={3} defaultValue={charge.notes || ""} placeholder="Opcionális megjegyzés a tételhez." />
                                 </label>
                                 <label className="field-stack">
                                     <span className="field-label">Esedékesség</span>

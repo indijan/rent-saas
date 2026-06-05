@@ -130,7 +130,7 @@ export async function GET(request: Request) {
         status: 200,
         headers: {
             "Content-Type": "text/csv; charset=utf-8",
-            "Content-Disposition": "attachment; filename=\"tenant-charges.csv\"",
+            "Content-Disposition": "attachment; filename=\"berlo-tetelek.csv\"",
         },
     });
 }

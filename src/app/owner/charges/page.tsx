@@ -33,6 +33,7 @@ type ChargeRow = {
     property_id: string;
     tenant_id: string | null;
     title: string;
+    notes: string | null;
     type: ChargeType;
     amount: number | string;
     currency: string | null;
@@ -449,13 +450,13 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
             .order("name"),
         supabase
             .from("charges")
-            .select("id,property_id,tenant_id,title,type,amount,currency,due_date,status,paid_at,recurring_group,recurring_index")
+            .select("id,property_id,tenant_id,title,notes,type,amount,currency,due_date,status,paid_at,recurring_group,recurring_index")
             .eq("owner_id", user.id)
             .gte("due_date", from)
             .lte("due_date", to),
         supabase
             .from("charges")
-            .select("id,property_id,tenant_id,title,type,amount,currency,due_date,status,paid_at,recurring_group,recurring_index")
+            .select("id,property_id,tenant_id,title,notes,type,amount,currency,due_date,status,paid_at,recurring_group,recurring_index")
             .eq("owner_id", user.id)
             .gte("due_date", trendWindow.from)
             .lte("due_date", trendWindow.to),
@@ -872,7 +873,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                             <td className="finance-cell-title">
                                                 <div className="dashboard-table-main">
                                                     <strong>{charge.title}</strong>
-                                                    <span className="dashboard-table-subtitle">{expenseRow ? "Saját költség jellegű tétel" : "Tenant felé kezelt tranzakció"}</span>
+                                                    {charge.notes ? <span className="dashboard-table-subtitle">{charge.notes}</span> : null}
                                                 </div>
                                             </td>
                                             <td className="finance-cell-property">{property?.name ?? "Ismeretlen ingatlan"}</td>
@@ -898,6 +899,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                                         charge={{
                                                             id: charge.id,
                                                             title: charge.title,
+                                                            notes: charge.notes,
                                                             type: charge.type,
                                                             amount: charge.amount,
                                                             currency: charge.currency,
@@ -1021,7 +1023,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                     <div className="finance-mobile-head">
                                         <div className="dashboard-table-main">
                                             <strong>{charge.title}</strong>
-                                            <span className="dashboard-table-subtitle">{expenseRow ? "Saját költség jellegű tétel" : "Tenant felé kezelt tranzakció"}</span>
+                                            {charge.notes ? <span className="dashboard-table-subtitle">{charge.notes}</span> : null}
                                         </div>
                                         <span className={`dashboard-inline-badge ${statusTone(status)}`}>{status}</span>
                                     </div>
@@ -1066,6 +1068,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                                 charge={{
                                                     id: charge.id,
                                                     title: charge.title,
+                                                    notes: charge.notes,
                                                     type: charge.type,
                                                     amount: charge.amount,
                                                     currency: charge.currency,
