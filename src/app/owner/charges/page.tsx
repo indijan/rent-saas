@@ -5,7 +5,7 @@ import DesignIcon from "@/components/dashboard/DesignIcon";
 import InteractiveTrendChart from "@/components/dashboard/InteractiveTrendChart";
 import UploadInvoice from "@/components/UploadInvoice";
 import ConfirmActionForm from "@/app/owner/properties/[id]/charges/ConfirmActionForm";
-import { createDocumentSignedUrl } from "@/lib/documentStorage";
+import { buildDocumentOpenHref } from "@/lib/documentStorage";
 import { formatCurrency } from "@/lib/formatters";
 import { archiveCharge, cancelCharge, deleteCharge, markChargePaid, restoreCharge, undoChargePaid } from "@/app/owner/properties/[id]/charges/actions";
 import FinanceChargeComposer from "./FinanceChargeComposer";
@@ -22,6 +22,7 @@ type SearchParams = {
     type?: string;
     billing?: string;
     sort?: string;
+    q?: string;
     page?: string;
     compose?: string;
 };
@@ -52,6 +53,7 @@ type PropertyRow = {
 };
 
 type DocumentRow = {
+    id: string;
     charge_id: string;
     bucket_path: string;
 };
@@ -244,6 +246,15 @@ function buildQuery(input: Record<string, string | undefined>) {
     return query ? `?${query}` : "";
 }
 
+function normalizeSearchText(value: string | null | undefined) {
+    return String(value || "")
+        .toLocaleLowerCase("hu-HU")
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
 function normalizePeriodPreset(value: string | undefined): PeriodPreset {
     const preset = String(value || "CURRENT_MONTH").trim().toUpperCase();
     if (["CURRENT_MONTH", "LAST_30_DAYS", "LAST_3_MONTHS", "LAST_6_MONTHS", "LAST_12_MONTHS", "MAX", "CUSTOM"].includes(preset)) {
@@ -419,6 +430,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
     const typeFilter = sp.type ? String(sp.type) : "";
     const billingFilter = sp.billing ? String(sp.billing).toUpperCase() : "";
     const sortFilter = normalizeSortOrder(sp.sort ? String(sp.sort) : undefined);
+    const keywordFilter = String(sp.q || "").trim();
     const page = Math.max(1, Number(sp.page || 1) || 1);
     const pageSize = 10;
     const composeMode = sp.compose === "upload" ? "upload" : sp.compose === "manual" ? "manual" : null;
@@ -434,6 +446,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
         type: typeFilter || undefined,
         billing: billingFilter || undefined,
         sort: sortFilter,
+        q: keywordFilter || undefined,
         page: page > 1 ? String(page) : undefined,
     })}`;
 
@@ -490,6 +503,17 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
         if (typeFilter && charge.type !== typeFilter) return false;
         if (billingFilter === "OWN" && !isExpenseCharge(charge)) return false;
         if (billingFilter === "TENANT" && isExpenseCharge(charge)) return false;
+        if (keywordFilter) {
+            const property = propertyById.get(charge.property_id);
+            const haystack = normalizeSearchText([
+                charge.title,
+                charge.notes,
+                property?.name,
+                property?.address,
+                getChargeTypeLabel(charge.type, charge.tenant_id),
+            ].join(" "));
+            if (!haystack.includes(normalizeSearchText(keywordFilter))) return false;
+        }
         return true;
     };
 
@@ -543,7 +567,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
 
     const [{ data: documents }, { data: tenantProfiles }] = await Promise.all([
         chargeIds.length
-            ? supabase.from("documents").select("charge_id,bucket_path").eq("owner_id", user.id).in("charge_id", chargeIds)
+            ? supabase.from("documents").select("id,charge_id,bucket_path").eq("owner_id", user.id).in("charge_id", chargeIds)
             : Promise.resolve({ data: [] as DocumentRow[] }),
         tenantIds.length
             ? supabase.from("profiles").select("id,full_name,email").in("id", tenantIds)
@@ -553,11 +577,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
     const documentByCharge = new Map<string, string>();
     for (const doc of ((documents ?? []) as DocumentRow[])) {
         if (documentByCharge.has(doc.charge_id)) continue;
-        try {
-            documentByCharge.set(doc.charge_id, await createDocumentSignedUrl(doc.bucket_path, 60 * 60));
-        } catch {
-            documentByCharge.set(doc.charge_id, "");
-        }
+        documentByCharge.set(doc.charge_id, buildDocumentOpenHref(doc.id));
     }
 
     const tenantById = new Map(((tenantProfiles ?? []) as ProfileRow[]).map((tenant) => [tenant.id, tenant]));
@@ -586,6 +606,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                         type: typeFilter || undefined,
                         billing: billingFilter || undefined,
                         sort: sortFilter,
+                        q: keywordFilter || undefined,
                     },
                 }}
             />
@@ -602,6 +623,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                         type={typeFilter || undefined}
                         billing={billingFilter || undefined}
                         sort={sortFilter}
+                        q={keywordFilter || undefined}
                         preset={preset}
                         from={from}
                         to={to}
@@ -726,6 +748,10 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                         {preset === "CUSTOM" ? <input type="hidden" name="from" value={from} /> : null}
                         {preset === "CUSTOM" ? <input type="hidden" name="to" value={to} /> : null}
                         <div className="finance-filter-grid">
+                            <label className="field-stack finance-composer-field-wide">
+                                <span className="field-label">Kulcsszó</span>
+                                <input name="q" className="input" type="search" defaultValue={keywordFilter} placeholder="Megnevezés, megjegyzés vagy típus" />
+                            </label>
                             <label className="field-stack">
                                 <span className="field-label">Nézet</span>
                                 <select name="billing" className="select" defaultValue={billingFilter}>
@@ -790,6 +816,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                         type: typeFilter || undefined,
                                         billing: billingFilter || undefined,
                                         sort: sortFilter,
+                                        q: keywordFilter || undefined,
                                     })}`}
                                 >
                                     Export Excelbe
@@ -1182,6 +1209,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                     type: typeFilter || undefined,
                                     billing: billingFilter || undefined,
                                     sort: sortFilter,
+                                    q: keywordFilter || undefined,
                                     page: String(page - 1),
                                 })}`}>
                                     Előző
@@ -1198,6 +1226,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                     type: typeFilter || undefined,
                                     billing: billingFilter || undefined,
                                     sort: sortFilter,
+                                    q: keywordFilter || undefined,
                                     page: String(page + 1),
                                 })}`}>
                                     Következő

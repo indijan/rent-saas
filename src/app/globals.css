@@ -2978,9 +2978,48 @@ html[data-dashboard-theme="dark"] .private-skin .property-detail-backicon {
   color: #dbeafe;
 }
 
+html[data-dashboard-theme="dark"] .private-skin .tenant-charge-detail-copy .property-detail-backlink {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.26), rgba(15, 23, 42, 0.95)) !important;
+  border-color: rgba(96, 165, 250, 0.24) !important;
+  color: #dbeafe !important;
+}
+
+html[data-dashboard-theme="dark"] .private-skin .tenant-charge-detail-copy .property-detail-backlink:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.34), rgba(15, 23, 42, 0.98)) !important;
+  color: #f8fbff !important;
+}
+
 .private-skin .tenant-charge-detail-copy {
   display: grid;
   gap: 8px;
+}
+
+html[data-dashboard-theme="dark"] .private-skin .tenant-charge-detail-copy p,
+html[data-dashboard-theme="dark"] .private-skin .tenant-charge-detail-copy .eyebrow {
+  color: #9fb1cc;
+}
+
+html[data-dashboard-theme="dark"] .private-skin .dashboard-summary-card {
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 40%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(9, 16, 30, 0.98)) !important;
+  border-color: rgba(67, 84, 119, 0.34);
+}
+
+html[data-dashboard-theme="dark"] .private-skin .property-detail-grid .dashboard-section-card,
+html[data-dashboard-theme="dark"] .private-skin .account-channel-card {
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 42%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(10, 17, 31, 0.98)) !important;
+  border-color: rgba(67, 84, 119, 0.34);
+  color: #e6eefc;
+}
+
+html[data-dashboard-theme="dark"] .private-skin .account-channel-card span,
+html[data-dashboard-theme="dark"] .private-skin .account-channel-card small,
+html[data-dashboard-theme="dark"] .private-skin .property-detail-grid .dashboard-section-card p,
+html[data-dashboard-theme="dark"] .private-skin .property-detail-grid .dashboard-section-card .muted-note {
+  color: #9fb1cc;
 }
 
 .private-skin .property-hub-card-copy {

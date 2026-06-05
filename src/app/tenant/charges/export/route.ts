@@ -11,6 +11,7 @@ type UserContext = {
 
 type TenantChargeExportRow = {
     title: string | null;
+    notes: string | null;
     type: string | null;
     amount: number | string | null;
     currency: string | null;
@@ -60,6 +61,15 @@ function todayIsoDate() {
     return `${year}-${month}-${day}`;
 }
 
+function normalizeSearchText(value: string | null | undefined) {
+    return String(value || "")
+        .toLocaleLowerCase("hu-HU")
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
 export async function GET(request: Request) {
     const ctx = await requireTenant();
     if (ctx instanceof NextResponse) return ctx;
@@ -73,10 +83,11 @@ export async function GET(request: Request) {
     const sort = url.searchParams.get("sort") ?? "due_asc";
     const from = url.searchParams.get("from") ?? "";
     const to = url.searchParams.get("to") ?? "";
+    const keyword = (url.searchParams.get("q") ?? "").trim();
 
     let q = admin
         .from("charges")
-        .select("title,type,amount,currency,due_date,status,paid_at,properties(name,address)")
+        .select("title,notes,type,amount,currency,due_date,status,paid_at,properties(name,address)")
         .in("property_id", propertyIds.length > 0 ? propertyIds : ["00000000-0000-0000-0000-000000000000"])
         .neq("status", "IMPORT_DRAFT")
         .order("due_date", { ascending: sort === "due_asc" });
@@ -94,6 +105,19 @@ export async function GET(request: Request) {
     const { data, error } = await q;
     if (error) return new NextResponse(error.message, { status: 500 });
 
+    const filteredData = ((data ?? []) as TenantChargeExportRow[]).filter((row) => {
+        if (!keyword) return true;
+        const property = Array.isArray(row.properties) ? row.properties[0] : row.properties;
+        const haystack = normalizeSearchText([
+            row.title,
+            row.notes,
+            property?.name,
+            property?.address,
+            row.type,
+        ].join(" "));
+        return haystack.includes(normalizeSearchText(keyword));
+    });
+
     const headers = [
         "property_name",
         "property_address",
@@ -106,7 +130,7 @@ export async function GET(request: Request) {
         "paid_at",
     ];
 
-    const rows = ((data ?? []) as TenantChargeExportRow[]).map((row) => {
+    const rows = filteredData.map((row) => {
         const property = Array.isArray(row.properties) ? row.properties[0] : row.properties;
         return [
         property?.name ?? "",

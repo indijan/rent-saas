@@ -54,6 +54,10 @@ function addDays(date: Date, days: number) {
     return next;
 }
 
+function isMissingReminderColumnError(message: string | undefined) {
+    return (message || "").includes("reminder_sent_at");
+}
+
 function describeUpcomingReminder(todayDate: string, dueDate: string) {
     const today = new Date(`${todayDate}T00:00:00`);
     const due = new Date(`${dueDate}T00:00:00`);
@@ -78,18 +82,21 @@ export async function POST(request: Request) {
     const admin = createSupabaseAdminClient();
     const now = new Date();
     const todayDate = formatDateInTimeZone(now);
-    const reminderWindowEnd = formatDateInTimeZone(addDays(now, 2));
+    const reminderTargetDate = formatDateInTimeZone(addDays(now, 2));
     const expenseHistoryFrom = formatDateInTimeZone(addDays(now, -400));
 
-    const { data: dueSoonCharges, error } = await admin
+    const buildDueSoonQuery = () => admin
         .from("charges")
         .select("id,title,amount,currency,due_date,owner_id,tenant_id,property_id,properties(name)")
         .eq("status", "UNPAID")
-        .gte("due_date", todayDate)
-        .lte("due_date", reminderWindowEnd)
-        .is("reminder_sent_at", null)
+        .eq("due_date", reminderTargetDate);
 
-    if (error) {
+    const { data: dueSoonChargesWithTracking, error } = await buildDueSoonQuery().is("reminder_sent_at", null);
+    const dueSoonCharges = isMissingReminderColumnError(error?.message)
+        ? (await buildDueSoonQuery()).data
+        : dueSoonChargesWithTracking;
+
+    if (error && !isMissingReminderColumnError(error.message)) {
         return new Response(error.message, { status: 500 });
     }
 
@@ -288,10 +295,14 @@ export async function POST(request: Request) {
     }
 
     if (reminderIds.length > 0) {
-        await admin
+        const { error: reminderUpdateError } = await admin
             .from("charges")
             .update({ reminder_sent_at: new Date().toISOString() })
             .in("id", Array.from(new Set(reminderIds)));
+
+        if (reminderUpdateError && !isMissingReminderColumnError(reminderUpdateError.message)) {
+            return new Response(reminderUpdateError.message, { status: 500 });
+        }
     }
 
     if (overdueCheckIds.length > 0) {

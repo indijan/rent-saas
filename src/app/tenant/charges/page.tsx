@@ -4,7 +4,7 @@ import { formatCurrency } from "@/lib/formatters";
 import AppHeader from "@/components/AppHeader";
 import FinancePeriodFilter from "@/app/owner/charges/FinancePeriodFilter";
 import DesignIcon from "@/components/dashboard/DesignIcon";
-import { createDocumentSignedUrl } from "@/lib/documentStorage";
+import { buildDocumentOpenHref } from "@/lib/documentStorage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { listTenantProperties } from "@/lib/propertyTenants";
 import { ALL_CHARGE_TYPE_OPTIONS, getChargeTypeLabel, type ChargeType } from "@/lib/chargeTypes";
@@ -20,6 +20,7 @@ type SearchParams = {
     from?: string;
     to?: string;
     sort?: string;
+    q?: string;
     page?: string;
 };
 
@@ -39,6 +40,7 @@ type ChargeProperty = {
 type ChargeRow = {
     id: string;
     title: string;
+    notes: string | null;
     type: ChargeType;
     amount: number | string;
     currency: string | null;
@@ -52,20 +54,11 @@ type ChargeRow = {
     properties?: ChargeProperty | ChargeProperty[] | null;
 };
 
-type TotalsRow = {
-    amount: number | string;
-    status: ChargeStatus;
-};
-
 type DocumentRow = {
     id: string;
     charge_id: string;
     bucket_path: string;
     created_at: string;
-};
-
-type DocumentWithUrl = DocumentRow & {
-    signed_url: string;
 };
 
 type Props = {
@@ -183,6 +176,15 @@ function buildQuery(input: Record<string, string | undefined>) {
     return query ? `?${query}` : "";
 }
 
+function normalizeSearchText(value: string | null | undefined) {
+    return String(value || "")
+        .toLocaleLowerCase("hu-HU")
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
 function formatDisplayDate(dateValue: string) {
     return new Intl.DateTimeFormat("hu-HU", {
         year: "numeric",
@@ -290,11 +292,10 @@ export default async function TenantChargesPage({ searchParams }: Props) {
     const statusFilter = sp.status ? String(sp.status) : "";
     const typeFilter = sp.type ? String(sp.type) : "";
     const sortFilter = normalizeSortOrder(sp.sort ? String(sp.sort) : undefined);
+    const keywordFilter = String(sp.q || "").trim();
     const pageParam = sp.page ? Number(sp.page) : 1;
     const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
     const pageSize = 10;
-    const rangeFrom = (page - 1) * pageSize;
-    const rangeTo = rangeFrom + pageSize - 1;
 
     const propertyRows = tenantProperties.map((property) => ({
         id: property.id,
@@ -307,7 +308,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
 
     let listQuery = admin
         .from("charges")
-        .select("id,title,type,amount,currency,due_date,status,paid_at,property_id,recurring_group,recurring_index,recurring_count,properties(id,name,address)", { count: "exact" })
+        .select("id,title,notes,type,amount,currency,due_date,status,paid_at,property_id,recurring_group,recurring_index,recurring_count,properties(id,name,address)")
         .in("property_id", propertyIds.length > 0 ? propertyIds : ["00000000-0000-0000-0000-000000000000"])
         .neq("status", "IMPORT_DRAFT")
         .gte("due_date", from)
@@ -322,21 +323,22 @@ export default async function TenantChargesPage({ searchParams }: Props) {
     }
     if (typeFilter) listQuery = listQuery.eq("type", typeFilter);
 
-    const { data: charges, error, count } = await listQuery.range(rangeFrom, rangeTo);
+    const { data: charges, error } = await listQuery;
 
-    const totalsQuery = admin
-        .from("charges")
-        .select("amount,status,due_date")
-        .in("property_id", propertyIds.length > 0 ? propertyIds : ["00000000-0000-0000-0000-000000000000"])
-        .neq("status", "IMPORT_DRAFT")
-        .gte("due_date", from)
-        .lte("due_date", to);
-
-    const { data: totalsRows } = selectedPropertyId
-        ? await totalsQuery.eq("property_id", selectedPropertyId)
-        : await totalsQuery;
-
-    const chargeIds = ((charges ?? []) as ChargeRow[]).map((charge) => charge.id);
+    const allRows = ((charges ?? []) as ChargeRow[]).filter((charge) => {
+        if (!keywordFilter) return true;
+        const property = firstProperty(charge.properties);
+        const haystack = normalizeSearchText([
+            charge.title,
+            charge.notes,
+            property?.name,
+            property?.address,
+            getChargeTypeLabel(charge.type, user.id),
+        ].join(" "));
+        return haystack.includes(normalizeSearchText(keywordFilter));
+    });
+    const chargeRows = allRows.slice((page - 1) * pageSize, page * pageSize);
+    const chargeIds = chargeRows.map((charge) => charge.id);
 
     const { data: documents } = chargeIds.length === 0
         ? { data: [] }
@@ -346,25 +348,14 @@ export default async function TenantChargesPage({ searchParams }: Props) {
             .in("charge_id", chargeIds)
             .order("created_at", { ascending: false });
 
-    const documentsWithUrls = await Promise.all(
-        ((documents ?? []) as DocumentRow[]).map(async (doc) => {
-            try {
-                const signedUrl = await createDocumentSignedUrl(doc.bucket_path, 60 * 60);
-                return { ...doc, signed_url: signedUrl };
-            } catch {
-                return { ...doc, signed_url: "" };
-            }
-        })
-    );
-
-    const documentsByCharge = new Map<string, DocumentWithUrl[]>();
-    documentsWithUrls.forEach((doc) => {
+    const documentsByCharge = new Map<string, DocumentRow[]>();
+    ((documents ?? []) as DocumentRow[]).forEach((doc) => {
         const list = documentsByCharge.get(doc.charge_id) ?? [];
         list.push(doc);
         documentsByCharge.set(doc.charge_id, list);
     });
 
-    const summary = ((totalsRows ?? []) as Array<TotalsRow & { due_date: string }>).reduce(
+    const summary = allRows.reduce(
         (acc, row) => {
             const amount = Number(row.amount) || 0;
             const overdue = row.status === "UNPAID" && new Date(`${row.due_date}T00:00:00`).getTime() < startOfToday().getTime();
@@ -395,8 +386,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
         );
     }
 
-    const totalPages = Math.max(1, Math.ceil((count ?? 0) / pageSize));
-    const chargeRows = (charges ?? []) as ChargeRow[];
+    const totalPages = Math.max(1, Math.ceil(allRows.length / pageSize));
     const periodLabel = preset === "CUSTOM" ? `${formatDisplayDate(from)} - ${formatDisplayDate(to)}` : periodRange.label;
 
     return (
@@ -415,6 +405,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                         status: statusFilter || undefined,
                         type: typeFilter || undefined,
                         sort: sortFilter,
+                        q: keywordFilter || undefined,
                     },
                 }}
             />
@@ -430,6 +421,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                         status={statusFilter || undefined}
                         type={typeFilter || undefined}
                         sort={sortFilter}
+                        q={keywordFilter || undefined}
                         preset={preset}
                         from={from}
                         to={to}
@@ -515,6 +507,10 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                         <input type="hidden" name="from" value={from} />
                         <input type="hidden" name="to" value={to} />
                         <div className="finance-filter-grid">
+                            <label className="field-stack finance-composer-field-wide">
+                                <span className="field-label">Kulcsszó</span>
+                                <input name="q" className="input" type="search" defaultValue={keywordFilter} placeholder="Megnevezés, megjegyzés vagy típus" />
+                            </label>
                             <label className="field-stack">
                                 <span className="field-label">Rendezés</span>
                                 <select name="sort" className="select" defaultValue={sortFilter}>
@@ -567,6 +563,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                         status: statusFilter || undefined,
                                         type: typeFilter || undefined,
                                         sort: sortFilter,
+                                        q: keywordFilter || undefined,
                                     })}`}
                                 >
                                     Export Excelbe
@@ -577,10 +574,10 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                 </section>
 
                 <section className="card finance-table-shell">
-                    <div className="section-header">
+                        <div className="section-header">
                         <div>
                             <div className="card-title">Tételek</div>
-                            <p className="muted-note">Összesen {count ?? chargeRows.length} tétel</p>
+                            <p className="muted-note">Összesen {allRows.length} tétel</p>
                         </div>
                     </div>
 
@@ -613,7 +610,8 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                             <tbody>
                                 {chargeRows.map((charge) => {
                                     const property = firstProperty(charge.properties);
-                                    const documentUrl = (documentsByCharge.get(charge.id) ?? []).find((doc) => doc.signed_url)?.signed_url ?? "";
+                                    const document = (documentsByCharge.get(charge.id) ?? [])[0];
+                                    const documentUrl = document ? buildDocumentOpenHref(document.id) : "";
                                     const status = statusLabel(charge.status, charge.due_date);
                                     const dueState = getDueState(charge.due_date, charge.status);
                                     const recurringLabel = charge.recurring_group && charge.recurring_index && charge.recurring_count
@@ -674,7 +672,8 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                             <div className="dashboard-empty-note">Nincs találat a megadott szűrőkkel.</div>
                         ) : chargeRows.map((charge) => {
                             const property = firstProperty(charge.properties);
-                            const documentUrl = (documentsByCharge.get(charge.id) ?? []).find((doc) => doc.signed_url)?.signed_url ?? "";
+                            const document = (documentsByCharge.get(charge.id) ?? [])[0];
+                            const documentUrl = document ? buildDocumentOpenHref(document.id) : "";
                             const status = statusLabel(charge.status, charge.due_date);
                             const dueState = getDueState(charge.due_date, charge.status);
                             return (
@@ -742,6 +741,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                     status: statusFilter || undefined,
                                     type: typeFilter || undefined,
                                     sort: sortFilter,
+                                    q: keywordFilter || undefined,
                                     page: String(page - 1),
                                 })}`}>
                                     Előző
@@ -757,6 +757,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                     status: statusFilter || undefined,
                                     type: typeFilter || undefined,
                                     sort: sortFilter,
+                                    q: keywordFilter || undefined,
                                     page: String(page + 1),
                                 })}`}>
                                     Következő

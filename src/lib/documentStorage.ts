@@ -153,6 +153,10 @@ export async function createDocumentSignedUrl(key: string, expiresIn = 60 * 60) 
     return data.signedUrl;
 }
 
+export function buildDocumentOpenHref(documentId: string) {
+    return `/api/documents/${documentId}`;
+}
+
 export function getConfiguredStorageBucketName() {
     return getStorageProvider() === "r2" ? getR2BucketName() : getSupabaseBucketName();
 }

@@ -11,6 +11,7 @@ type UserContext = {
 
 type ExportRow = {
     title: string | null;
+    notes: string | null;
     type: string | null;
     amount: number | string | null;
     currency: string | null;
@@ -57,6 +58,15 @@ function firstRelation<T>(value: T | T[] | null | undefined) {
     return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
 }
 
+function normalizeSearchText(value: string | null | undefined) {
+    return String(value || "")
+        .toLocaleLowerCase("hu-HU")
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
 function statusLabel(status: string | null, dueDate: string | null) {
     if (status === "UNPAID" && dueDate) {
         const due = new Date(`${dueDate}T00:00:00`);
@@ -92,10 +102,11 @@ export async function GET(request: NextRequest) {
     const sort = url.searchParams.get("sort") ?? "due_desc";
     const from = url.searchParams.get("from") ?? "";
     const to = url.searchParams.get("to") ?? "";
+    const keyword = (url.searchParams.get("q") ?? "").trim();
 
     let query = ctx.supabase
         .from("charges")
-        .select("title,type,amount,currency,due_date,status,paid_at,tenant_id,property_id,properties(name,address)")
+        .select("title,notes,type,amount,currency,due_date,status,paid_at,tenant_id,property_id,properties(name,address)")
         .eq("owner_id", ctx.userId)
         .order("due_date", { ascending: sort === "due_asc" });
 
@@ -117,6 +128,19 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
     if (error) return new NextResponse(error.message, { status: 500 });
 
+    const filteredData = ((data ?? []) as ExportRow[]).filter((row) => {
+        if (!keyword) return true;
+        const propertyRow = firstRelation(row.properties);
+        const haystack = normalizeSearchText([
+            row.title,
+            row.notes,
+            propertyRow?.name,
+            propertyRow?.address,
+            getChargeTypeLabel(row.type ?? "", row.tenant_id),
+        ].join(" "));
+        return haystack.includes(normalizeSearchText(keyword));
+    });
+
     const headers = [
         "property_name",
         "property_address",
@@ -131,7 +155,7 @@ export async function GET(request: NextRequest) {
         "tenant_id",
     ];
 
-    const rows = ((data ?? []) as ExportRow[]).map((row) => {
+    const rows = filteredData.map((row) => {
         const propertyRow = firstRelation(row.properties);
         const billingMode = !row.tenant_id && row.type !== "RENT" ? "Saját költség" : "Továbbított költség";
         return [

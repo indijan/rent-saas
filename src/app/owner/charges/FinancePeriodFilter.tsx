@@ -11,6 +11,7 @@ type Props = {
     type?: string;
     billing?: string;
     sort?: string;
+    q?: string;
     preset: PeriodPreset;
     from: string;
     to: string;
@@ -94,7 +95,7 @@ function formatDisplayDate(dateValue: string) {
     }).format(new Date(`${dateValue}T00:00:00`));
 }
 
-export default function FinancePeriodFilter({ property, status, type, billing, sort, preset: initialPreset, from: initialFrom, to: initialTo, propertyLabel }: Props) {
+export default function FinancePeriodFilter({ property, status, type, billing, sort, q, preset: initialPreset, from: initialFrom, to: initialTo, propertyLabel }: Props) {
     const router = useRouter();
     const pathname = usePathname();
     const [preset, setPreset] = useState<PeriodPreset>(initialPreset);
@@ -112,6 +113,7 @@ export default function FinancePeriodFilter({ property, status, type, billing, s
         if (type) params.set("type", type);
         if (billing) params.set("billing", billing);
         if (sort) params.set("sort", sort);
+        if (q) params.set("q", q);
         params.set("preset", nextPreset);
         params.set("from", nextFrom);
         params.set("to", nextTo);
@@ -136,6 +138,7 @@ export default function FinancePeriodFilter({ property, status, type, billing, s
             {type ? <input type="hidden" name="type" value={type} /> : null}
             {billing ? <input type="hidden" name="billing" value={billing} /> : null}
             {sort ? <input type="hidden" name="sort" value={sort} /> : null}
+            {q ? <input type="hidden" name="q" value={q} /> : null}
             <div className="finance-period-chip-meta">
                 <span className="finance-period-chip-label">Időszak</span>
                 <div className="finance-period-summary">

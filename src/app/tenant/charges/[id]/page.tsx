@@ -4,7 +4,7 @@ import { requireRole } from "@/lib/auth/requireRole";
 import AppHeader from "@/components/AppHeader";
 import DesignIcon from "@/components/dashboard/DesignIcon";
 import { formatCurrency } from "@/lib/formatters";
-import { createDocumentSignedUrl } from "@/lib/documentStorage";
+import { buildDocumentOpenHref } from "@/lib/documentStorage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getChargeTypeLabel } from "@/lib/chargeTypes";
 import { listTenantProperties } from "@/lib/propertyTenants";
@@ -15,10 +15,6 @@ type ChargeDocument = {
     id: string;
     bucket_path: string;
     created_at: string;
-};
-
-type ChargeDocumentWithUrl = ChargeDocument & {
-    signed_url: string;
 };
 
 function startOfToday() {
@@ -101,16 +97,7 @@ export default async function TenantChargeDetailPage({ params }: Props) {
         .eq("charge_id", id)
         .order("created_at", { ascending: false });
 
-    const documentsWithUrls = await Promise.all(
-        ((documents ?? []) as ChargeDocument[]).map(async (doc) => {
-            try {
-                const signedUrl = await createDocumentSignedUrl(doc.bucket_path, 60 * 60);
-                return { ...doc, signed_url: signedUrl };
-            } catch {
-                return { ...doc, signed_url: "" };
-            }
-        })
-    );
+    const documentRows = (documents ?? []) as ChargeDocument[];
 
     const property = Array.isArray(charge.properties) ? charge.properties[0] : charge.properties;
     const dueState = getDueState(String(charge.due_date), String(charge.status));
@@ -212,19 +199,19 @@ export default async function TenantChargeDetailPage({ params }: Props) {
                                 <p>Itt tudod megnyitni a csatolt PDF-et vagy mellékletet.</p>
                             </div>
                         </div>
-                        {(documentsWithUrls ?? []).length === 0 ? (
+                        {documentRows.length === 0 ? (
                             <div className="dashboard-empty-state">
                                 <strong>Nincs feltöltött dokumentum.</strong>
                                 <span>Ha a bérbeadó később csatol PDF-et, itt fog megjelenni.</span>
                             </div>
                         ) : (
                             <div className="account-card-list">
-                                {(documentsWithUrls as ChargeDocumentWithUrl[]).map((doc) => {
+                                {documentRows.map((doc) => {
                                     const pathParts = doc.bucket_path.split("/");
                                     const fileName = pathParts[pathParts.length - 1];
 
                                     return (
-                                        <a key={doc.id} className="account-channel-card" href={doc.signed_url} target="_blank" rel="noreferrer">
+                                        <a key={doc.id} className="account-channel-card" href={buildDocumentOpenHref(doc.id)} target="_blank" rel="noreferrer">
                                             <strong>{fileName}</strong>
                                             <span>Megnyitás új fülön</span>
                                             <small>{new Date(doc.created_at).toLocaleString("hu-HU")}</small>

@@ -9,7 +9,7 @@ import EditChargeForm from "./EditChargeForm";
 import { formatCurrency } from "@/lib/formatters";
 import AppHeader from "@/components/AppHeader";
 import FilterDateInput from "@/components/FilterDateInput";
-import { createDocumentSignedUrl } from "@/lib/documentStorage";
+import { buildDocumentOpenHref } from "@/lib/documentStorage";
 import PendingSubmitButton from "@/components/PendingSubmitButton";
 import { ALL_CHARGE_TYPE_OPTIONS, getChargeTypeLabel, type ChargeType } from "@/lib/chargeTypes";
 
@@ -50,10 +50,6 @@ type DocumentRow = {
     charge_id: string;
     bucket_path: string;
     created_at: string;
-};
-
-type DocumentWithUrl = DocumentRow & {
-    signed_url: string;
 };
 
 type Props = {
@@ -205,19 +201,8 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
         .eq("owner_id", profile.id)
         .order("created_at", { ascending: false });
 
-    const documentsWithUrls = await Promise.all(
-        ((documents ?? []) as DocumentRow[]).map(async (doc) => {
-            try {
-                const signedUrl = await createDocumentSignedUrl(doc.bucket_path, 60 * 60);
-                return { ...doc, signed_url: signedUrl };
-            } catch {
-                return { ...doc, signed_url: "" };
-            }
-        })
-    );
-
-    const documentsByCharge = new Map<string, DocumentWithUrl[]>();
-    documentsWithUrls.forEach((doc) => {
+    const documentsByCharge = new Map<string, DocumentRow[]>();
+    ((documents ?? []) as DocumentRow[]).forEach((doc) => {
         const list = documentsByCharge.get(doc.charge_id) ?? [];
         list.push(doc);
         documentsByCharge.set(doc.charge_id, list);
@@ -457,7 +442,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
 
                                                 return (
                                                     <div key={doc.id}>
-                                                        <a className="link" href={doc.signed_url} target="_blank" rel="noreferrer">
+                                                        <a className="link" href={buildDocumentOpenHref(doc.id)} target="_blank" rel="noreferrer">
                                                             Dokumentum: {fileName}
                                                         </a>{" "}
                                                         · {new Date(doc.created_at).toLocaleString("hu-HU")}
