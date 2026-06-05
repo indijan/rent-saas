@@ -13,6 +13,7 @@ import { tmpdir } from "os";
 import path from "path";
 import { writeFile, readFile, rm } from "fs/promises";
 import { extractInvoiceFields } from "@/lib/ai/invoiceExtractor";
+import { extractInvoiceAmountFromText } from "@/lib/invoiceAmountExtraction";
 import { listPropertyTenants } from "@/lib/propertyTenants";
 import { isOwnExpenseRestrictedChargeType, isOwnOnlyChargeType } from "@/lib/chargeTypes";
 
@@ -79,93 +80,12 @@ function isLikelyMvm(text: string) {
     return /\bmvm\b/i.test(decoded);
 }
 
-function parseHungarianAmount(raw: string | null) {
-    if (!raw) return null;
-    const cleaned = raw.replace(/Ft|HUF/gi, "").replace(/\s/g, "");
-    const digits = cleaned.replace(/[^\d,.-]/g, "");
-    let normalized = digits;
-    if (digits.includes(",")) {
-        normalized = digits.replace(/\./g, "").replace(",", ".");
-    } else if (/^\d{1,3}(?:\.\d{3})+$/.test(digits)) {
-        normalized = digits.replace(/\./g, "");
-    }
-    const value = Number(normalized);
-    return Number.isFinite(value) ? value : null;
-}
-
-function extractAmountCandidates(raw: string) {
-    const matches = raw.match(/\d{1,3}(?:[ .]\d{3})+(?:,\d{1,2})?\s*(?:Ft|HUF)?|\d+(?:,\d{1,2})?\s*(?:Ft|HUF)/gi) ?? [];
-    const values = matches
-        .map((match) => parseHungarianAmount(match))
-        .filter((value): value is number => value !== null && value > 0);
-    return Array.from(new Set(values));
-}
-
-function pickBestAmount(candidates: number[]) {
-    if (candidates.length === 0) return null;
-    const preferred = candidates.filter((value) => value >= 100);
-    return Math.max(...(preferred.length > 0 ? preferred : candidates));
-}
-
 function normalizeDateValue(raw: string | null) {
     if (!raw) return null;
     const trimmed = raw.trim();
     const dotMatch = trimmed.match(/^(\d{4})[.](\d{2})[.](\d{2})$/);
     if (dotMatch) return `${dotMatch[1]}-${dotMatch[2]}-${dotMatch[3]}`;
     if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
-    return null;
-}
-
-function extractAmountDueFromText(text: string) {
-    const normalized = normalizeLabelText(text);
-    const noAccents = normalizeLabelText(normalizeDiacritics(text));
-    const lines = normalized.split(/\r?\n/);
-    const linesNoAccents = noAccents.split(/\r?\n/);
-    const candidates = [lines, linesNoAccents];
-    const rawLines = text.split(/\r?\n/);
-    const amountLabelPattern = /(Fizetendo\s+osszeg|Fizetendo|Osszesen|Vegosszeg|Brutto\s+vegosszeg|Brutto\s+osszeg)/i;
-
-    for (const list of candidates) {
-        for (let i = 0; i < list.length; i += 1) {
-            const line = list[i];
-            const match = line.match(/(?:Fizetendo\s+osszeg|Fizetendo|Osszesen|Vegosszeg|Brutto\s+vegosszeg|Brutto\s+osszeg)\s*[:\s]*([0-9 .,-]+(?:Ft|HUF)?)/i);
-            if (match?.[1]) {
-                const value = pickBestAmount(extractAmountCandidates(match[1]));
-                if (value !== null) return value;
-            }
-            if (amountLabelPattern.test(line) && list[i + 1]) {
-                const nearbyCandidates = [
-                    ...extractAmountCandidates(list[i + 1] || ""),
-                    ...extractAmountCandidates(rawLines[i + 1] || ""),
-                ];
-                const nearbyValue = pickBestAmount(nearbyCandidates);
-                if (nearbyValue !== null) return nearbyValue;
-            }
-            if (amountLabelPattern.test(line) && rawLines[i]) {
-                const rawLineValue = pickBestAmount(extractAmountCandidates(rawLines[i]));
-                if (rawLineValue !== null) return rawLineValue;
-            }
-        }
-    }
-
-    const keywordWindowMatch = text.match(/(?:fizetend[oő]|összesen|végösszeg|bruttó)[\s\S]{0,80}?([0-9]{1,3}(?:[ .]\d{3})+(?:,\d{1,2})?\s*(?:Ft|HUF)?)/i);
-    if (keywordWindowMatch?.[1]) {
-        const keywordValue = pickBestAmount(extractAmountCandidates(keywordWindowMatch[1]));
-        if (keywordValue !== null) return keywordValue;
-    }
-
-    const globalKeywordValues = Array.from(
-        text.matchAll(/(?:fizetend[oő]|összesen|végösszeg|bruttó)[\s\S]{0,120}?((?:\d{1,3}(?:[ .]\d{3})+(?:,\d{1,2})?|\d+(?:,\d{1,2})?)\s*(?:Ft|HUF)?)/gi),
-        (match) => match[1]
-    ).reduce<number[]>((allMatches, chunk) => {
-        allMatches.push(...extractAmountCandidates(chunk));
-        return allMatches;
-    }, []);
-    const globalKeywordValue = pickBestAmount(globalKeywordValues);
-    if (globalKeywordValue !== null) {
-        return globalKeywordValue;
-    }
-
     return null;
 }
 
@@ -445,7 +365,7 @@ export async function extractInvoiceFromBuffer(buffer: Buffer) {
 
     const aiRes = await extractInvoiceFields(text);
     if (!aiRes.ok || !aiRes.data) return { ok: false, error: aiRes.error };
-    const labeledAmount = extractAmountDueFromText(text);
+    const labeledAmount = extractInvoiceAmountFromText(text);
     const labeledDue = extractDueDateFromText(text);
     const hasTelekom = /telekom/i.test(text);
     const aiAmountSafe = Number.isFinite(aiRes.data.amount ?? NaN) ? (aiRes.data.amount as number) : null;

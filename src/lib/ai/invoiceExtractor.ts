@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { CHARGE_TYPES, type ChargeType } from "@/lib/chargeTypes";
+import { extractInvoiceAmountFromText } from "@/lib/invoiceAmountExtraction";
 
 const allowedTypes = CHARGE_TYPES;
 export type InvoiceExtract = {
@@ -27,16 +28,6 @@ function applyProviderHints(text: string) {
         }
     }
     return null;
-}
-
-function pickLabeledValue(text: string, label: RegExp) {
-    const match = text.match(label);
-    if (!match) return null;
-    return (match[1] || "").trim() || null;
-}
-
-function normalizeWhitespace(text: string) {
-    return text.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function stripDiacritics(text: string) {
@@ -297,6 +288,7 @@ export async function extractInvoiceFields(text: string) {
 
     const labeledAmountParsedRaw = parseHungarianAmount(labeledAmount);
     const labeledAmountParsed = labeledAmountParsedRaw && labeledAmountParsedRaw > 0 ? labeledAmountParsedRaw : null;
+    const robustAmount = extractInvoiceAmountFromText(text);
     const labeledDueDate = normalizeDate(labeledDue);
 
     const safeAmount = amount !== null && amount > 0 && currency ? amount : null;
@@ -309,7 +301,7 @@ export async function extractInvoiceFields(text: string) {
     return {
         ok: true,
         data: {
-            amount: labeledAmountParsed ?? safeAmount,
+            amount: robustAmount ?? labeledAmountParsed ?? safeAmount,
             currency: labeledAmount ? (labeledCurrency ?? "HUF") : currency,
             due_date: safeDueDate,
             name: labeledName ?? hints?.name ?? safeName,
