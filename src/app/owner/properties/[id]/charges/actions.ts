@@ -16,6 +16,7 @@ import { extractInvoiceFields } from "@/lib/ai/invoiceExtractor";
 import { extractInvoiceAmountFromText } from "@/lib/invoiceAmountExtraction";
 import { listPropertyTenants } from "@/lib/propertyTenants";
 import { isOwnExpenseRestrictedChargeType, isOwnOnlyChargeType } from "@/lib/chargeTypes";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type ChargeIdRow = {
     id: string | null;
@@ -520,6 +521,7 @@ export async function sendManualChargeReminder(chargeId: string) {
 
 export async function publishCharge(chargeId: string) {
     const { supabase, user } = await requireRole("OWNER");
+    const admin = createSupabaseAdminClient();
 
     const { data: charge, error: chargeErr } = await supabase
         .from("charges")
@@ -538,6 +540,15 @@ export async function publishCharge(chargeId: string) {
         .eq("owner_id", user.id);
 
     if (error) return { ok: false, error: error.message };
+
+    await admin
+        .from("document_ingestions")
+        .update({
+            status: "PUBLISHED",
+            processed_at: new Date().toISOString(),
+        })
+        .eq("owner_id", user.id)
+        .eq("created_charge_id", chargeId);
 
     const propertyTenants = await listPropertyTenants(charge.property_id);
     if (propertyTenants.length > 0) {
@@ -560,7 +571,9 @@ export async function publishCharge(chargeId: string) {
 
     revalidatePath(`/owner/properties/${charge.property_id}/charges`);
     revalidatePath("/owner/charges");
+    revalidatePath("/owner/importok");
     revalidatePath("/owner/osszefoglalo");
+    revalidatePath("/owner/todo");
     return { ok: true };
 }
 

@@ -867,6 +867,7 @@ html[data-dashboard-sidebar="collapsed"] .private-skin .dashboard-topbar {
 .private-skin .dashboard-summary-title {
   color: var(--dashboard-ink);
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .private-skin .dashboard-summary-value {
@@ -907,6 +908,24 @@ html[data-dashboard-sidebar="collapsed"] .private-skin .dashboard-topbar {
 .private-skin .dashboard-kpi-title {
   color: var(--dashboard-ink);
   font-weight: 700;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+  text-wrap: balance;
+}
+
+.private-skin a.dashboard-summary-card,
+.private-skin a.card.dashboard-kpi-card,
+.private-skin a.card.dashboard-kpi-card-compact {
+  color: inherit;
+  text-decoration: none;
+}
+
+.private-skin a.dashboard-summary-card:hover,
+.private-skin a.card.dashboard-kpi-card:hover,
+.private-skin a.card.dashboard-kpi-card-compact:hover {
+  border-color: rgba(37, 99, 235, 0.2);
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
 }
 
 .private-skin .dashboard-kpi-value {

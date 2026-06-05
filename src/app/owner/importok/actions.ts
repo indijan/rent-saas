@@ -310,6 +310,8 @@ export async function createManualIngestion(formData: FormData) {
             }));
         }
         revalidatePath("/owner/importok");
+        revalidatePath("/owner/todo");
+        revalidatePath("/owner/osszefoglalo");
         return { ok: true, needsReview: true, ingestionId };
     }
 
@@ -397,6 +399,9 @@ export async function createManualIngestion(formData: FormData) {
 
     revalidatePath("/owner/importok");
     revalidatePath(`/owner/properties/${property.id}/charges`);
+    revalidatePath("/owner/charges");
+    revalidatePath("/owner/todo");
+    revalidatePath("/owner/osszefoglalo");
     return { ok: true, needsReview: false, chargeId: draftResult.chargeId, ingestionId };
 }
 
@@ -510,6 +515,7 @@ export async function finalizeIngestionReview(ingestionId: string, formData: For
     revalidatePath(`/owner/properties/${property.id}/charges`);
     revalidatePath("/owner/charges");
     revalidatePath("/owner/osszefoglalo");
+    revalidatePath("/owner/todo");
     return { ok: true, chargeId: draftResult.chargeId, propertyId: property.id };
 }
 

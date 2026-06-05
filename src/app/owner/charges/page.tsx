@@ -7,7 +7,7 @@ import UploadInvoice from "@/components/UploadInvoice";
 import ConfirmActionForm from "@/app/owner/properties/[id]/charges/ConfirmActionForm";
 import { buildDocumentOpenHref } from "@/lib/documentStorage";
 import { formatCurrency } from "@/lib/formatters";
-import { archiveCharge, cancelCharge, deleteCharge, markChargePaid, restoreCharge, undoChargePaid } from "@/app/owner/properties/[id]/charges/actions";
+import { archiveCharge, cancelCharge, deleteCharge, markChargePaid, publishCharge, restoreCharge, undoChargePaid } from "@/app/owner/properties/[id]/charges/actions";
 import FinanceChargeComposer from "./FinanceChargeComposer";
 import FinanceChargeEditor from "./FinanceChargeEditor";
 import FinancePeriodFilter from "./FinancePeriodFilter";
@@ -883,6 +883,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                     const status = statusLabel(charge);
                                     const canMarkPaid = !expenseRow && charge.status === "UNPAID";
                                     const canUndoPaid = !expenseRow && charge.status === "PAID";
+                                    const canPublish = charge.status === "IMPORT_DRAFT";
                                     const canCancel = charge.status !== "PAID" && charge.status !== "ARCHIVED" && charge.status !== "CANCELLED";
                                     const canArchive = expenseRow ? charge.status === "UNPAID" : charge.status === "PAID";
                                     const canRestore = charge.status === "ARCHIVED" || charge.status === "CANCELLED";
@@ -936,6 +937,19 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                                             recurring_group: charge.recurring_group ?? null,
                                                         }}
                                                     />
+                                                    {canPublish ? (
+                                                        <ConfirmActionForm
+                                                            action={async () => {
+                                                                "use server";
+                                                                await publishCharge(charge.id);
+                                                            }}
+                                                            confirmMessage="Biztosan publikálod ezt az importált piszkozatot a bérlő felé?"
+                                                        >
+                                                            <button type="submit" className="dashboard-icon-button dashboard-icon-button-success" aria-label="Publikálás" title="Publikálás" data-tooltip="Publikálás">
+                                                                <CheckIcon />
+                                                            </button>
+                                                        </ConfirmActionForm>
+                                                    ) : null}
                                                     {canMarkPaid ? (
                                                         <ConfirmActionForm
                                                             action={async () => {
@@ -1039,6 +1053,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                             const status = statusLabel(charge);
                             const canMarkPaid = !expenseRow && charge.status === "UNPAID";
                             const canUndoPaid = !expenseRow && charge.status === "PAID";
+                            const canPublish = charge.status === "IMPORT_DRAFT";
                             const canCancel = charge.status !== "PAID" && charge.status !== "ARCHIVED" && charge.status !== "CANCELLED";
                             const canArchive = expenseRow ? charge.status === "UNPAID" : charge.status === "PAID";
                             const canRestore = charge.status === "ARCHIVED" || charge.status === "CANCELLED";
@@ -1106,6 +1121,20 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                                 }}
                                                 mobileLabel="Szerkesztés"
                                             />
+                                            {canPublish ? (
+                                                <ConfirmActionForm
+                                                    action={async () => {
+                                                        "use server";
+                                                        await publishCharge(charge.id);
+                                                    }}
+                                                    confirmMessage="Biztosan publikálod ezt az importált piszkozatot a bérlő felé?"
+                                                >
+                                                    <button type="submit" className="dashboard-icon-button dashboard-icon-button-success finance-mobile-action-button" aria-label="Publikálás" title="Publikálás" data-tooltip="Publikálás">
+                                                        <CheckIcon />
+                                                        <span>Publikálás</span>
+                                                    </button>
+                                                </ConfirmActionForm>
+                                            ) : null}
                                             {canMarkPaid ? (
                                                 <ConfirmActionForm
                                                     action={async () => {

@@ -5,9 +5,10 @@ import { formatCurrency } from "@/lib/formatters";
 import AppHeader from "@/components/AppHeader";
 import DesignIcon from "@/components/dashboard/DesignIcon";
 import PendingSubmitButton from "@/components/PendingSubmitButton";
-import { markChargePaid, sendManualChargeReminder } from "@/app/owner/properties/[id]/charges/actions";
+import { markChargePaid, publishCharge, sendManualChargeReminder } from "@/app/owner/properties/[id]/charges/actions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { buildMissingInvoiceSuggestions } from "@/lib/invoiceSuggestions";
+import { getOwnerImportOverview } from "@/lib/importOverview";
 
 type ChargeTodoRow = {
     id: string;
@@ -64,6 +65,7 @@ type TaskRow = {
     amountLabel?: string;
     actionType: "charge" | "import" | "exit" | "done";
     chargeId?: string;
+    chargeHref?: string | null;
 };
 
 function firstProperty(value: ChargeTodoRow["properties"] | ExitRequestRow["properties"]) {
@@ -128,7 +130,7 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
     const historyFrom = historyFromDate.toISOString().slice(0, 10);
     const todayIso = new Date().toISOString().slice(0, 10);
 
-    const [{ data: charges, error: chargeError }, { data: properties, error: propertyError }, { data: exitRequests }, { data: expenseHistoryRows, error: expenseHistoryError }] = await Promise.all([
+    const [{ data: charges, error: chargeError }, { data: properties, error: propertyError }, { data: exitRequests }, { data: expenseHistoryRows, error: expenseHistoryError }, importOverview] = await Promise.all([
         supabase
             .from("charges")
             .select("id,title,amount,currency,due_date,status,paid_at,property_id,properties(name)")
@@ -151,6 +153,7 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
             .is("tenant_id", null)
             .neq("type", "RENT")
             .gte("due_date", historyFrom),
+        getOwnerImportOverview(user.id, { limit: 50 }),
     ]);
 
     if (chargeError || propertyError || expenseHistoryError) {
@@ -213,7 +216,7 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
     const assignedPropertyIds = new Set((propertyTenantRows ?? []).map((row) => row.property_id as string).filter(Boolean));
     const overdueCharges = chargeRows.filter((charge) => charge.status === "UNPAID" && getDayDiff(charge.due_date) < 0);
     const upcomingCharges = chargeRows.filter((charge) => charge.status === "UNPAID" && getDayDiff(charge.due_date) >= 0 && getDayDiff(charge.due_date) <= 7);
-    const importDrafts = chargeRows.filter((charge) => charge.status === "IMPORT_DRAFT");
+    const importRows = importOverview.actionRows;
     const completedCharges = chargeRows.filter((charge) => charge.status === "PAID" && charge.paid_at).slice(0, 8);
     const pendingExitRequests = (exitRequests ?? []) as ExitRequestRow[];
     const invoiceSuggestions = buildMissingInvoiceSuggestions((expenseHistoryRows ?? []) as ExpenseHistoryRow[], todayIso);
@@ -240,21 +243,23 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                 chargeId: charge.id,
             } satisfies TaskRow;
         }),
-        ...importDrafts.map((charge) => {
-            const property = firstProperty(charge.properties);
+        ...importRows.map((importRow) => {
+            const property = propertyRows.find((row) => row.id === importRow.propertyId);
             return {
-                id: `import-${charge.id}`,
-                label: "Import ellenőrzés szükséges",
-                description: charge.title,
+                id: `import-${importRow.ingestionId}`,
+                label: importRow.state === "draft" ? "Import piszkozat publikálásra vár" : "Import ellenőrzés szükséges",
+                description: importRow.chargeTitle || importRow.sourceAttachmentName || "Importált számla",
                 propertyLabel: property?.name || "Ingatlan nélkül",
-                counterparty: "AI import",
-                deadlineLabel: "Ma",
-                deadlineSubLabel: "Review szükséges",
+                counterparty: importRow.state === "draft" ? "Import piszkozat" : "AI import",
+                deadlineLabel: importRow.state === "draft" ? "Piszkozat kész" : "Ma",
+                deadlineSubLabel: importRow.state === "draft" ? "Publikálás szükséges" : "Review szükséges",
                 priority: "high",
                 state: "progress",
-                actionHref: `/owner/charges?property=${charge.property_id}&status=IMPORT_DRAFT`,
-                amountLabel: formatCurrency(Number(charge.amount), charge.currency || "HUF"),
+                actionHref: importRow.reviewHref,
+                amountLabel: importRow.amount !== null ? formatCurrency(importRow.amount, importRow.currency || "HUF") : undefined,
                 actionType: "import",
+                chargeId: importRow.canPublish ? (importRow.createdChargeId ?? undefined) : undefined,
+                chargeHref: importRow.chargeHref,
             } satisfies TaskRow;
         }),
         ...upcomingCharges.map((charge) => {
@@ -348,14 +353,14 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                             <div className="muted-note">7 napon belül</div>
                         </div>
                     </article>
-                    <article className="card dashboard-kpi-card dashboard-kpi-card-compact">
+                    <Link className="card dashboard-kpi-card dashboard-kpi-card-compact" href="/owner/importok">
                         <DesignIcon name="import_review_var" alt="Import review" tone="design-icon-badge-purple" />
                         <div className="dashboard-kpi-copy">
                             <div className="dashboard-kpi-title">Import review</div>
-                            <div className="dashboard-kpi-value">{importDrafts.length}</div>
-                            <div className="muted-note">Piszkozat ellenőrzések</div>
+                            <div className="dashboard-kpi-value">{importRows.length}</div>
+                                <div className="muted-note">Review vagy publikálás</div>
                         </div>
-                    </article>
+                    </Link>
                     <article className="card dashboard-kpi-card dashboard-kpi-card-compact">
                         <DesignIcon name="kilepesi_kerelem_folyamatban" alt="Kilépési kérelmek" tone="design-icon-badge-blue" />
                         <div className="dashboard-kpi-copy">
@@ -515,6 +520,25 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                                                             <PendingSubmitButton className="btn btn-secondary btn-sm" label="Emlékeztető" pendingLabel="Küldés..." />
                                                         </form>
                                                     </>
+                                                ) : null}
+                                                {task.actionType === "import" && task.chargeId ? (
+                                                    <form
+                                                        action={async () => {
+                                                            "use server";
+                                                            const res = await publishCharge(task.chargeId!);
+                                                            if (!res.ok) {
+                                                                redirect(`/owner/todo?status=error&message=${encodeURIComponent(res.error ?? "Ismeretlen hiba.")}`);
+                                                            }
+                                                            redirect("/owner/todo?status=success&message=Az+import+piszkozat+publik%C3%A1lva+lett.");
+                                                        }}
+                                                    >
+                                                        <PendingSubmitButton className="btn btn-primary btn-sm" label="Publikálás" pendingLabel="Publikálás..." />
+                                                    </form>
+                                                ) : null}
+                                                {task.actionType === "import" && task.chargeHref ? (
+                                                    <Link className="btn btn-secondary btn-sm" href={task.chargeHref}>
+                                                        Piszkozat
+                                                    </Link>
                                                 ) : null}
                                                 <Link className="btn btn-secondary btn-sm" href={task.actionHref}>
                                                     Megnyitás

@@ -5,6 +5,7 @@ import AppHeader from "@/components/AppHeader";
 import DesignIcon from "@/components/dashboard/DesignIcon";
 import CopyTextButton from "@/components/dashboard/CopyTextButton";
 import { getOrCreateInboundMailbox, getOwnExpenseInboundEmail, getSharedInboundEmail } from "@/lib/inboundMailboxes";
+import { getOwnerImportOverview } from "@/lib/importOverview";
 import { createManualIngestion, rotateOwnerInboundMailbox } from "./actions";
 import ImportSubmitButton from "./ImportSubmitButton";
 
@@ -18,50 +19,6 @@ type PropertyRow = {
     address: string;
 };
 
-type IngestionRow = {
-    id: string;
-    source_type: "EMAIL" | "UPLOAD";
-    source_attachment_name: string | null;
-    status: "RECEIVED" | "EXTRACTED" | "NEEDS_REVIEW" | "DRAFTED" | "FAILED" | "PUBLISHED";
-    error_message: string | null;
-    created_charge_id: string | null;
-    created_at: string;
-};
-
-function statusLabel(status: IngestionRow["status"]) {
-    switch (status) {
-        case "RECEIVED":
-            return "Beérkezett";
-        case "EXTRACTED":
-            return "Feldolgozás alatt";
-        case "NEEDS_REVIEW":
-            return "Ellenőrzésre vár";
-        case "DRAFTED":
-        case "PUBLISHED":
-            return "Sikeresen feldolgozva";
-        case "FAILED":
-            return "Hibás";
-        default:
-            return status;
-    }
-}
-
-function statusTone(status: IngestionRow["status"]) {
-    switch (status) {
-        case "RECEIVED":
-            return "dashboard-inline-badge-blue";
-        case "EXTRACTED":
-            return "dashboard-inline-badge-amber";
-        case "NEEDS_REVIEW":
-            return "dashboard-inline-badge-purple";
-        case "DRAFTED":
-        case "PUBLISHED":
-            return "dashboard-inline-badge-green";
-        default:
-            return "dashboard-inline-badge-red";
-    }
-}
-
 export default async function OwnerImportsPage({ searchParams }: Props) {
     const { supabase, user, profile } = await requireRole("OWNER");
     const sp = searchParams instanceof Promise ? await searchParams : (searchParams ?? {});
@@ -74,38 +31,30 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
     const usingSharedInbox = mailbox.email_address === getSharedInboundEmail();
     const ownExpenseEmail = getOwnExpenseInboundEmail();
 
-    const [{ data: properties, error: propertyError }, { data: ingestions, error: ingestionError }] = await Promise.all([
+    const [{ data: properties, error: propertyError }, importOverview] = await Promise.all([
         supabase
             .from("properties")
             .select("id,name,address")
             .eq("owner_id", user.id)
             .order("name"),
-        supabase
-            .from("document_ingestions")
-            .select("id,source_type,source_attachment_name,status,error_message,created_charge_id,created_at")
-            .eq("owner_id", user.id)
-            .order("created_at", { ascending: false })
-            .limit(24),
+        getOwnerImportOverview(user.id, { limit: 24 }),
     ]);
 
-    if (propertyError || ingestionError) {
+    if (propertyError) {
         return (
             <main className="app-shell page-enter">
                 <AppHeader profile={profile} />
                 <div className="card">
                     <h1>Importok</h1>
-                    <p className="text-red-600">Hiba: {propertyError?.message || ingestionError?.message}</p>
+                    <p className="text-red-600">Hiba: {propertyError.message}</p>
                 </div>
             </main>
         );
     }
 
     const propertyRows = (properties ?? []) as PropertyRow[];
-    const ingestionRows = (ingestions ?? []) as IngestionRow[];
-    const receivedCount = ingestionRows.filter((row) => row.status === "RECEIVED").length;
-    const processingCount = ingestionRows.filter((row) => row.status === "EXTRACTED").length;
-    const reviewRows = ingestionRows.filter((row) => row.status === "NEEDS_REVIEW");
-    const completedCount = ingestionRows.filter((row) => row.status === "DRAFTED" || row.status === "PUBLISHED").length;
+    const ingestionRows = importOverview.rows;
+    const actionRows = importOverview.actionRows;
 
     return (
         <main className="app-shell page-enter">
@@ -124,7 +73,7 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
                         <DesignIcon name="beerkezett" alt="Beérkezett" tone="design-icon-badge-blue" />
                         <div className="dashboard-kpi-copy">
                             <div className="dashboard-kpi-title">Beérkezett</div>
-                            <div className="dashboard-kpi-value">{receivedCount}</div>
+                            <div className="dashboard-kpi-value">{importOverview.receivedCount}</div>
                             <div className="muted-note">Új dokumentumok</div>
                         </div>
                     </article>
@@ -132,7 +81,7 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
                         <DesignIcon name="feldolgozas_alatt" alt="Feldolgozás alatt" tone="design-icon-badge-amber" />
                         <div className="dashboard-kpi-copy">
                             <div className="dashboard-kpi-title">Feldolgozás alatt</div>
-                            <div className="dashboard-kpi-value">{processingCount}</div>
+                            <div className="dashboard-kpi-value">{importOverview.processingCount}</div>
                             <div className="muted-note">AI kinyerés folyamatban</div>
                         </div>
                     </article>
@@ -140,16 +89,16 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
                         <DesignIcon name="Ellenoryesre_var" alt="Ellenőrzésre vár" tone="design-icon-badge-purple" />
                         <div className="dashboard-kpi-copy">
                             <div className="dashboard-kpi-title">Ellenőrzésre vár</div>
-                            <div className="dashboard-kpi-value">{reviewRows.length}</div>
-                            <div className="muted-note">Kézi döntést igényel</div>
+                            <div className="dashboard-kpi-value">{importOverview.reviewCount}</div>
+                            <div className="muted-note">Kézi döntés vagy publikálás kell</div>
                         </div>
                     </article>
                     <article className="card dashboard-kpi-card dashboard-kpi-card-compact">
                         <DesignIcon name="sikeresen_feldolgozva" alt="Sikeresen feldolgozva" tone="design-icon-badge-green" />
                         <div className="dashboard-kpi-copy">
                             <div className="dashboard-kpi-title">Sikeresen feldolgozva</div>
-                            <div className="dashboard-kpi-value">{completedCount}</div>
-                            <div className="muted-note">Draft vagy publikált</div>
+                            <div className="dashboard-kpi-value">{importOverview.completedCount}</div>
+                            <div className="muted-note">Publikált tételek</div>
                         </div>
                     </article>
                 </section>
@@ -308,30 +257,38 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
                     <article className="card dashboard-section-card">
                         <div className="dashboard-section-head">
                             <div>
-                                <div className="card-title">Ellenőrzésre váró importok</div>
-                                <p className="muted-note">Azok a tételek, ahol a rendszernek emberi megerősítés kell.</p>
+                                <div className="card-title">Beavatkozást igénylő importok</div>
+                                <p className="muted-note">Itt jelenik meg minden review vagy még nem publikált importpiszkozat.</p>
                             </div>
                             <Link className="btn btn-secondary btn-sm" href="/owner/importok">
                                 Összes megtekintése
                             </Link>
                         </div>
 
-                        {reviewRows.length === 0 ? (
-                            <p className="dashboard-empty-note">Nincs ellenőrzésre váró import.</p>
+                        {actionRows.length === 0 ? (
+                            <p className="dashboard-empty-note">Nincs nyitott import review vagy publikálásra váró piszkozat.</p>
                         ) : (
                             <div className="dashboard-list">
-                                {reviewRows.slice(0, 4).map((ingestion) => (
-                                    <div key={ingestion.id} className="dashboard-list-item">
+                                {actionRows.slice(0, 6).map((ingestion) => (
+                                    <div key={ingestion.ingestionId} className="dashboard-list-item">
                                         <div className="dashboard-list-main">
                                             <DesignIcon name="import_review_var" alt="Import review" tone="design-icon-badge-purple" />
                                             <div className="dashboard-list-copy">
-                                                <strong>{ingestion.source_attachment_name || "Név nélküli dokumentum"}</strong>
-                                                <span>{new Date(ingestion.created_at).toLocaleString("hu-HU")}</span>
+                                                <strong>{ingestion.sourceAttachmentName || ingestion.chargeTitle || "Név nélküli dokumentum"}</strong>
+                                                <span>{new Date(ingestion.createdAt).toLocaleString("hu-HU")}</span>
+                                                <span>{ingestion.state === "draft" ? "A piszkozat elkészült, még publikálnod kell." : "A rendszer emberi ellenőrzést kér."}</span>
                                             </div>
                                         </div>
-                                        <Link className="btn btn-secondary btn-sm" href={`/owner/importok/${ingestion.id}`}>
-                                            Felülvizsgálat
-                                        </Link>
+                                        <div className="dashboard-table-actions">
+                                            {ingestion.chargeHref ? (
+                                                <Link className="btn btn-secondary btn-sm" href={ingestion.chargeHref}>
+                                                    Piszkozat megnyitása
+                                                </Link>
+                                            ) : null}
+                                            <Link className="btn btn-secondary btn-sm" href={ingestion.reviewHref}>
+                                                {ingestion.state === "draft" ? "Import megnyitása" : "Felülvizsgálat"}
+                                            </Link>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -387,24 +344,31 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
                                 </thead>
                                 <tbody>
                                     {ingestionRows.map((ingestion) => (
-                                        <tr key={ingestion.id}>
+                                        <tr key={ingestion.ingestionId}>
                                             <td>
                                                 <div className="dashboard-table-main">
-                                                    <strong>{ingestion.source_attachment_name || "Név nélküli csatolmány"}</strong>
-                                                    {ingestion.error_message ? <span className="dashboard-table-subtitle text-red-600">{ingestion.error_message}</span> : null}
+                                                    <strong>{ingestion.sourceAttachmentName || ingestion.chargeTitle || "Név nélküli csatolmány"}</strong>
+                                                    {ingestion.errorMessage ? <span className="dashboard-table-subtitle text-red-600">{ingestion.errorMessage}</span> : null}
                                                 </div>
                                             </td>
-                                            <td>{ingestion.source_type === "EMAIL" ? "E-mail" : "Kézi feltöltés"}</td>
-                                            <td>{new Date(ingestion.created_at).toLocaleString("hu-HU")}</td>
+                                            <td>{ingestion.sourceType === "EMAIL" ? "E-mail" : "Kézi feltöltés"}</td>
+                                            <td>{new Date(ingestion.createdAt).toLocaleString("hu-HU")}</td>
                                             <td>
-                                                <span className={`dashboard-inline-badge ${statusTone(ingestion.status)}`}>
-                                                    {statusLabel(ingestion.status)}
+                                                <span className={`dashboard-inline-badge ${ingestion.toneClass}`}>
+                                                    {ingestion.stateLabel}
                                                 </span>
                                             </td>
                                             <td>
-                                                <Link className="btn btn-secondary btn-sm" href={`/owner/importok/${ingestion.id}`}>
-                                                    Megnyitás
-                                                </Link>
+                                                <div className="dashboard-table-actions">
+                                                    {ingestion.chargeHref ? (
+                                                        <Link className="btn btn-secondary btn-sm" href={ingestion.chargeHref}>
+                                                            Piszkozat
+                                                        </Link>
+                                                    ) : null}
+                                                    <Link className="btn btn-secondary btn-sm" href={ingestion.reviewHref}>
+                                                        Megnyitás
+                                                    </Link>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}

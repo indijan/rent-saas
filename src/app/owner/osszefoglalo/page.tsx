@@ -5,6 +5,7 @@ import AppHeader from "@/components/AppHeader";
 import DesignIcon from "@/components/dashboard/DesignIcon";
 import InteractiveTrendChart from "@/components/dashboard/InteractiveTrendChart";
 import type { ChargeType } from "@/lib/chargeTypes";
+import { getOwnerImportOverview } from "@/lib/importOverview";
 import FinanceChargeComposer from "@/app/owner/charges/FinanceChargeComposer";
 
 type SearchParams = {
@@ -38,13 +39,6 @@ type PropertyRow = {
 type PropertyTenantRow = {
     property_id: string | null;
     tenant_id: string | null;
-};
-
-type IngestionRow = {
-    id: string;
-    status: "RECEIVED" | "EXTRACTED" | "NEEDS_REVIEW" | "DRAFTED" | "FAILED" | "PUBLISHED";
-    source_attachment_name: string | null;
-    normalized_data: { property_id?: string | null } | null;
 };
 
 type ExitRequestRow = {
@@ -117,7 +111,7 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
         { data: charges, error: chargeError },
         { data: properties, error: propertyError },
         { data: propertyTenants, error: propertyTenantError },
-        { data: ingestions, error: ingestionError },
+        importOverview,
         { data: exitRequests, error: exitRequestError },
     ] = await Promise.all([
         supabase
@@ -136,13 +130,7 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
             .from("property_tenants")
             .select("property_id,tenant_id")
             .eq("owner_id", user.id),
-        supabase
-            .from("document_ingestions")
-            .select("id,status,source_attachment_name,normalized_data")
-            .eq("owner_id", user.id)
-            .in("status", ["NEEDS_REVIEW", "RECEIVED", "EXTRACTED"])
-            .order("created_at", { ascending: false })
-            .limit(50),
+        getOwnerImportOverview(user.id, { propertyId: selectedPropertyId, limit: 50 }),
         supabase
             .from("tenant_exit_requests")
             .select("id,property_id,properties(name)")
@@ -152,14 +140,14 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
             .limit(20),
     ]);
 
-    if (chargeError || propertyError || propertyTenantError || ingestionError || exitRequestError) {
+    if (chargeError || propertyError || propertyTenantError || exitRequestError) {
         return (
             <main className="app-shell page-enter">
                 <AppHeader profile={profile} />
                 <section className="card">
                     <h1>Áttekintés</h1>
                     <p className="text-red-600">
-                        Hiba: {chargeError?.message || propertyError?.message || propertyTenantError?.message || ingestionError?.message || exitRequestError?.message}
+                        Hiba: {chargeError?.message || propertyError?.message || propertyTenantError?.message || exitRequestError?.message}
                     </p>
                 </section>
             </main>
@@ -169,7 +157,6 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
     const chargeRows = (charges ?? []) as ChargeRow[];
     const propertyRows = (properties ?? []) as PropertyRow[];
     const propertyTenantRows = (propertyTenants ?? []) as PropertyTenantRow[];
-    const ingestionRows = (ingestions ?? []) as IngestionRow[];
     const pendingExitRequests = (exitRequests ?? []) as ExitRequestRow[];
 
     const selectedProperty = selectedPropertyId
@@ -186,11 +173,7 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
         ? chargeRows.filter((charge) => charge.property_id === selectedPropertyId)
         : chargeRows;
 
-    const reviewRows = ingestionRows.filter((row) => {
-        if (row.status !== "NEEDS_REVIEW") return false;
-        if (!selectedPropertyId) return true;
-        return row.normalized_data?.property_id === selectedPropertyId;
-    });
+    const reviewRows = importOverview.actionRows;
 
     const overdueCharges = filteredCharges.filter((charge) => !isExpenseCharge(charge) && charge.status === "UNPAID" && daysUntil(charge.due_date) < 0);
     const upcomingCharges = filteredCharges
@@ -307,13 +290,13 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
                             <div className="dashboard-summary-title">Bérlő nélküli ingatlan</div>
                         </div>
                     </article>
-                    <article className="dashboard-summary-card">
+                    <Link className="dashboard-summary-card dashboard-summary-card-link" href="/owner/importok">
                         <DesignIcon name="import_review_var" alt="Import review vár" tone="design-icon-badge-purple" />
                         <div className="dashboard-summary-copy">
                             <div className="dashboard-summary-value">{reviewRows.length}</div>
                             <div className="dashboard-summary-title">Import review vár</div>
                         </div>
-                    </article>
+                    </Link>
                     <article className="dashboard-summary-card">
                         <DesignIcon name="kintlevoseg" alt="Kintlévőség" tone="design-icon-badge-danger" />
                         <div className="dashboard-summary-copy">
@@ -404,15 +387,15 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
                                 </Link>
                             ))}
                             {reviewRows.slice(0, 2).map((row) => (
-                                <Link key={row.id} className="dashboard-event-item" href={`/owner/importok/${row.id}`}>
+                                <Link key={row.ingestionId} className="dashboard-event-item" href={row.reviewHref}>
                                     <div className="dashboard-event-main">
                                         <DesignIcon name="import_review_var" alt="Import review" tone="design-icon-badge-purple" />
                                         <div className="dashboard-event-copy">
-                                            <strong>Import review vár</strong>
-                                            <span>{row.source_attachment_name || "Név nélküli dokumentum"}</span>
+                                            <strong>{row.state === "draft" ? "Import piszkozat publikálásra vár" : "Import review vár"}</strong>
+                                            <span>{row.sourceAttachmentName || row.chargeTitle || "Név nélküli dokumentum"}</span>
                                         </div>
                                     </div>
-                                    <span className="metric-chip metric-chip-amber">Review</span>
+                                    <span className="metric-chip metric-chip-amber">{row.state === "draft" ? "Piszkozat" : "Review"}</span>
                                 </Link>
                             ))}
                             {pendingExitRequests.slice(0, 2).map((request) => (
@@ -453,7 +436,7 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
                                     <DesignIcon name="import_review_var" alt="Import review vár" tone="design-icon-badge-purple" />
                                     <div className="attention-copy">
                                         <strong>Import review vár</strong>
-                                        <span>Kézi ellenőrzést igénylő számlák</span>
+                                        <span>Ellenőrzésre vagy publikálásra váró importok</span>
                                     </div>
                                 </div>
                                 <span className="metric-chip metric-chip-amber">{reviewRows.length} tétel</span>

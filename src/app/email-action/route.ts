@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { verifyEmailActionToken } from "@/lib/emailActionTokens";
 import { renderFriendlyArrearsReminderEmail, renderNewChargeEmail } from "@/lib/email/templates";
@@ -319,6 +320,15 @@ export async function POST(request: Request) {
                 return;
             }
 
+            await admin
+                .from("document_ingestions")
+                .update({
+                    status: "PUBLISHED",
+                    processed_at: new Date().toISOString(),
+                })
+                .eq("owner_id", charge.owner_id)
+                .eq("created_charge_id", charge.id);
+
             const property = getChargeProperty(charge);
             const propertyTenants = await listPropertyTenants(charge.property_id);
 
@@ -353,6 +363,11 @@ export async function POST(request: Request) {
                 }
             }
         }
+
+        revalidatePath("/owner/importok");
+        revalidatePath("/owner/charges");
+        revalidatePath("/owner/osszefoglalo");
+        revalidatePath("/owner/todo");
 
         redirectToResult(
             "success",

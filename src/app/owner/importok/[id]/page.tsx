@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
 import AppHeader from "@/components/AppHeader";
 import { finalizeIngestionReview } from "../actions";
+import { publishCharge } from "@/app/owner/properties/[id]/charges/actions";
 import { createDocumentSignedUrl } from "@/lib/documentStorage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import PendingSubmitButton from "@/components/PendingSubmitButton";
@@ -33,6 +34,11 @@ type IngestionRow = {
     normalized_data: Record<string, unknown> | null;
     confidence: number | null;
     created_at: string;
+};
+
+type ChargeRow = {
+    id: string;
+    status: "UNPAID" | "PAID" | "ARCHIVED" | "CANCELLED" | "IMPORT_DRAFT";
 };
 
 function statusLabel(status: IngestionRow["status"]) {
@@ -106,10 +112,18 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
 
     const ingestionRow = ingestion as IngestionRow;
     const propertyRows = (properties ?? []) as PropertyRow[];
+    const { data: createdCharge } = ingestionRow.created_charge_id
+        ? await admin
+            .from("charges")
+            .select("id,status")
+            .eq("id", ingestionRow.created_charge_id)
+            .eq("owner_id", user.id)
+            .maybeSingle()
+        : { data: null as ChargeRow | null };
     const normalized = (ingestionRow.normalized_data ?? {}) as Record<string, unknown>;
     const selectedPropertyId = asString(normalized.property_id);
     const chargeLink = ingestionRow.created_charge_id && selectedPropertyId
-        ? `/owner/charges?property=${selectedPropertyId}&status=IMPORT_DRAFT#charge-${ingestionRow.created_charge_id}`
+        ? `/owner/charges?property=${selectedPropertyId}${createdCharge?.status === "IMPORT_DRAFT" ? "&status=IMPORT_DRAFT" : ""}#charge-${ingestionRow.created_charge_id}`
         : "/owner/importok";
     let previewUrl = "";
     try {
@@ -137,6 +151,25 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
                         {statusLabel(ingestionRow.status)}
                     </div>
                 </div>
+                {createdCharge?.status === "IMPORT_DRAFT" ? (
+                    <div className="dashboard-table-actions">
+                        <Link className="btn btn-secondary btn-sm" href={chargeLink}>
+                            Piszkozat megnyitása
+                        </Link>
+                        <form
+                            action={async () => {
+                                "use server";
+                                const res = await publishCharge(createdCharge.id);
+                                if (!res.ok) {
+                                    redirect(`/owner/importok/${ingestionRow.id}?status=error&message=${encodeURIComponent(res.error ?? "Ismeretlen hiba.")}`);
+                                }
+                                redirect(`/owner/importok/${ingestionRow.id}?status=success&message=A+piszkozat+publik%C3%A1lva+lett.`);
+                            }}
+                        >
+                            <PendingSubmitButton className="btn btn-primary btn-sm" label="Publikálás" pendingLabel="Publikálás..." />
+                        </form>
+                    </div>
+                ) : null}
             </section>
 
             {message ? (
