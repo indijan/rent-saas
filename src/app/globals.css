@@ -2989,6 +2989,11 @@ html[data-dashboard-theme="dark"] .private-skin .tenant-charge-detail-copy .prop
   color: #f8fbff !important;
 }
 
+html[data-dashboard-theme="dark"] .private-skin .tenant-charge-detail-copy .property-detail-backicon {
+  background: rgba(147, 197, 253, 0.16) !important;
+  color: #dbeafe !important;
+}
+
 .private-skin .tenant-charge-detail-copy {
   display: grid;
   gap: 8px;
@@ -7594,6 +7599,22 @@ html[data-dashboard-theme="dark"] .private-skin .account-list-card {
     background:
       radial-gradient(circle at top right, rgba(37, 99, 235, 0.14), transparent 42%),
       linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(10, 17, 31, 0.98)) !important;
+  }
+
+  html:not([data-dashboard-theme]) .private-skin .tenant-charge-detail-copy .property-detail-backlink {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.26), rgba(15, 23, 42, 0.95)) !important;
+    border-color: rgba(96, 165, 250, 0.24) !important;
+    color: #dbeafe !important;
+  }
+
+  html:not([data-dashboard-theme]) .private-skin .tenant-charge-detail-copy .property-detail-backlink:hover {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.34), rgba(15, 23, 42, 0.98)) !important;
+    color: #f8fbff !important;
+  }
+
+  html:not([data-dashboard-theme]) .private-skin .tenant-charge-detail-copy .property-detail-backicon {
+    background: rgba(147, 197, 253, 0.16) !important;
+    color: #dbeafe !important;
   }
 
   html:not([data-dashboard-theme]) .private-skin .dashboard-mobile-more-link-danger {

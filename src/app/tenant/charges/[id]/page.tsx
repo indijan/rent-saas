@@ -119,8 +119,9 @@ export default async function TenantChargeDetailPage({ params }: Props) {
                 <section className="card dashboard-section-card property-detail-hero">
                     <div className="dashboard-page-header property-detail-heading">
                         <div className="tenant-charge-detail-copy">
-                            <Link className="link text-sm property-detail-backlink" href="/tenant/charges">
-                                ← Vissza a díjakhoz
+                            <Link className="btn btn-secondary btn-sm property-detail-backlink" href="/tenant/charges">
+                                <span className="property-detail-backicon" aria-hidden="true">←</span>
+                                <span>Vissza a díjakhoz</span>
                             </Link>
                             <div className="eyebrow">Tétel részletei</div>
                             <h1>{charge.title}</h1>
