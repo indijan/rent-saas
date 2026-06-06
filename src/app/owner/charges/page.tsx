@@ -119,8 +119,27 @@ function isExpenseCharge(charge: Pick<ChargeRow, "tenant_id" | "type">) {
     return !charge.tenant_id && charge.type !== "RENT";
 }
 
+function isRecoveredForwardedExpenseCharge(charge: Pick<ChargeRow, "tenant_id" | "type" | "status">) {
+    return !!charge.tenant_id
+        && charge.type !== "RENT"
+        && (charge.status === "PAID" || charge.status === "ARCHIVED");
+}
+
 function isRecognizedRevenueCharge(charge: Pick<ChargeRow, "tenant_id" | "type" | "status">) {
     return !isExpenseCharge(charge) && (charge.status === "PAID" || charge.status === "ARCHIVED");
+}
+
+function expenseAmountForSummary(charge: Pick<ChargeRow, "tenant_id" | "type" | "status" | "amount">) {
+    if (charge.status === "CANCELLED") return 0;
+    if (isExpenseCharge(charge) || isRecoveredForwardedExpenseCharge(charge)) {
+        return Number(charge.amount) || 0;
+    }
+    return 0;
+}
+
+function revenueAmountForSummary(charge: Pick<ChargeRow, "tenant_id" | "type" | "status" | "amount">) {
+    if (charge.status === "CANCELLED" || !isRecognizedRevenueCharge(charge)) return 0;
+    return Number(charge.amount) || 0;
 }
 
 function statusLabel(charge: Pick<ChargeRow, "status" | "due_date" | "tenant_id" | "type">) {
@@ -192,9 +211,7 @@ function buildRecentTrendSeries(rows: ChargeRow[], endValue: string) {
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
         const net = rows.reduce((sum, charge) => {
             if (charge.status === "CANCELLED" || !charge.due_date.startsWith(key)) return sum;
-            const amount = Number(charge.amount) || 0;
-            if (isExpenseCharge(charge)) return sum - amount;
-            return isRecognizedRevenueCharge(charge) ? sum + amount : sum;
+            return sum + revenueAmountForSummary(charge) - expenseAmountForSummary(charge);
         }, 0);
         return {
             key,
@@ -217,9 +234,7 @@ function buildCustomTrendSeries(rows: ChargeRow[], fromValue: string, toValue: s
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
         const net = rows.reduce((sum, charge) => {
             if (charge.status === "CANCELLED" || !charge.due_date.startsWith(key)) return sum;
-            const amount = Number(charge.amount) || 0;
-            if (isExpenseCharge(charge)) return sum - amount;
-            return isRecognizedRevenueCharge(charge) ? sum + amount : sum;
+            return sum + revenueAmountForSummary(charge) - expenseAmountForSummary(charge);
         }, 0);
         return {
             key,
@@ -532,13 +547,11 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
     const filteredTrendRows = allTrendRows.filter(matchesFilters);
 
     const revenue = filteredRows.reduce((sum, charge) => {
-        if (charge.status === "CANCELLED" || !isRecognizedRevenueCharge(charge)) return sum;
-        return sum + (Number(charge.amount) || 0);
+        return sum + revenueAmountForSummary(charge);
     }, 0);
 
     const expense = filteredRows.reduce((sum, charge) => {
-        if (charge.status === "CANCELLED" || !isExpenseCharge(charge)) return sum;
-        return sum + (Number(charge.amount) || 0);
+        return sum + expenseAmountForSummary(charge);
     }, 0);
 
     const profit = revenue - expense;
@@ -556,7 +569,8 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
         color: item.color,
         value: filteredRows
             .filter((row) => {
-                if (row.status === "CANCELLED" || !isExpenseCharge(row)) return false;
+                if (row.status === "CANCELLED") return false;
+                if (!isExpenseCharge(row) && !isRecoveredForwardedExpenseCharge(row)) return false;
                 if (item.type === "OTHER_EXPENSES") {
                     return !["UTILITY", "COMMON_COST", "INSURANCE", "RENOVATION", "TAX", "OTHER"].includes(row.type);
                 }

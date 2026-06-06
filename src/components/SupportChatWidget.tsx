@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 
 const SupportChatPanel = dynamic(() => import("@/components/SupportChatPanel"), {
@@ -34,7 +35,13 @@ export default function SupportChatWidget() {
                     aria-label="Rentapp asszisztens megnyitása"
                 >
                     <span className={`support-bubble-orb ${bubbleHint ? "support-bubble-orb-hint" : ""}`}>
-                        {bubbleHint ? "?" : "R"}
+                        <span className="support-bubble-aura" aria-hidden="true" />
+                        <span className="support-bubble-core">
+                            <Image src="/rentapp-logo.png" alt="" width={32} height={32} className="support-bubble-logo" />
+                        </span>
+                        <span className="support-bubble-badge" aria-hidden="true">
+                            {bubbleHint ? "AI" : "+"}
+                        </span>
                     </span>
                 </button>
             )}

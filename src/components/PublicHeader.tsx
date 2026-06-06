@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-html-link-for-pages */
 "use client";
 
+import Image from "next/image";
 import { type ReactNode, useState } from "react";
 
 type Props = {
@@ -30,12 +31,12 @@ export default function PublicHeader({ dashboardHref }: Props) {
             <a className="brand" href="/">
                 <div className="brand-kicker">Automate for freedom</div>
                 <div className="brand-title-row">
-                    <div className="brand-mark" aria-hidden="true">
-                        R
+                    <div className="brand-mark brand-mark-logo" aria-hidden="true">
+                        <Image src="/rentapp-logo.png" alt="" width={42} height={42} className="brand-mark-logo-image" />
                     </div>
                     <div className="brand-copy">
                         <div className="brand-title">Rentapp</div>
-                        <span className="brand-meta">A bérbeadói működés rendszere, ami rendet tesz a káoszban.</span>
+                        <span className="brand-meta">Bérbeadói automatizálás, egyetlen nyugodt rendszerben.</span>
                     </div>
                 </div>
             </a>

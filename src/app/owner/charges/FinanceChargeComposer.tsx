@@ -62,6 +62,8 @@ export default function FinanceChargeComposer({
     const [mode, setMode] = useState<ComposerMode>(defaultMode);
     const [billingMode, setBillingMode] = useState<BillingMode>("FORWARDED");
     const [selectedType, setSelectedType] = useState<string>("RENT");
+    const [isRecurring, setIsRecurring] = useState(false);
+    const [recurringCount, setRecurringCount] = useState("12");
     const [manualError, setManualError] = useState<string | null>(null);
     const [manualSuccess, setManualSuccess] = useState<string | null>(null);
     const [uploadError, setUploadError] = useState<string | null>(null);
@@ -88,6 +90,8 @@ export default function FinanceChargeComposer({
         setMode(defaultMode);
         setBillingMode("FORWARDED");
         setSelectedType("RENT");
+        setIsRecurring(false);
+        setRecurringCount("12");
         if (closeHref) {
             router.replace(closeHref, { scroll: false });
         }
@@ -264,9 +268,30 @@ export default function FinanceChargeComposer({
                                     <label className="field-stack finance-composer-field-wide finance-recurring-toggle">
                                         <span className="field-label">Ismétlődés</span>
                                         <span className="finance-recurring-checkbox">
-                                            <input type="checkbox" name="recurring" />
-                                            <span>Ismétlődő tétel 12 hónapra előre</span>
+                                            <input
+                                                type="checkbox"
+                                                name="recurring"
+                                                checked={isRecurring}
+                                                onChange={(event) => setIsRecurring(event.target.checked)}
+                                            />
+                                            <span>Ismétlődő tétel</span>
                                         </span>
+                                        {isRecurring ? (
+                                            <div className="field-stack">
+                                                <span className="field-label">Ismétlődések száma</span>
+                                                <input
+                                                    name="recurring_count"
+                                                    className="input"
+                                                    type="number"
+                                                    min="2"
+                                                    max="60"
+                                                    inputMode="numeric"
+                                                    value={recurringCount}
+                                                    onChange={(event) => setRecurringCount(event.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                        ) : null}
                                         <span className="muted-note">Tipikusan bérleti díjhoz vagy fix havi költséghez hasznos.</span>
                                     </label>
                                 </div>

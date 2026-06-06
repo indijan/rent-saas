@@ -200,6 +200,7 @@ export async function createCharge(propertyId: string, formData: FormData) {
     const billingMode = String(formData.get("billing_mode") || "FORWARDED").trim().toUpperCase();
     const currency = String(formData.get("currency") || "HUF").trim().toUpperCase() || "HUF";
     const isRecurring = String(formData.get("recurring") || "") === "on";
+    const requestedRecurringCount = Number.parseInt(String(formData.get("recurring_count") || "12"), 10);
     const document = formData.get("document");
     const rawDocumentFile = document instanceof File ? document : null;
     const documentFile = rawDocumentFile && rawDocumentFile.size > 0 ? rawDocumentFile : null;
@@ -216,6 +217,9 @@ export async function createCharge(propertyId: string, formData: FormData) {
     if (documentFile && documentFile.type !== "application/pdf" && !documentFile.name.toLowerCase().endsWith(".pdf")) {
         return { ok: false, error: "Csak olvasható PDF tölthető fel." };
     }
+    if (isRecurring && (!Number.isFinite(requestedRecurringCount) || requestedRecurringCount < 2 || requestedRecurringCount > 60)) {
+        return { ok: false, error: "Az ismétlődések száma 2 és 60 között lehet." };
+    }
 
     const { data: property, error: propErr } = await supabase
         .from("properties")
@@ -228,7 +232,7 @@ export async function createCharge(propertyId: string, formData: FormData) {
 
     const tenantId = billingMode === "OWN_EXPENSE" ? null : (property.tenant_id as string | null);
 
-    const recurringCount = isRecurring ? 12 : 1;
+    const recurringCount = isRecurring ? requestedRecurringCount : 1;
     const recurringGroup = isRecurring ? randomUUID() : null;
     const rows = Array.from({ length: recurringCount }, (_, i) => ({
         property_id: propertyId,

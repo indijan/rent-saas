@@ -23,6 +23,8 @@ export default function CreateChargeForm({ propertyId }: Props) {
     const [amount, setAmount] = useState("");
     const [dueDate, setDueDate] = useState("");
     const [currency, setCurrency] = useState("HUF");
+    const [isRecurring, setIsRecurring] = useState(false);
+    const [recurringCount, setRecurringCount] = useState("12");
 
     function onSubmit(formData: FormData) {
         setError(null);
@@ -41,6 +43,8 @@ export default function CreateChargeForm({ propertyId }: Props) {
                 setAmount("");
                 setDueDate("");
                 setCurrency("HUF");
+                setIsRecurring(false);
+                setRecurringCount("12");
                 setSuccess("A díj sikeresen létrejött.");
                 setOpen(false);
                 router.refresh();
@@ -170,9 +174,30 @@ export default function CreateChargeForm({ propertyId }: Props) {
                     <div className="form-panel form-shell">
                         <div className="card-title">Ismétlődés</div>
                         <label className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                            <input type="checkbox" name="recurring" />
-                            Ismétlődő díj 12 hónapra előre
+                            <input
+                                type="checkbox"
+                                name="recurring"
+                                checked={isRecurring}
+                                onChange={(event) => setIsRecurring(event.target.checked)}
+                            />
+                            Ismétlődő díj
                         </label>
+                        {isRecurring ? (
+                            <label className="field-stack mt-3">
+                                <span className="field-label">Ismétlődések száma</span>
+                                <input
+                                    name="recurring_count"
+                                    className="input"
+                                    type="number"
+                                    min="2"
+                                    max="60"
+                                    inputMode="numeric"
+                                    value={recurringCount}
+                                    onChange={(event) => setRecurringCount(event.target.value)}
+                                    required
+                                />
+                            </label>
+                        ) : null}
                         <p className="muted-note">Tipikusan bérleti díjhoz vagy fix rezsihez hasznos.</p>
                     </div>
 

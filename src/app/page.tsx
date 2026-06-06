@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 import PublicHeader from "@/components/PublicHeader";
 import PublicPageEnhancements from "@/components/PublicPageEnhancements";
 import { getSignedInDashboardHref } from "@/lib/auth/getDashboardHref";
@@ -239,7 +241,72 @@ export default async function HomePage() {
                 </div>
             </section>
 
-            <section className="card section-stack">
+            <section className="founder-story">
+                <div className="founder-story-shell">
+                    <div className="founder-story-copy">
+                        <div className="eyebrow founder-story-eyebrow">👋 Ki áll a Rentapp mögött?</div>
+                        <h2>Nem egy multinacionális cég.</h2>
+                        <p className="founder-story-headline">
+                            Hanem valaki, aki hisz abban, hogy az adminisztrációt rendszereknek kell elvégezniük.
+                        </p>
+                        <div className="founder-story-body">
+                            <div className="founder-story-photo-panel">
+                                <div className="founder-story-photo-frame">
+                                    <Image
+                                        src="/founder-istvan-final.jpeg"
+                                        alt="Kovács István, a Rentapp alapítója"
+                                        width={2316}
+                                        height={3088}
+                                        className="founder-story-photo"
+                                    />
+                                </div>
+                            </div>
+                            <p><strong>Helló! István vagyok.</strong></p>
+                            <p>Elsősorban nem szoftvereket építek. Problémákat szeretek megszüntetni.</p>
+                            <p>
+                                Az elmúlt években mindig ugyanazt láttam: rengeteg vállalkozó és bérbeadó értékes órákat pazarol olyan
+                                feladatokra, amelyeket egy jól megtervezett rendszer néhány másodperc alatt el tudna végezni. Automatikusan.
+                            </p>
+                            <p>
+                                Hiszek abban, hogy a technológia nem arra való, hogy még bonyolultabbá tegye az életünket,
+                                hanem arra, hogy visszaadja az időnket. Ez a gondolat hívta életre a Rentappot.
+                            </p>
+                            <p>
+                                Egy olyan platformot építek, amely rendszerbe foglalja és automatizálja a bérbeadással járó ismétlődő
+                                adminisztrációt, miközben a döntések és a kontroll végig a bérbeadó kezében maradnak.
+                            </p>
+                            <blockquote className="founder-story-inline-quote">Ön dönt. Az AI elvégzi.</blockquote>
+                            <p>
+                                A célom nem egy újabb ingatlankezelő szoftver létrehozása. A célom egy olyan rendszer megalkotása,
+                                amely nyugodtabbá, átláthatóbbá és hatékonyabbá teszi a bérbeadást.
+                            </p>
+                            <p>
+                                Szeretem megkérdőjelezni a megszokott működést, és feltenni az egyszerű kérdést:
+                            </p>
+                            <blockquote className="founder-story-inline-quote">Biztos, hogy ezt még mindig embernek kell csinálnia?</blockquote>
+                            <p>
+                                Ha a válasz nem, akkor azt automatizálni kell. A Rentapp jelenleg is folyamatos fejlesztés alatt áll,
+                                ezért minden visszajelzésnek és ötletnek örülök.
+                            </p>
+                            <p>
+                                Hiszem, hogy a legjobb termékeket nem egy fejlesztő, hanem a felhasználók és a fejlesztő közösen építik.
+                                Ha te is úgy gondolod, hogy a bérbeadásnak nem Excelből, Messengerből és emlékeztetőkből kellene állnia,
+                                akkor jó helyen jársz.
+                            </p>
+                            <p>Üdvözöllek a Rentapp világában!</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="founder-story-footer">
+                    <div className="founder-story-mantra">
+                        <strong>Automate for Freedom.</strong>
+                        <span>Kevesebb admin. Több szabadság.</span>
+                    </div>
+                    <a className="btn btn-secondary founder-story-cta" href="https://discord.gg/3UN4kmyH" target="_blank" rel="noreferrer">🚀 Legyél a Rentapp első tesztelői között</a>
+                </div>
+            </section>
+
+            <section id="elso-tesztelok" className="card section-stack">
                 <div className="section-header">
                     <div>
                         <div className="eyebrow">Próbaidő</div>
