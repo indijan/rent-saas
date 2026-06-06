@@ -279,7 +279,7 @@ export async function POST(request: Request) {
         const property = getChargeProperty(charge);
         for (const tenantProfile of tenantProfiles) {
             if (!tenantProfile.email) continue;
-            const emailResult = await sendEmail(renderFriendlyArrearsReminderEmail({
+            const payload = renderFriendlyArrearsReminderEmail({
                 tenantEmail: tenantProfile.email,
                 tenantName: tenantProfile.full_name ?? null,
                 title: charge.title,
@@ -287,7 +287,28 @@ export async function POST(request: Request) {
                 currency: String(charge.currency || "HUF"),
                 dueDate: String(charge.due_date),
                 propertyName: property?.name ?? null,
-            }));
+            });
+            const emailResult = await sendEmail({
+                ...payload,
+                log: {
+                    ownerId: charge.owner_id,
+                    tenantId: tenantProfile.id,
+                    propertyId: charge.property_id,
+                    chargeId: charge.id,
+                    category: "MANUAL_ARREARS_REMINDER",
+                    templateKey: "friendly_arrears_reminder",
+                    recipientRole: "TENANT",
+                    meta: {
+                        propertyName: property?.name ?? null,
+                        chargeTitle: charge.title,
+                        dueDate: String(charge.due_date),
+                        amount: Number(charge.amount),
+                        currency: String(charge.currency || "HUF"),
+                        tenantName: tenantProfile.full_name ?? null,
+                        source: "email_action",
+                    },
+                },
+            });
 
             if (!emailResult.ok) {
                 redirectWithMessage("/owner/todo", "error", emailResult.error ?? "Az emlékeztető nem küldhető ki.");
@@ -343,7 +364,7 @@ export async function POST(request: Request) {
 
             for (const tenantProfile of propertyTenants) {
                 if (!tenantProfile.email) continue;
-                const emailResult = await sendEmail(renderNewChargeEmail({
+                const payload = renderNewChargeEmail({
                     tenantEmail: tenantProfile.email,
                     title: charge.title,
                     amount: Number(charge.amount),
@@ -351,7 +372,29 @@ export async function POST(request: Request) {
                     dueDate: String(charge.due_date),
                     propertyName: property?.name ?? null,
                     count: 1,
-                }));
+                });
+                const emailResult = await sendEmail({
+                    ...payload,
+                    log: {
+                        ownerId: charge.owner_id,
+                        tenantId: tenantProfile.id,
+                        propertyId: charge.property_id,
+                        chargeId: charge.id,
+                        category: "NEW_CHARGE",
+                        templateKey: "new_charge",
+                        recipientRole: "TENANT",
+                        meta: {
+                            propertyName: property?.name ?? null,
+                            chargeTitle: charge.title,
+                            dueDate: String(charge.due_date),
+                            amount: Number(charge.amount),
+                            currency: String(charge.currency || "HUF"),
+                            tenantName: tenantProfile.full_name ?? null,
+                            recurringCount: 1,
+                            source: "email_action_publish",
+                        },
+                    },
+                });
 
                 if (!emailResult.ok) {
                     redirectToResult(

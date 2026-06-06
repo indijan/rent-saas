@@ -613,6 +613,9 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                                                 <Link className="dashboard-dropdown-item" href="/owner/properties" onClick={closeOpenMenu}>
                                                     Ingatlanok kezelése
                                                 </Link>
+                                                <Link className="dashboard-dropdown-item" href="/owner/email-log" onClick={closeOpenMenu}>
+                                                    E-mail log
+                                                </Link>
                                                 <Link className="dashboard-dropdown-item dashboard-dropdown-item-accent" href="/owner/properties" onClick={closeOpenMenu}>
                                                     + Új ingatlan
                                                 </Link>
@@ -698,6 +701,9 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                                     <>
                                         <button type="button" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/owner/properties")}>
                                             Ingatlanok kezelése
+                                        </button>
+                                        <button type="button" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/owner/email-log")}>
+                                            E-mail log
                                         </button>
                                         <button type="button" className="dashboard-mobile-more-link" onClick={handleMobileNavigate("/owner/properties")}>
                                             + Új ingatlan

@@ -1,13 +1,17 @@
+import { createEmailDeliveryLogs, type EmailLogContext } from "@/lib/emailLogs";
+
 type SendEmailInput = {
     to: string | string[];
     subject: string;
     html: string;
     text?: string;
+    log?: EmailLogContext;
 };
 
 type SendEmailResult = {
     ok: boolean;
     error?: string;
+    providerMessageId?: string;
 };
 
 function resolveFromAddress() {
@@ -15,7 +19,20 @@ function resolveFromAddress() {
         || "Rentapp.hu <no-reply@rentapp.hu>";
 }
 
-async function sendWithSes({ to, subject, html, text }: SendEmailInput): Promise<SendEmailResult> {
+function buildEmailTags(log?: EmailLogContext) {
+    if (!log) return undefined;
+
+    return [
+        { Name: "rentapp-category", Value: log.category.slice(0, 256) },
+        { Name: "rentapp-owner-id", Value: log.ownerId.slice(0, 256) },
+        ...(log.tenantId ? [{ Name: "rentapp-tenant-id", Value: log.tenantId.slice(0, 256) }] : []),
+        ...(log.chargeId ? [{ Name: "rentapp-charge-id", Value: log.chargeId.slice(0, 256) }] : []),
+        ...(log.propertyId ? [{ Name: "rentapp-property-id", Value: log.propertyId.slice(0, 256) }] : []),
+        { Name: "rentapp-recipient-role", Value: (log.recipientRole ?? "TENANT").slice(0, 256) },
+    ];
+}
+
+async function sendWithSes({ to, subject, html, text, log }: SendEmailInput): Promise<SendEmailResult> {
     const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
     const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
     const sessionToken = process.env.AWS_SESSION_TOKEN;
@@ -29,11 +46,15 @@ async function sendWithSes({ to, subject, html, text }: SendEmailInput): Promise
     const { Sha256 } = await import("@aws-crypto/sha256-js");
     const { HttpRequest } = await import("@aws-sdk/protocol-http");
 
+    const recipients = Array.isArray(to) ? to : [to];
+    const emailTags = buildEmailTags(log);
     const body = JSON.stringify({
         FromEmailAddress: resolveFromAddress(),
+        ...(process.env.SES_CONFIGURATION_SET ? { ConfigurationSetName: process.env.SES_CONFIGURATION_SET } : {}),
         Destination: {
-            ToAddresses: Array.isArray(to) ? to : [to],
+            ToAddresses: recipients,
         },
+        ...(emailTags ? { EmailTags: emailTags } : {}),
         Content: {
             Simple: {
                 Subject: {
@@ -81,20 +102,39 @@ async function sendWithSes({ to, subject, html, text }: SendEmailInput): Promise
         body,
     }));
 
-    const res = await fetch(endpoint, {
-        method: "POST",
-        headers: signedRequest.headers as Record<string, string>,
-        body,
-    });
+    try {
+        const res = await fetch(endpoint, {
+            method: "POST",
+            headers: signedRequest.headers as Record<string, string>,
+            body,
+        });
 
-    if (!res.ok) {
-        const msg = await res.text();
-        return { ok: false, error: msg || `Amazon SES hiba: ${res.status}` };
+        if (!res.ok) {
+            const msg = await res.text();
+            return { ok: false, error: msg || `Amazon SES hiba: ${res.status}` };
+        }
+
+        const payload = await res.json().catch(() => null) as { MessageId?: string } | null;
+        return { ok: true, providerMessageId: payload?.MessageId };
+    } catch (error: unknown) {
+        return { ok: false, error: error instanceof Error ? error.message : "Ismeretlen Amazon SES hiba." };
     }
-
-    return { ok: true };
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
-    return sendWithSes(input);
+    const recipients = Array.isArray(input.to) ? input.to : [input.to];
+    const result = await sendWithSes(input);
+
+    if (input.log) {
+        await createEmailDeliveryLogs({
+            recipients,
+            subject: input.subject,
+            context: input.log,
+            status: result.ok ? "ACCEPTED" : "FAILED",
+            providerMessageId: result.providerMessageId ?? null,
+            errorMessage: result.error ?? null,
+        });
+    }
+
+    return result;
 }

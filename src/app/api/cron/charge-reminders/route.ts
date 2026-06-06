@@ -184,7 +184,28 @@ export async function POST(request: Request) {
                 propertyName,
                 reminderLabel: describeUpcomingReminder(todayDate, charge.due_date),
             });
-            const emailResult = await sendEmail(payload);
+            const emailResult = await sendEmail({
+                ...payload,
+                log: {
+                    ownerId: charge.owner_id,
+                    tenantId: "id" in recipient && typeof recipient.id === "string" ? recipient.id : (charge.tenant_id ?? null),
+                    propertyId: charge.property_id,
+                    chargeId: charge.id,
+                    category: "DUE_SOON_REMINDER",
+                    templateKey: "due_soon_reminder",
+                    recipientRole: "TENANT",
+                    meta: {
+                        propertyName,
+                        chargeTitle: charge.title,
+                        dueDate: charge.due_date,
+                        amount: Number(charge.amount),
+                        currency: charge.currency,
+                        tenantName: recipient.full_name ?? null,
+                        reminderLabel: describeUpcomingReminder(todayDate, charge.due_date),
+                        source: "cron",
+                    },
+                },
+            });
             if (!emailResult.ok) {
                 reminderErrors.push(emailResult.error ?? `Reminder delivery failed for charge ${charge.id}.`);
                 deliveredAll = false;

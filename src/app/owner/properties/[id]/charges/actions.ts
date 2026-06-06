@@ -296,7 +296,27 @@ export async function createCharge(propertyId: string, formData: FormData) {
                 propertyName: property.name,
                 count: recurringCount,
             });
-            await sendEmail(emailPayload);
+            await sendEmail({
+                ...emailPayload,
+                log: {
+                    ownerId: user.id,
+                    tenantId: tenantProfile.id,
+                    propertyId,
+                    chargeId: createdIds[0] ?? null,
+                    category: "NEW_CHARGE",
+                    templateKey: "new_charge",
+                    recipientRole: "TENANT",
+                    meta: {
+                        propertyName: property.name,
+                        chargeTitle: title,
+                        dueDate: due_date,
+                        amount,
+                        currency,
+                        tenantName: tenantProfile.full_name ?? null,
+                        recurringCount,
+                    },
+                },
+            });
         }
     }
     revalidatePath(`/owner/properties/${propertyId}/charges`);
@@ -498,7 +518,26 @@ export async function sendManualChargeReminder(chargeId: string) {
             propertyName: property?.name ?? null,
         });
 
-        const emailResult = await sendEmail(payload);
+        const emailResult = await sendEmail({
+            ...payload,
+            log: {
+                ownerId: user.id,
+                tenantId: tenantProfile.id,
+                propertyId: charge.property_id,
+                chargeId,
+                category: "MANUAL_ARREARS_REMINDER",
+                templateKey: "friendly_arrears_reminder",
+                recipientRole: "TENANT",
+                meta: {
+                    propertyName: property?.name ?? null,
+                    chargeTitle: charge.title,
+                    dueDate: String(charge.due_date),
+                    amount: Number(charge.amount),
+                    currency: String(charge.currency || "HUF"),
+                    tenantName: tenantProfile.full_name ?? null,
+                },
+            },
+        });
         if (!emailResult.ok) {
             return { ok: false, error: emailResult.error ?? "Az emlékeztető e-mail küldése nem sikerült." };
         }
@@ -565,7 +604,28 @@ export async function publishCharge(chargeId: string) {
                 propertyName: property?.name ?? null,
                 count: 1,
             });
-            await sendEmail(emailPayload);
+            await sendEmail({
+                ...emailPayload,
+                log: {
+                    ownerId: user.id,
+                    tenantId: tenantProfile.id,
+                    propertyId: charge.property_id,
+                    chargeId,
+                    category: "NEW_CHARGE",
+                    templateKey: "new_charge",
+                    recipientRole: "TENANT",
+                    meta: {
+                        propertyName: property?.name ?? null,
+                        chargeTitle: charge.title,
+                        dueDate: String(charge.due_date),
+                        amount: Number(charge.amount),
+                        currency: String(charge.currency || "HUF"),
+                        tenantName: tenantProfile.full_name ?? null,
+                        recurringCount: 1,
+                        source: "import_publish",
+                    },
+                },
+            });
         }
     }
 
@@ -700,7 +760,7 @@ export async function updateCharge(chargeId: string, formData: FormData) {
         for (const tenantProfile of propertyTenants) {
             if (!tenantProfile.email) continue;
             if (!hadTenantBefore) {
-                await sendEmail(renderNewChargeEmail({
+                const payload = renderNewChargeEmail({
                     tenantEmail: tenantProfile.email,
                     title,
                     amount,
@@ -708,12 +768,34 @@ export async function updateCharge(chargeId: string, formData: FormData) {
                     dueDate: due_date,
                     propertyName: property.name,
                     count: updatedCount,
-                }));
+                });
+                await sendEmail({
+                    ...payload,
+                    log: {
+                        ownerId: user.id,
+                        tenantId: tenantProfile.id,
+                        propertyId: charge.property_id,
+                        chargeId,
+                        category: "NEW_CHARGE",
+                        templateKey: "new_charge",
+                        recipientRole: "TENANT",
+                        meta: {
+                            propertyName: property.name,
+                            chargeTitle: title,
+                            dueDate: due_date,
+                            amount,
+                            currency,
+                            tenantName: tenantProfile.full_name ?? null,
+                            recurringCount: updatedCount,
+                            source: "charge_update_assign_tenant",
+                        },
+                    },
+                });
                 continue;
             }
 
             if (changedFields.length === 0) continue;
-            await sendEmail(renderChargeUpdatedEmail({
+            const payload = renderChargeUpdatedEmail({
                 tenantEmail: tenantProfile.email,
                 title,
                 amount,
@@ -722,7 +804,29 @@ export async function updateCharge(chargeId: string, formData: FormData) {
                 propertyName: property.name,
                 changedFields,
                 count: updatedCount,
-            }));
+            });
+            await sendEmail({
+                ...payload,
+                log: {
+                    ownerId: user.id,
+                    tenantId: tenantProfile.id,
+                    propertyId: charge.property_id,
+                    chargeId,
+                    category: "CHARGE_UPDATED",
+                    templateKey: "charge_updated",
+                    recipientRole: "TENANT",
+                    meta: {
+                        propertyName: property.name,
+                        chargeTitle: title,
+                        dueDate: due_date,
+                        amount,
+                        currency,
+                        tenantName: tenantProfile.full_name ?? null,
+                        recurringCount: updatedCount,
+                        changedFields,
+                    },
+                },
+            });
         }
     }
 

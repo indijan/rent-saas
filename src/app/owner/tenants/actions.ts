@@ -103,7 +103,21 @@ export async function createTenant(formData: FormData) {
             inviteLink: `${siteUrl}/login`,
             existingAccount: true,
         });
-        const emailRes = await sendEmail(emailPayload);
+        const emailRes = await sendEmail({
+            ...emailPayload,
+            log: {
+                ownerId: user.id,
+                tenantId: existingUserId,
+                propertyId: propertyId || null,
+                category: "TENANT_INVITE",
+                templateKey: "tenant_invite",
+                recipientRole: "TENANT",
+                meta: {
+                    tenantName: full_name,
+                    existingAccount: true,
+                },
+            },
+        });
         if (!emailRes.ok) {
             return { ok: false, error: emailRes.error ?? "A bérlő értesítése nem sikerült." };
         }
@@ -148,7 +162,21 @@ export async function createTenant(formData: FormData) {
         tenantName: full_name,
         inviteLink: data.properties.action_link,
     });
-    const emailRes = await sendEmail(emailPayload);
+    const emailRes = await sendEmail({
+        ...emailPayload,
+        log: {
+            ownerId: user.id,
+            tenantId: userId ?? null,
+            propertyId: propertyId || null,
+            category: "TENANT_INVITE",
+            templateKey: "tenant_invite",
+            recipientRole: "TENANT",
+            meta: {
+                tenantName: full_name,
+                existingAccount: false,
+            },
+        },
+    });
     if (!emailRes.ok) {
         return { ok: false, error: emailRes.error ?? "A bérlő értesítése nem sikerült." };
     }
@@ -292,14 +320,30 @@ export async function approveTenantExitRequest(requestId: string) {
     if (requestError) return { ok: false, error: requestError.message };
 
     if (tenant?.email) {
-        const emailResult = await sendEmail(renderTenantExitApprovedEmail({
+        const payload = renderTenantExitApprovedEmail({
             tenantEmail: tenant.email,
             tenantName: tenant.full_name,
             ownerName: user.user_metadata?.full_name ?? null,
             propertyName: property?.name || "Ingatlan",
             propertyAddress: property?.address || null,
             openUrl: `${process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu"}/account`,
-        }));
+        });
+        const emailResult = await sendEmail({
+            ...payload,
+            log: {
+                ownerId: user.id,
+                tenantId: requestRow.tenant_id as string,
+                propertyId: requestRow.property_id as string,
+                category: "TENANT_EXIT_APPROVED",
+                templateKey: "tenant_exit_approved",
+                recipientRole: "TENANT",
+                meta: {
+                    tenantName: tenant.full_name ?? null,
+                    propertyName: property?.name || "Ingatlan",
+                    propertyAddress: property?.address || null,
+                },
+            },
+        });
 
         if (!emailResult.ok) {
             console.error("Tenant exit approval email failed", emailResult.error);
@@ -344,14 +388,30 @@ export async function rejectTenantExitRequest(requestId: string) {
     if (error) return { ok: false, error: error.message };
 
     if (tenant?.email) {
-        const emailResult = await sendEmail(renderTenantExitRejectedEmail({
+        const payload = renderTenantExitRejectedEmail({
             tenantEmail: tenant.email,
             tenantName: tenant.full_name,
             ownerName: user.user_metadata?.full_name ?? null,
             propertyName: property?.name || "Ingatlan",
             propertyAddress: property?.address || null,
             openUrl: `${process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu"}/account#kilepesi-kerelem-kuldes`,
-        }));
+        });
+        const emailResult = await sendEmail({
+            ...payload,
+            log: {
+                ownerId: user.id,
+                tenantId: requestRow.tenant_id as string,
+                propertyId: requestRow.property_id as string,
+                category: "TENANT_EXIT_REJECTED",
+                templateKey: "tenant_exit_rejected",
+                recipientRole: "TENANT",
+                meta: {
+                    tenantName: tenant.full_name ?? null,
+                    propertyName: property?.name || "Ingatlan",
+                    propertyAddress: property?.address || null,
+                },
+            },
+        });
 
         if (!emailResult.ok) {
             console.error("Tenant exit rejection email failed", emailResult.error);
