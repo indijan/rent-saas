@@ -118,7 +118,7 @@ function normalizeSortOrder(value: string | undefined) {
 
 function resolvePeriodRange(preset: PeriodPreset, requestedFrom?: string, requestedTo?: string) {
     const today = startOfToday();
-    const todayValue = toDateInputValue(today);
+    const monthEndValue = endOfCurrentMonth();
 
     switch (preset) {
         case "LAST_30_DAYS":
@@ -133,25 +133,25 @@ function resolvePeriodRange(preset: PeriodPreset, requestedFrom?: string, reques
         case "LAST_3_MONTHS":
             return {
                 from: toDateInputValue(shiftMonths(today, -3)),
-                to: todayValue,
+                to: monthEndValue,
                 label: "Elmúlt 3 hónap",
             };
         case "LAST_6_MONTHS":
             return {
                 from: toDateInputValue(shiftMonths(today, -6)),
-                to: todayValue,
+                to: monthEndValue,
                 label: "Elmúlt fél év",
             };
         case "LAST_12_MONTHS":
             return {
                 from: toDateInputValue(shiftMonths(today, -12)),
-                to: todayValue,
+                to: monthEndValue,
                 label: "Elmúlt 1 év",
             };
         case "MAX":
             return {
                 from: "2000-01-01",
-                to: todayValue,
+                to: monthEndValue,
                 label: "Maximum",
             };
         case "CUSTOM":

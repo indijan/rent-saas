@@ -6,6 +6,7 @@ import DesignIcon from "@/components/dashboard/DesignIcon";
 import InteractiveTrendChart from "@/components/dashboard/InteractiveTrendChart";
 import type { ChargeType } from "@/lib/chargeTypes";
 import { getOwnerImportOverview } from "@/lib/importOverview";
+import { buildRecentTrendSeries, isExpenseCharge, summarizeFinanceRows } from "@/lib/ownerFinance";
 import FinanceChargeComposer from "@/app/owner/charges/FinanceChargeComposer";
 
 type SearchParams = {
@@ -79,14 +80,6 @@ function daysUntil(dateValue: string) {
     return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function isExpenseCharge(charge: Pick<ChargeRow, "tenant_id" | "type">) {
-    return !charge.tenant_id && charge.type !== "RENT";
-}
-
-function isRecognizedRevenueCharge(charge: Pick<ChargeRow, "tenant_id" | "type" | "status">) {
-    return !isExpenseCharge(charge) && (charge.status === "PAID" || charge.status === "ARCHIVED");
-}
-
 function formatMonthLabel(dateValue: string) {
     return new Intl.DateTimeFormat("hu-HU", { year: "numeric", month: "long" }).format(new Date(`${dateValue}T00:00:00`));
 }
@@ -109,6 +102,7 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
 
     const [
         { data: charges, error: chargeError },
+        { data: breakdownCharges, error: breakdownChargeError },
         { data: properties, error: propertyError },
         { data: propertyTenants, error: propertyTenantError },
         importOverview,
@@ -120,6 +114,11 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
             .eq("owner_id", user.id)
             .gte("due_date", from)
             .lte("due_date", to),
+        supabase
+            .from("charges")
+            .select("id,amount,status,due_date,property_id,tenant_id,type,title,properties(name)")
+            .eq("owner_id", user.id)
+            .lte("due_date", endOfCurrentMonth()),
         supabase
             .from("properties")
             .select("id,name,address,status,tenant_id")
@@ -140,14 +139,14 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
             .limit(20),
     ]);
 
-    if (chargeError || propertyError || propertyTenantError || exitRequestError) {
+    if (chargeError || breakdownChargeError || propertyError || propertyTenantError || exitRequestError) {
         return (
             <main className="app-shell page-enter">
                 <AppHeader profile={profile} />
                 <section className="card">
                     <h1>Áttekintés</h1>
                     <p className="text-red-600">
-                        Hiba: {chargeError?.message || propertyError?.message || propertyTenantError?.message || exitRequestError?.message}
+                        Hiba: {chargeError?.message || breakdownChargeError?.message || propertyError?.message || propertyTenantError?.message || exitRequestError?.message}
                     </p>
                 </section>
             </main>
@@ -155,6 +154,7 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
     }
 
     const chargeRows = (charges ?? []) as ChargeRow[];
+    const breakdownChargeRows = (breakdownCharges ?? []) as ChargeRow[];
     const propertyRows = (properties ?? []) as PropertyRow[];
     const propertyTenantRows = (propertyTenants ?? []) as PropertyTenantRow[];
     const pendingExitRequests = (exitRequests ?? []) as ExitRequestRow[];
@@ -172,6 +172,9 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
     const filteredCharges = selectedPropertyId
         ? chargeRows.filter((charge) => charge.property_id === selectedPropertyId)
         : chargeRows;
+    const filteredBreakdownCharges = selectedPropertyId
+        ? breakdownChargeRows.filter((charge) => charge.property_id === selectedPropertyId)
+        : breakdownChargeRows;
 
     const reviewRows = importOverview.actionRows;
 
@@ -194,52 +197,25 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
         ].filter((value): value is string => Boolean(value))
     ).size;
 
-    const monthlyRevenue = filteredCharges.reduce((sum, charge) => {
-        if (charge.status === "CANCELLED" || !isRecognizedRevenueCharge(charge) || !charge.due_date.startsWith(currentMonthKey)) return sum;
-        return sum + (Number(charge.amount) || 0);
-    }, 0);
-
-    const overdueReceivables = overdueCharges.reduce((sum, charge) => sum + (Number(charge.amount) || 0), 0);
-
-    const monthlySeries = Array.from({ length: 6 }, (_, index) => {
-        const date = new Date();
-        date.setMonth(date.getMonth() - (5 - index), 1);
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-        const net = filteredCharges.reduce((sum, charge) => {
-            if (charge.status === "CANCELLED" || !charge.due_date.startsWith(key)) return sum;
-            const amount = Number(charge.amount) || 0;
-            if (isExpenseCharge(charge)) return sum - amount;
-            return isRecognizedRevenueCharge(charge) ? sum + amount : sum;
-        }, 0);
-        return {
-            key,
-            label: new Intl.DateTimeFormat("hu-HU", { month: "short" }).format(date).replace(".", ""),
-            net,
-        };
-    });
+    const currentMonthRows = filteredCharges.filter((charge) => charge.due_date.startsWith(currentMonthKey));
+    const currentMonthSummary = summarizeFinanceRows(currentMonthRows);
+    const overallSummary = summarizeFinanceRows(filteredCharges);
+    const monthlyRevenue = currentMonthSummary.revenue;
+    const overdueReceivables = overallSummary.overdueReceivables;
+    const monthlySeries = buildRecentTrendSeries(filteredCharges, endOfCurrentMonth());
 
     const propertyBreakdown = filteredProperties.map((property) => {
-        const rows = filteredCharges.filter((charge) => charge.property_id === property.id);
-        const netResult = rows.reduce((sum, charge) => {
-            if (charge.status === "CANCELLED") return sum;
-            const amount = Number(charge.amount) || 0;
-            if (isExpenseCharge(charge)) return sum - amount;
-            return isRecognizedRevenueCharge(charge) ? sum + amount : sum;
-        }, 0);
-        const openReceivables = rows.reduce((sum, charge) => {
-            if (charge.status !== "UNPAID" || isExpenseCharge(charge)) return sum;
-            return sum + (Number(charge.amount) || 0);
-        }, 0);
-        const paidRevenue = rows.reduce((sum, charge) => {
-            if (!isRecognizedRevenueCharge(charge)) return sum;
-            return sum + (Number(charge.amount) || 0);
-        }, 0);
-        const ownExpenses = rows.reduce((sum, charge) => {
-            if (charge.status === "CANCELLED" || !isExpenseCharge(charge)) return sum;
-            return sum + (Number(charge.amount) || 0);
-        }, 0);
+        const rows = filteredBreakdownCharges.filter((charge) => charge.property_id === property.id);
+        const financeSummary = summarizeFinanceRows(rows);
         const drafts = rows.filter((charge) => charge.status === "IMPORT_DRAFT").length;
-        return { property, netResult, openReceivables, paidRevenue, ownExpenses, drafts };
+        return {
+            property,
+            netResult: financeSummary.profit,
+            openReceivables: financeSummary.openReceivables,
+            paidRevenue: financeSummary.revenue,
+            expenses: financeSummary.expense,
+            drafts,
+        };
     }).sort((a, b) => b.netResult - a.netResult).slice(0, 4);
 
     const trendScale = buildTrendScale(monthlySeries.map((item) => item.net));
@@ -504,7 +480,7 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
                 <section className="card">
                     <div className="card-title">Pénzügyi bontás ingatlanonként</div>
                     <div className="ops-list">
-                        {propertyBreakdown.map(({ property, netResult, openReceivables, paidRevenue, ownExpenses, drafts }) => (
+                        {propertyBreakdown.map(({ property, netResult, openReceivables, paidRevenue, expenses, drafts }) => (
                             <Link key={property.id} className="ops-list-item" href={`/owner/charges?property=${encodeURIComponent(property.id)}`}>
                                 <div className="ops-list-copy">
                                     <strong>{property.name}</strong>
@@ -524,8 +500,8 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
                                         <strong>{formatCurrency(paidRevenue, "HUF")}</strong>
                                     </div>
                                     <div className="property-breakdown-metric property-breakdown-metric-red">
-                                        <span>Saját költség</span>
-                                        <strong>{formatCurrency(ownExpenses, "HUF")}</strong>
+                                        <span>Összes költség</span>
+                                        <strong>{formatCurrency(expenses, "HUF")}</strong>
                                     </div>
                                     <div className="property-breakdown-metric property-breakdown-metric-amber">
                                         <span>Piszkozat</span>

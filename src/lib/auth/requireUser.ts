@@ -8,7 +8,13 @@ export type AppRole = "ADMIN" | "OWNER" | "TENANT";
 export async function requireUser() {
     const supabase = await createSupabaseServerClient();
 
-    const { data: { user } } = await supabase.auth.getUser();
+    let user = null;
+    try {
+        const result = await supabase.auth.getUser();
+        user = result.data.user;
+    } catch {
+        redirect("/login");
+    }
     if (!user) redirect("/login");
 
     const { data: profile, error } = await supabase

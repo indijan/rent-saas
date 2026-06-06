@@ -6644,7 +6644,7 @@ summary::-webkit-details-marker {
   .support-chat {
     left: auto;
     right: max(12px, calc(env(safe-area-inset-right) + 12px));
-    bottom: calc(146px + env(safe-area-inset-bottom));
+    bottom: max(12px, calc(env(safe-area-inset-bottom) + 12px));
     width: auto;
     z-index: 140;
   }
@@ -6653,7 +6653,7 @@ summary::-webkit-details-marker {
     top: max(12px, calc(env(safe-area-inset-top) + 12px));
     left: 12px;
     right: 12px;
-    bottom: calc(120px + env(safe-area-inset-bottom));
+    bottom: max(12px, calc(env(safe-area-inset-bottom) + 12px));
     width: auto;
     z-index: 165;
     display: flex;
@@ -6699,6 +6699,14 @@ summary::-webkit-details-marker {
     min-width: 22px;
     height: 22px;
     font-size: 0.62rem;
+  }
+
+  body:has(.private-skin) .support-chat {
+    bottom: calc(146px + env(safe-area-inset-bottom));
+  }
+
+  body:has(.private-skin) .support-chat.support-chat-open {
+    bottom: calc(120px + env(safe-area-inset-bottom));
   }
 
   .support-panel {

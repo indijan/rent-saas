@@ -8,6 +8,8 @@ function isPlainLeftClick(event: MouseEvent) {
     return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 }
 
+const MANUAL_ROUTE_EVENT = "rentapp:route-transition-start";
+
 export default function RouteTransitionOverlay() {
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -79,12 +81,18 @@ export default function RouteTransitionOverlay() {
             startPending();
         };
 
+        const handleManualRouteStart = () => {
+            startPending();
+        };
+
         window.addEventListener("click", handleClick, true);
         window.addEventListener("submit", handleSubmit, true);
+        window.addEventListener(MANUAL_ROUTE_EVENT, handleManualRouteStart);
 
         return () => {
             window.removeEventListener("click", handleClick, true);
             window.removeEventListener("submit", handleSubmit, true);
+            window.removeEventListener(MANUAL_ROUTE_EVENT, handleManualRouteStart);
             if (timeoutRef.current) {
                 window.clearTimeout(timeoutRef.current);
             }

@@ -38,6 +38,7 @@ type NavConfig = {
 };
 
 type ThemeMode = "auto" | "light" | "dark";
+const MANUAL_ROUTE_EVENT = "rentapp:route-transition-start";
 
 function HomeIcon() {
     return (
@@ -376,6 +377,7 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
         event.stopPropagation();
         closeMobileSheets();
         window.setTimeout(() => {
+            window.dispatchEvent(new CustomEvent(MANUAL_ROUTE_EVENT));
             window.location.assign(href);
         }, 0);
     };
@@ -384,6 +386,7 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
         event.preventDefault();
         event.stopPropagation();
         closeClosestDetails(event.currentTarget);
+        window.dispatchEvent(new CustomEvent(MANUAL_ROUTE_EVENT));
         window.location.assign(href);
     };
 

@@ -3,6 +3,14 @@
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
+async function clearBrowserSession() {
+    try {
+        await supabaseBrowser.auth.signOut();
+    } catch {
+        // Ignore stale local auth cookies before exchanging a fresh session.
+    }
+}
+
 export default function AuthCallbackPage() {
     const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +33,7 @@ export default function AuthCallbackPage() {
                 const { error } = await supabaseBrowser.auth.exchangeCodeForSession(code);
                 authError = error?.message ?? null;
             } else if (accessToken && refreshToken) {
-                await supabaseBrowser.auth.signOut();
+                await clearBrowserSession();
                 const { error } = await supabaseBrowser.auth.setSession({
                     access_token: accessToken,
                     refresh_token: refreshToken,

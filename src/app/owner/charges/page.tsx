@@ -11,7 +11,8 @@ import { archiveCharge, cancelCharge, deleteCharge, markChargePaid, publishCharg
 import FinanceChargeComposer from "./FinanceChargeComposer";
 import FinanceChargeEditor from "./FinanceChargeEditor";
 import FinancePeriodFilter from "./FinancePeriodFilter";
-import { ALL_CHARGE_TYPE_OPTIONS, EXPENSE_CATEGORY_CONFIG, getChargeTypeLabel, type ChargeType } from "@/lib/chargeTypes";
+import { ALL_CHARGE_TYPE_OPTIONS, getChargeTypeLabel, type ChargeType } from "@/lib/chargeTypes";
+import { buildCustomTrendSeries, buildExpenseCategoryTotals, buildRecentTrendSeries, buildRecentTrendWindow, isExpenseCharge, summarizeFinanceRows } from "@/lib/ownerFinance";
 
 type SearchParams = {
     preset?: string;
@@ -115,33 +116,6 @@ function formatDisplayDate(dateValue: string) {
     }).format(new Date(`${dateValue}T00:00:00`));
 }
 
-function isExpenseCharge(charge: Pick<ChargeRow, "tenant_id" | "type">) {
-    return !charge.tenant_id && charge.type !== "RENT";
-}
-
-function isRecoveredForwardedExpenseCharge(charge: Pick<ChargeRow, "tenant_id" | "type" | "status">) {
-    return !!charge.tenant_id
-        && charge.type !== "RENT"
-        && (charge.status === "PAID" || charge.status === "ARCHIVED");
-}
-
-function isRecognizedRevenueCharge(charge: Pick<ChargeRow, "tenant_id" | "type" | "status">) {
-    return !isExpenseCharge(charge) && (charge.status === "PAID" || charge.status === "ARCHIVED");
-}
-
-function expenseAmountForSummary(charge: Pick<ChargeRow, "tenant_id" | "type" | "status" | "amount">) {
-    if (charge.status === "CANCELLED") return 0;
-    if (isExpenseCharge(charge) || isRecoveredForwardedExpenseCharge(charge)) {
-        return Number(charge.amount) || 0;
-    }
-    return 0;
-}
-
-function revenueAmountForSummary(charge: Pick<ChargeRow, "tenant_id" | "type" | "status" | "amount">) {
-    if (charge.status === "CANCELLED" || !isRecognizedRevenueCharge(charge)) return 0;
-    return Number(charge.amount) || 0;
-}
-
 function statusLabel(charge: Pick<ChargeRow, "status" | "due_date" | "tenant_id" | "type">) {
     if (isExpenseCharge(charge)) {
         if (charge.status === "CANCELLED") return "Sztornó";
@@ -198,60 +172,6 @@ function monthEnd(dateValue: string) {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0);
 }
 
-function monthDiffInclusive(fromValue: string, toValue: string) {
-    const start = monthStart(fromValue);
-    const end = monthStart(toValue);
-    return ((end.getFullYear() - start.getFullYear()) * 12) + (end.getMonth() - start.getMonth()) + 1;
-}
-
-function buildRecentTrendSeries(rows: ChargeRow[], endValue: string) {
-    const anchor = monthStart(endValue);
-    return Array.from({ length: 6 }, (_, index) => {
-        const date = new Date(anchor.getFullYear(), anchor.getMonth() - (5 - index), 1);
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-        const net = rows.reduce((sum, charge) => {
-            if (charge.status === "CANCELLED" || !charge.due_date.startsWith(key)) return sum;
-            return sum + revenueAmountForSummary(charge) - expenseAmountForSummary(charge);
-        }, 0);
-        return {
-            key,
-            label: new Intl.DateTimeFormat("hu-HU", { month: "short" }).format(date).replace(".", ""),
-            net,
-        };
-    });
-}
-
-function buildCustomTrendSeries(rows: ChargeRow[], fromValue: string, toValue: string) {
-    const months = Math.max(1, Math.min(monthDiffInclusive(fromValue, toValue), 12));
-    const start = monthStart(fromValue);
-    const end = monthStart(toValue);
-    const firstMonth = months === monthDiffInclusive(fromValue, toValue)
-        ? start
-        : new Date(end.getFullYear(), end.getMonth() - (months - 1), 1);
-
-    return Array.from({ length: months }, (_, index) => {
-        const date = new Date(firstMonth.getFullYear(), firstMonth.getMonth() + index, 1);
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-        const net = rows.reduce((sum, charge) => {
-            if (charge.status === "CANCELLED" || !charge.due_date.startsWith(key)) return sum;
-            return sum + revenueAmountForSummary(charge) - expenseAmountForSummary(charge);
-        }, 0);
-        return {
-            key,
-            label: new Intl.DateTimeFormat("hu-HU", { month: "short" }).format(date).replace(".", ""),
-            net,
-        };
-    });
-}
-
-function buildRecentTrendWindow(endValue: string) {
-    const anchor = monthStart(endValue);
-    return {
-        from: toDateInputValue(new Date(anchor.getFullYear(), anchor.getMonth() - 5, 1)),
-        to: toDateInputValue(monthEnd(endValue)),
-    };
-}
-
 function buildQuery(input: Record<string, string | undefined>) {
     const params = new URLSearchParams();
     Object.entries(input).forEach(([key, value]) => {
@@ -284,7 +204,7 @@ function normalizeSortOrder(value: string | undefined) {
 
 function resolvePeriodRange(preset: PeriodPreset, requestedFrom?: string, requestedTo?: string) {
     const today = startOfToday();
-    const todayValue = toDateInputValue(today);
+    const monthEndValue = endOfCurrentMonth();
     const currentMonthRange = {
         from: startOfCurrentMonth(),
         to: endOfCurrentMonth(),
@@ -304,25 +224,25 @@ function resolvePeriodRange(preset: PeriodPreset, requestedFrom?: string, reques
         case "LAST_3_MONTHS":
             return {
                 from: toDateInputValue(shiftMonths(today, -3)),
-                to: todayValue,
+                to: monthEndValue,
                 label: "Elmúlt 3 hónap",
             };
         case "LAST_6_MONTHS":
             return {
                 from: toDateInputValue(shiftMonths(today, -6)),
-                to: todayValue,
+                to: monthEndValue,
                 label: "Elmúlt fél év",
             };
         case "LAST_12_MONTHS":
             return {
                 from: toDateInputValue(shiftMonths(today, -12)),
-                to: todayValue,
+                to: monthEndValue,
                 label: "Elmúlt 1 év",
             };
         case "MAX":
             return {
                 from: "2000-01-01",
-                to: todayValue,
+                to: monthEndValue,
                 label: "Maximum",
             };
         case "CUSTOM":
@@ -546,38 +466,17 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
     const filteredRows = allRows.filter(matchesFilters);
     const filteredTrendRows = allTrendRows.filter(matchesFilters);
 
-    const revenue = filteredRows.reduce((sum, charge) => {
-        return sum + revenueAmountForSummary(charge);
-    }, 0);
-
-    const expense = filteredRows.reduce((sum, charge) => {
-        return sum + expenseAmountForSummary(charge);
-    }, 0);
-
-    const profit = revenue - expense;
-    const receivables = filteredRows.reduce((sum, charge) => {
-        const overdue = !isExpenseCharge(charge) && charge.status === "UNPAID" && new Date(`${charge.due_date}T00:00:00`).getTime() < startOfToday().getTime();
-        return overdue ? sum + (Number(charge.amount) || 0) : sum;
-    }, 0);
+    const summary = summarizeFinanceRows(filteredRows);
+    const revenue = summary.revenue;
+    const expense = summary.expense;
+    const profit = summary.profit;
+    const receivables = summary.overdueReceivables;
 
     const monthlySeries = preset === "CUSTOM"
         ? buildCustomTrendSeries(filteredTrendRows, from, to)
         : buildRecentTrendSeries(filteredTrendRows, trendWindow.to);
 
-    const categoryTotals = EXPENSE_CATEGORY_CONFIG.map((item) => ({
-        label: item.label,
-        color: item.color,
-        value: filteredRows
-            .filter((row) => {
-                if (row.status === "CANCELLED") return false;
-                if (!isExpenseCharge(row) && !isRecoveredForwardedExpenseCharge(row)) return false;
-                if (item.type === "OTHER_EXPENSES") {
-                    return !["UTILITY", "COMMON_COST", "INSURANCE", "RENOVATION", "TAX", "OTHER"].includes(row.type);
-                }
-                return row.type === item.type;
-            })
-            .reduce((sum, row) => sum + (Number(row.amount) || 0), 0),
-    }));
+    const categoryTotals = buildExpenseCategoryTotals(filteredRows);
     const categoryLegendRows = categoryTotals.filter((item) => item.value > 0);
 
     const paginatedRows = filteredRows
@@ -662,7 +561,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                         <div className="dashboard-kpi-copy">
                             <div className="dashboard-kpi-title">Bevétel</div>
                             <div className="dashboard-kpi-value dashboard-kpi-value-currency">{formatCurrency(revenue, "HUF")}</div>
-                            <div className="dashboard-kpi-note">Csak fizetettre állított tételek</div>
+                            <div className="dashboard-kpi-note">Fizetett és archivált tételek</div>
                         </div>
                     </article>
                     <article className="card finance-kpi-card">
@@ -670,7 +569,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                         <div className="dashboard-kpi-copy">
                             <div className="dashboard-kpi-title">Kiadás</div>
                             <div className="dashboard-kpi-value dashboard-kpi-value-currency">{formatCurrency(expense, "HUF")}</div>
-                            <div className="muted-note">Saját költség jellegű tételek</div>
+                            <div className="muted-note">Minden költség jellegű tétel</div>
                         </div>
                     </article>
                     <article className="card finance-kpi-card">
@@ -686,7 +585,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                         <div className="dashboard-kpi-copy">
                             <div className="dashboard-kpi-title">Kintlévőség</div>
                             <div className="dashboard-kpi-value dashboard-kpi-value-currency">{formatCurrency(receivables, "HUF")}</div>
-                            <div className="muted-note">{filteredRows.filter((row) => statusLabel(row) === "Lejárt").length} lejárt tétel</div>
+                            <div className="muted-note">{summary.overdueCount} lejárt tétel</div>
                         </div>
                     </article>
                 </section>
@@ -727,10 +626,10 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                 <div className="donut-chart donut-chart-empty" style={{ background: donutBackground }}>
                                     <div className="donut-center">
                                         <strong>0 Ft</strong>
-                                        <span>Nincs saját költség</span>
+                                        <span>Nincs költség</span>
                                     </div>
                                 </div>
-                                <p className="dashboard-empty-note">Ebben az időszakban még nincs saját költségként rögzített tétel, ezért a megoszlásdiagram üres.</p>
+                                <p className="dashboard-empty-note">Ebben az időszakban még nincs költségként elszámolt tétel, ezért a megoszlásdiagram üres.</p>
                             </div>
                         ) : (
                             <div className="donut-shell">

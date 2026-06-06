@@ -28,6 +28,14 @@ function humanizeAuthError(message: string) {
     return message;
 }
 
+async function clearBrowserSession() {
+    try {
+        await supabaseBrowser.auth.signOut();
+    } catch {
+        // Ignore stale localhost auth cookies; a fresh sign-in should still proceed.
+    }
+}
+
 export default function LoginPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -55,7 +63,7 @@ export default function LoginPage() {
             if (!accessToken || !refreshToken) return;
 
             setLoading(true);
-            await supabaseBrowser.auth.signOut();
+            await clearBrowserSession();
             const { error } = await supabaseBrowser.auth.setSession({
                 access_token: accessToken,
                 refresh_token: refreshToken,
@@ -81,7 +89,7 @@ export default function LoginPage() {
 
         const normalizedEmail = email.trim().toLowerCase();
 
-        await supabaseBrowser.auth.signOut();
+        await clearBrowserSession();
 
         let { error } = await supabaseBrowser.auth.signInWithPassword({
             email: normalizedEmail,
@@ -89,7 +97,7 @@ export default function LoginPage() {
         });
 
         if (error) {
-            await supabaseBrowser.auth.signOut();
+            await clearBrowserSession();
             const retry = await supabaseBrowser.auth.signInWithPassword({
                 email: normalizedEmail,
                 password,

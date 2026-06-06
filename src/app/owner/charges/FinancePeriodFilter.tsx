@@ -67,19 +67,19 @@ function previousMonthRange() {
 
 function canonicalRangeForPreset(preset: PeriodPreset) {
     const today = startOfToday();
-    const todayValue = toDateInputValue(today);
+    const monthEndValue = endOfCurrentMonth();
 
     switch (preset) {
         case "LAST_30_DAYS":
             return previousMonthRange();
         case "LAST_3_MONTHS":
-            return { from: toDateInputValue(shiftMonths(today, -3)), to: todayValue };
+            return { from: toDateInputValue(shiftMonths(today, -3)), to: monthEndValue };
         case "LAST_6_MONTHS":
-            return { from: toDateInputValue(shiftMonths(today, -6)), to: todayValue };
+            return { from: toDateInputValue(shiftMonths(today, -6)), to: monthEndValue };
         case "LAST_12_MONTHS":
-            return { from: toDateInputValue(shiftMonths(today, -12)), to: todayValue };
+            return { from: toDateInputValue(shiftMonths(today, -12)), to: monthEndValue };
         case "MAX":
-            return { from: "2000-01-01", to: todayValue };
+            return { from: "2000-01-01", to: monthEndValue };
         case "CUSTOM":
             return { from: startOfCurrentMonth(), to: endOfCurrentMonth() };
         default:
@@ -172,6 +172,7 @@ export default function FinancePeriodFilter({ property, status, type, billing, s
                         type="date"
                         className="input input-date finance-period-date"
                         value={from}
+                        max={maxDate}
                         onChange={(event) => {
                             const nextFrom = event.target.value;
                             setFrom(nextFrom);
@@ -183,6 +184,7 @@ export default function FinancePeriodFilter({ property, status, type, billing, s
                         type="date"
                         className="input input-date finance-period-date"
                         value={to}
+                        max={maxDate}
                         onChange={(event) => {
                             const nextTo = event.target.value;
                             setTo(nextTo);
@@ -199,3 +201,4 @@ export default function FinancePeriodFilter({ property, status, type, billing, s
         </form>
     );
 }
+    const maxDate = endOfCurrentMonth();

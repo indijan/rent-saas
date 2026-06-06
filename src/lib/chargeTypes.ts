@@ -21,7 +21,7 @@ export const EXPENSE_CATEGORY_CONFIG: ReadonlyArray<{ label: string; color: stri
     { label: "Közös költség", color: "#FF9C1A", type: "COMMON_COST" },
     { label: "Biztosítás", color: "#10C5E9", type: "INSURANCE" },
     { label: "Adó", color: "#FF5C5C", type: "TAX" },
-    { label: "Saját költség", color: "#7635FF", type: "OTHER" },
+    { label: "Egyéb költség", color: "#7635FF", type: "OTHER" },
     { label: "Felújítás", color: "#18C24A", type: "RENOVATION" },
     { label: "Egyéb", color: "#A9B7D0", type: "OTHER_EXPENSES" },
 ];
@@ -35,7 +35,7 @@ export function isOwnExpenseRestrictedChargeType(type: string) {
 }
 
 export function getChargeTypeLabel(type: string, tenantId?: string | null) {
-    if (!tenantId && type === "OTHER") return "Saját költség";
+    if (!tenantId && type === "OTHER") return "Egyéb költség";
     switch (type) {
         case "RENT":
             return "Bérleti díj";
