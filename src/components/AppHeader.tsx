@@ -384,9 +384,7 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
         event.preventDefault();
         event.stopPropagation();
         closeClosestDetails(event.currentTarget);
-        window.setTimeout(() => {
-            window.location.assign(href);
-        }, 0);
+        window.location.assign(href);
     };
 
     const setThemeMode = (nextMode: ThemeMode) => {
@@ -595,51 +593,51 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                                     </summary>
                                     <div className="dashboard-dropdown-menu dashboard-profile-menu">
                                         <div className="dashboard-dropdown-section-label">{roleLabel}</div>
-                                        <Link className="dashboard-dropdown-item" href="/valassz-nezetet" onClick={handleDesktopDropdownNavigate("/valassz-nezetet")}>
+                                        <button type="button" className="dashboard-dropdown-item" onClick={handleDesktopDropdownNavigate("/valassz-nezetet")}>
                                             Nézetváltás
-                                        </Link>
-                                        <Link className="dashboard-dropdown-item" href="/account" onClick={handleDesktopDropdownNavigate("/account")}>
+                                        </button>
+                                        <button type="button" className="dashboard-dropdown-item" onClick={handleDesktopDropdownNavigate("/account")}>
                                             Profil
-                                        </Link>
+                                        </button>
                                         {profile.role === "TENANT" ? (
                                             <>
-                                                <Link className="dashboard-dropdown-item" href="/tenant/charges" onClick={handleDesktopDropdownNavigate("/tenant/charges")}>
+                                                <button type="button" className="dashboard-dropdown-item" onClick={handleDesktopDropdownNavigate("/tenant/charges")}>
                                                     Saját díjak
-                                                </Link>
-                                                <Link className="dashboard-dropdown-item" href="/account#kilepesi-kerelem-kuldes" onClick={handleDesktopDropdownNavigate("/account#kilepesi-kerelem-kuldes")}>
+                                                </button>
+                                                <button type="button" className="dashboard-dropdown-item" onClick={handleDesktopDropdownNavigate("/account#kilepesi-kerelem-kuldes")}>
                                                     Kilépés ingatlanból
-                                                </Link>
-                                                <Link className="dashboard-dropdown-item" href="/account#otletlada" onClick={handleDesktopDropdownNavigate("/account#otletlada")}>
+                                                </button>
+                                                <button type="button" className="dashboard-dropdown-item" onClick={handleDesktopDropdownNavigate("/account#otletlada")}>
                                                     Ötletláda
-                                                </Link>
-                                                <Link className="dashboard-dropdown-item" href="/account#kapcsolat" onClick={handleDesktopDropdownNavigate("/account#kapcsolat")}>
+                                                </button>
+                                                <button type="button" className="dashboard-dropdown-item" onClick={handleDesktopDropdownNavigate("/account#kapcsolat")}>
                                                     Kapcsolat
-                                                </Link>
+                                                </button>
                                             </>
                                         ) : null}
                                         {profile.role === "OWNER" ? (
                                             <>
-                                                <Link className="dashboard-dropdown-item" href="/owner/properties" onClick={handleDesktopDropdownNavigate("/owner/properties")}>
+                                                <button type="button" className="dashboard-dropdown-item" onClick={handleDesktopDropdownNavigate("/owner/properties")}>
                                                     Ingatlanok kezelése
-                                                </Link>
-                                                <Link className="dashboard-dropdown-item" href="/owner/email-log" onClick={handleDesktopDropdownNavigate("/owner/email-log")}>
+                                                </button>
+                                                <button type="button" className="dashboard-dropdown-item" onClick={handleDesktopDropdownNavigate("/owner/email-log")}>
                                                     E-mail log
-                                                </Link>
-                                                <Link className="dashboard-dropdown-item dashboard-dropdown-item-accent" href="/owner/properties" onClick={handleDesktopDropdownNavigate("/owner/properties")}>
+                                                </button>
+                                                <button type="button" className="dashboard-dropdown-item dashboard-dropdown-item-accent" onClick={handleDesktopDropdownNavigate("/owner/properties")}>
                                                     + Új ingatlan
-                                                </Link>
-                                                <Link className="dashboard-dropdown-item" href="/account#otletlada" onClick={handleDesktopDropdownNavigate("/account#otletlada")}>
+                                                </button>
+                                                <button type="button" className="dashboard-dropdown-item" onClick={handleDesktopDropdownNavigate("/account#otletlada")}>
                                                     Ötletláda
-                                                </Link>
-                                                <Link className="dashboard-dropdown-item" href="/account#kapcsolat" onClick={handleDesktopDropdownNavigate("/account#kapcsolat")}>
+                                                </button>
+                                                <button type="button" className="dashboard-dropdown-item" onClick={handleDesktopDropdownNavigate("/account#kapcsolat")}>
                                                     Kapcsolat
-                                                </Link>
+                                                </button>
                                             </>
                                         ) : null}
                                         <div className="dashboard-dropdown-divider" />
-                                        <Link className="dashboard-dropdown-item dashboard-dropdown-item-danger" href="/auth/sign-out" onClick={handleDesktopDropdownNavigate("/auth/sign-out")}>
+                                        <button type="button" className="dashboard-dropdown-item dashboard-dropdown-item-danger" onClick={handleDesktopDropdownNavigate("/auth/sign-out")}>
                                             Kijelentkezés
-                                        </Link>
+                                        </button>
                                     </div>
                                 </details>
                             )}
