@@ -7,7 +7,8 @@ import DesignIcon from "@/components/dashboard/DesignIcon";
 import { buildDocumentOpenHref } from "@/lib/documentStorage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { listTenantProperties } from "@/lib/propertyTenants";
-import { ALL_CHARGE_TYPE_OPTIONS, getChargeTypeLabel, type ChargeType } from "@/lib/chargeTypes";
+import { FORWARDED_CHARGE_TYPE_OPTIONS, getChargeTypeLabel, type ChargeType } from "@/lib/chargeTypes";
+import { isTenantFacingCharge } from "@/lib/chargeVisibility";
 
 type ChargeStatus = "UNPAID" | "PAID" | "ARCHIVED" | "CANCELLED";
 type PeriodPreset = "CURRENT_MONTH" | "LAST_30_DAYS" | "LAST_3_MONTHS" | "LAST_6_MONTHS" | "LAST_12_MONTHS" | "MAX" | "CUSTOM";
@@ -41,6 +42,7 @@ type ChargeRow = {
     id: string;
     title: string;
     notes: string | null;
+    tenant_id: string | null;
     type: ChargeType;
     amount: number | string;
     currency: string | null;
@@ -308,7 +310,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
 
     let listQuery = admin
         .from("charges")
-        .select("id,title,notes,type,amount,currency,due_date,status,paid_at,property_id,recurring_group,recurring_index,recurring_count,properties(id,name,address)")
+        .select("id,title,notes,tenant_id,type,amount,currency,due_date,status,paid_at,property_id,recurring_group,recurring_index,recurring_count,properties(id,name,address)")
         .in("property_id", propertyIds.length > 0 ? propertyIds : ["00000000-0000-0000-0000-000000000000"])
         .neq("status", "IMPORT_DRAFT")
         .gte("due_date", from)
@@ -325,7 +327,9 @@ export default async function TenantChargesPage({ searchParams }: Props) {
 
     const { data: charges, error } = await listQuery;
 
-    const allRows = ((charges ?? []) as ChargeRow[]).filter((charge) => {
+    const allRows = ((charges ?? []) as ChargeRow[])
+        .filter((charge) => isTenantFacingCharge(charge))
+        .filter((charge) => {
         if (!keywordFilter) return true;
         const property = firstProperty(charge.properties);
         const haystack = normalizeSearchText([
@@ -533,7 +537,7 @@ export default async function TenantChargesPage({ searchParams }: Props) {
                                 <span className="field-label">Típus</span>
                                 <select name="type" className="select" defaultValue={typeFilter}>
                                     <option value="">Minden típus</option>
-                                    {ALL_CHARGE_TYPE_OPTIONS.map((option) => (
+                                    {FORWARDED_CHARGE_TYPE_OPTIONS.map((option) => (
                                         <option key={option.value} value={option.value}>{option.label}</option>
                                     ))}
                                 </select>

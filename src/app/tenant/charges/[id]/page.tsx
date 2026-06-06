@@ -8,6 +8,7 @@ import { buildDocumentOpenHref } from "@/lib/documentStorage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getChargeTypeLabel } from "@/lib/chargeTypes";
 import { listTenantProperties } from "@/lib/propertyTenants";
+import { isTenantFacingCharge } from "@/lib/chargeVisibility";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -84,12 +85,12 @@ export default async function TenantChargeDetailPage({ params }: Props) {
 
     const { data: charge, error } = await admin
         .from("charges")
-        .select("id,title,type,amount,currency,due_date,status,paid_at,notes,property_id,properties(name,address)")
+        .select("id,title,tenant_id,type,amount,currency,due_date,status,paid_at,notes,property_id,properties(name,address)")
         .eq("id", id)
         .neq("status", "IMPORT_DRAFT")
         .single();
 
-    if (error || !charge || !propertyIds.includes(charge.property_id)) return notFound();
+    if (error || !charge || !propertyIds.includes(charge.property_id) || !isTenantFacingCharge(charge)) return notFound();
 
     const { data: documents } = await admin
         .from("documents")

@@ -4,6 +4,7 @@ import { resolveAvailableRoles } from "@/lib/auth/availableRoles";
 import type { AppRole } from "@/lib/auth/requireUser";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { listTenantPropertyIds } from "@/lib/propertyTenants";
+import { isTenantFacingCharge } from "@/lib/chargeVisibility";
 
 type UserContext = {
     userId: string;
@@ -12,6 +13,7 @@ type UserContext = {
 type TenantChargeExportRow = {
     title: string | null;
     notes: string | null;
+    tenant_id: string | null;
     type: string | null;
     amount: number | string | null;
     currency: string | null;
@@ -87,7 +89,7 @@ export async function GET(request: Request) {
 
     let q = admin
         .from("charges")
-        .select("title,notes,type,amount,currency,due_date,status,paid_at,properties(name,address)")
+        .select("title,notes,tenant_id,type,amount,currency,due_date,status,paid_at,properties(name,address)")
         .in("property_id", propertyIds.length > 0 ? propertyIds : ["00000000-0000-0000-0000-000000000000"])
         .neq("status", "IMPORT_DRAFT")
         .order("due_date", { ascending: sort === "due_asc" });
@@ -105,7 +107,9 @@ export async function GET(request: Request) {
     const { data, error } = await q;
     if (error) return new NextResponse(error.message, { status: 500 });
 
-    const filteredData = ((data ?? []) as TenantChargeExportRow[]).filter((row) => {
+    const filteredData = ((data ?? []) as TenantChargeExportRow[])
+        .filter((row) => isTenantFacingCharge(row))
+        .filter((row) => {
         if (!keyword) return true;
         const property = Array.isArray(row.properties) ? row.properties[0] : row.properties;
         const haystack = normalizeSearchText([

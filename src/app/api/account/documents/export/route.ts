@@ -5,6 +5,7 @@ import { resolveAvailableRoles } from "@/lib/auth/availableRoles";
 import { buildZip } from "@/lib/zip";
 import { downloadDocumentObject } from "@/lib/documentStorage";
 import { listTenantPropertyIds } from "@/lib/propertyTenants";
+import { isTenantFacingCharge } from "@/lib/chargeVisibility";
 
 function safeFileName(value: string) {
     return value.replaceAll(" ", "_").replace(/[^a-zA-Z0-9._-]/g, "");
@@ -35,7 +36,7 @@ export async function GET() {
 
     const docsQuery = admin
         .from("documents")
-        .select("bucket_path,created_at")
+        .select("bucket_path,created_at,charge_id")
         .order("created_at", { ascending: false });
 
     const tenantPropertyIds = activeRole === "TENANT" && availableRoles.length === 1
@@ -50,12 +51,31 @@ export async function GET() {
         return new Response(error.message, { status: 500 });
     }
 
+    const chargeIds = activeRole === "TENANT" && availableRoles.length === 1
+        ? Array.from(new Set((documents ?? []).map((doc) => doc.charge_id as string | null).filter(Boolean)))
+        : [];
+    const { data: linkedCharges } = chargeIds.length === 0
+        ? { data: [] as Array<{ id: string; tenant_id: string | null; type: string | null }> }
+        : await admin
+            .from("charges")
+            .select("id,tenant_id,type")
+            .in("id", chargeIds);
+    const visibleChargeIds = new Set(
+        ((linkedCharges ?? []) as Array<{ id: string; tenant_id: string | null; type: string | null }>)
+            .filter((charge) => isTenantFacingCharge(charge))
+            .map((charge) => charge.id)
+    );
+
     const entries: Array<{ name: string; content: Buffer }> = [];
     let index = 1;
 
     for (const doc of documents ?? []) {
         const bucketPath = doc.bucket_path as string | null;
         if (!bucketPath) continue;
+        if (activeRole === "TENANT" && availableRoles.length === 1) {
+            const chargeId = doc.charge_id as string | null;
+            if (chargeId && !visibleChargeIds.has(chargeId)) continue;
+        }
 
         try {
             const fileBuffer = await downloadDocumentObject(bucketPath);

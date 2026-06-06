@@ -4,6 +4,7 @@ import { renderMissingInvoiceSuggestionsEmail, renderOwnerOverdueCheckEmail, ren
 import { createEmailActionToken } from "@/lib/emailActionTokens";
 import { listPropertyTenants } from "@/lib/propertyTenants";
 import { buildMissingInvoiceSuggestions } from "@/lib/invoiceSuggestions";
+import { isTenantFacingCharge } from "@/lib/chargeVisibility";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu";
 const APP_TIMEZONE = process.env.APP_TIMEZONE || "Europe/Budapest";
@@ -17,6 +18,7 @@ type ReminderChargeRow = {
     due_date: string;
     owner_id: string;
     tenant_id: string | null;
+    type: string | null;
     property_id: string;
     properties?: { name: string | null }[] | { name: string | null } | null;
 };
@@ -87,7 +89,7 @@ export async function POST(request: Request) {
 
     const buildDueSoonQuery = () => admin
         .from("charges")
-        .select("id,title,amount,currency,due_date,owner_id,tenant_id,property_id,properties(name)")
+        .select("id,title,amount,currency,due_date,owner_id,tenant_id,type,property_id,properties(name)")
         .eq("status", "UNPAID")
         .eq("due_date", reminderTargetDate);
 
@@ -102,7 +104,7 @@ export async function POST(request: Request) {
 
     const { data: overdueCharges, error: overdueError } = await admin
         .from("charges")
-        .select("id,title,amount,currency,due_date,owner_id,tenant_id,property_id,properties(name)")
+        .select("id,title,amount,currency,due_date,owner_id,tenant_id,type,property_id,properties(name)")
         .eq("status", "UNPAID")
         .lt("due_date", todayDate)
         .is("overdue_check_sent_at", null)
@@ -122,7 +124,9 @@ export async function POST(request: Request) {
         return new Response(expenseHistoryError.message, { status: 500 });
     }
 
-    const allCharges = ([...(dueSoonCharges ?? []), ...(overdueCharges ?? [])] as ReminderChargeRow[]);
+    const tenantFacingDueSoonCharges = ((dueSoonCharges ?? []) as ReminderChargeRow[]).filter((charge) => isTenantFacingCharge(charge));
+    const tenantFacingOverdueCharges = ((overdueCharges ?? []) as ReminderChargeRow[]).filter((charge) => isTenantFacingCharge(charge));
+    const allCharges = [...tenantFacingDueSoonCharges, ...tenantFacingOverdueCharges];
     const recipientsByCharge = new Map<string, TenantProfileRow[]>();
 
     const fallbackTenantIds = new Set<string>();
@@ -149,7 +153,7 @@ export async function POST(request: Request) {
 
     const ownerIds = Array.from(
         new Set([
-            ...((overdueCharges ?? []) as ReminderChargeRow[]).map((charge) => charge.owner_id),
+            ...tenantFacingOverdueCharges.map((charge) => charge.owner_id),
             ...((expenseHistoryRows ?? []) as ExpenseHistoryRow[]).map((charge) => charge.owner_id),
         ].filter(Boolean))
     );
@@ -164,7 +168,7 @@ export async function POST(request: Request) {
     const reminderIds: string[] = [];
     const overdueCheckIds: string[] = [];
     const reminderErrors: string[] = [];
-    for (const charge of (dueSoonCharges ?? []) as ReminderChargeRow[]) {
+    for (const charge of tenantFacingDueSoonCharges) {
         const recipients = recipientsByCharge.get(charge.id)
             ?? (charge.tenant_id ? [emailByTenant.get(charge.tenant_id)].filter(Boolean) as Array<{ email: string; full_name: string | null }> : []);
         const validRecipients = recipients.filter((recipient) => Boolean(recipient.email));
@@ -215,7 +219,7 @@ export async function POST(request: Request) {
         if (deliveredAll) reminderIds.push(charge.id);
     }
 
-    for (const charge of (overdueCharges ?? []) as ReminderChargeRow[]) {
+    for (const charge of tenantFacingOverdueCharges) {
         const ownerProfile = emailByOwner.get(charge.owner_id);
         if (!ownerProfile) continue;
         const propertyRecipients = recipientsByCharge.get(charge.id) ?? [];

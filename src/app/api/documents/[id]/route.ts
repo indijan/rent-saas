@@ -5,6 +5,7 @@ import { resolveAvailableRoles } from "@/lib/auth/availableRoles";
 import { downloadDocumentObject } from "@/lib/documentStorage";
 import { listTenantPropertyIds } from "@/lib/propertyTenants";
 import type { AppRole } from "@/lib/auth/requireUser";
+import { isTenantFacingCharge } from "@/lib/chargeVisibility";
 
 type Params = {
     params: Promise<{ id: string }>;
@@ -72,7 +73,7 @@ export async function GET(_request: Request, { params }: Params) {
     const admin = createSupabaseAdminClient();
     const [{ data: profile, error: profileError }, { data: document, error: documentError }] = await Promise.all([
         admin.from("profiles").select("role").eq("id", user.id).single(),
-        admin.from("documents").select("id,bucket_path,owner_id,tenant_id,property_id").eq("id", id).maybeSingle(),
+        admin.from("documents").select("id,bucket_path,owner_id,tenant_id,property_id,charge_id").eq("id", id).maybeSingle(),
     ]);
 
     if (profileError || !profile?.role) {
@@ -84,11 +85,21 @@ export async function GET(_request: Request, { params }: Params) {
 
     const roles = await resolveAvailableRoles(user.id, profile.role as AppRole);
     const propertyIds = roles.includes("TENANT") ? await listTenantPropertyIds(user.id) : [];
+    const { data: linkedCharge } = document.charge_id
+        ? await admin
+            .from("charges")
+            .select("tenant_id,type")
+            .eq("id", document.charge_id)
+            .maybeSingle()
+        : { data: null };
+    const tenantCanAccessByProperty = roles.includes("TENANT")
+        && Boolean(document.property_id ? propertyIds.includes(document.property_id) : false)
+        && (!linkedCharge || isTenantFacingCharge(linkedCharge));
     const canAccess = roles.includes("ADMIN")
         || (roles.includes("OWNER") && document.owner_id === user.id)
         || (roles.includes("TENANT") && (
             document.tenant_id === user.id
-            || (document.property_id ? propertyIds.includes(document.property_id) : false)
+            || tenantCanAccessByProperty
         ));
 
     if (!canAccess) {
