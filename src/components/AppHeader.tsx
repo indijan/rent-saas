@@ -380,6 +380,15 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
         }, 0);
     };
 
+    const handleDesktopDropdownNavigate = (href: string) => (event: MouseEvent<HTMLElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        closeClosestDetails(event.currentTarget);
+        window.setTimeout(() => {
+            window.location.assign(href);
+        }, 0);
+    };
+
     const setThemeMode = (nextMode: ThemeMode) => {
         setAppearanceMode(nextMode);
         window.localStorage.setItem("rentapp-dashboard-theme", nextMode);
@@ -586,49 +595,49 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                                     </summary>
                                     <div className="dashboard-dropdown-menu dashboard-profile-menu">
                                         <div className="dashboard-dropdown-section-label">{roleLabel}</div>
-                                        <Link className="dashboard-dropdown-item" href="/valassz-nezetet" onClick={closeOpenMenu}>
+                                        <Link className="dashboard-dropdown-item" href="/valassz-nezetet" onClick={handleDesktopDropdownNavigate("/valassz-nezetet")}>
                                             Nézetváltás
                                         </Link>
-                                        <Link className="dashboard-dropdown-item" href="/account" onClick={closeOpenMenu}>
+                                        <Link className="dashboard-dropdown-item" href="/account" onClick={handleDesktopDropdownNavigate("/account")}>
                                             Profil
                                         </Link>
                                         {profile.role === "TENANT" ? (
                                             <>
-                                                <Link className="dashboard-dropdown-item" href="/tenant/charges" onClick={closeOpenMenu}>
+                                                <Link className="dashboard-dropdown-item" href="/tenant/charges" onClick={handleDesktopDropdownNavigate("/tenant/charges")}>
                                                     Saját díjak
                                                 </Link>
-                                                <Link className="dashboard-dropdown-item" href="/account#kilepesi-kerelem-kuldes" onClick={closeOpenMenu}>
+                                                <Link className="dashboard-dropdown-item" href="/account#kilepesi-kerelem-kuldes" onClick={handleDesktopDropdownNavigate("/account#kilepesi-kerelem-kuldes")}>
                                                     Kilépés ingatlanból
                                                 </Link>
-                                                <Link className="dashboard-dropdown-item" href="/account#otletlada" onClick={closeOpenMenu}>
+                                                <Link className="dashboard-dropdown-item" href="/account#otletlada" onClick={handleDesktopDropdownNavigate("/account#otletlada")}>
                                                     Ötletláda
                                                 </Link>
-                                                <Link className="dashboard-dropdown-item" href="/account#kapcsolat" onClick={closeOpenMenu}>
+                                                <Link className="dashboard-dropdown-item" href="/account#kapcsolat" onClick={handleDesktopDropdownNavigate("/account#kapcsolat")}>
                                                     Kapcsolat
                                                 </Link>
                                             </>
                                         ) : null}
                                         {profile.role === "OWNER" ? (
                                             <>
-                                                <Link className="dashboard-dropdown-item" href="/owner/properties" onClick={closeOpenMenu}>
+                                                <Link className="dashboard-dropdown-item" href="/owner/properties" onClick={handleDesktopDropdownNavigate("/owner/properties")}>
                                                     Ingatlanok kezelése
                                                 </Link>
-                                                <Link className="dashboard-dropdown-item" href="/owner/email-log" onClick={closeOpenMenu}>
+                                                <Link className="dashboard-dropdown-item" href="/owner/email-log" onClick={handleDesktopDropdownNavigate("/owner/email-log")}>
                                                     E-mail log
                                                 </Link>
-                                                <Link className="dashboard-dropdown-item dashboard-dropdown-item-accent" href="/owner/properties" onClick={closeOpenMenu}>
+                                                <Link className="dashboard-dropdown-item dashboard-dropdown-item-accent" href="/owner/properties" onClick={handleDesktopDropdownNavigate("/owner/properties")}>
                                                     + Új ingatlan
                                                 </Link>
-                                                <Link className="dashboard-dropdown-item" href="/account#otletlada" onClick={closeOpenMenu}>
+                                                <Link className="dashboard-dropdown-item" href="/account#otletlada" onClick={handleDesktopDropdownNavigate("/account#otletlada")}>
                                                     Ötletláda
                                                 </Link>
-                                                <Link className="dashboard-dropdown-item" href="/account#kapcsolat" onClick={closeOpenMenu}>
+                                                <Link className="dashboard-dropdown-item" href="/account#kapcsolat" onClick={handleDesktopDropdownNavigate("/account#kapcsolat")}>
                                                     Kapcsolat
                                                 </Link>
                                             </>
                                         ) : null}
                                         <div className="dashboard-dropdown-divider" />
-                                        <Link className="dashboard-dropdown-item dashboard-dropdown-item-danger" href="/auth/sign-out" onClick={closeOpenMenu}>
+                                        <Link className="dashboard-dropdown-item dashboard-dropdown-item-danger" href="/auth/sign-out" onClick={handleDesktopDropdownNavigate("/auth/sign-out")}>
                                             Kijelentkezés
                                         </Link>
                                     </div>
