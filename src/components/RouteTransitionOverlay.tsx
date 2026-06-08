@@ -39,6 +39,14 @@ export default function RouteTransitionOverlay() {
             }, 15000);
         };
 
+        const clearPending = () => {
+            setPending(false);
+            if (timeoutRef.current) {
+                window.clearTimeout(timeoutRef.current);
+                timeoutRef.current = null;
+            }
+        };
+
         const handleClick = (event: MouseEvent) => {
             if (!isPlainLeftClick(event)) return;
             const target = event.target instanceof Element ? event.target.closest("a") : null;
@@ -85,14 +93,28 @@ export default function RouteTransitionOverlay() {
             startPending();
         };
 
+        const handleVisibilityChange = () => {
+            if (document.hidden) {
+                clearPending();
+            }
+        };
+
+        const handlePageShow = () => {
+            clearPending();
+        };
+
         window.addEventListener("click", handleClick, true);
         window.addEventListener("submit", handleSubmit, true);
         window.addEventListener(MANUAL_ROUTE_EVENT, handleManualRouteStart);
+        window.addEventListener("pageshow", handlePageShow);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
 
         return () => {
             window.removeEventListener("click", handleClick, true);
             window.removeEventListener("submit", handleSubmit, true);
             window.removeEventListener(MANUAL_ROUTE_EVENT, handleManualRouteStart);
+            window.removeEventListener("pageshow", handlePageShow);
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
             if (timeoutRef.current) {
                 window.clearTimeout(timeoutRef.current);
             }

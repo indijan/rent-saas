@@ -1,6 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveRoleCookie } from "@/lib/auth/context";
+import { getActiveRoleCookie, resolveActiveRole } from "@/lib/auth/context";
 import { resolveAvailableRoles } from "@/lib/auth/availableRoles";
 import { buildZip } from "@/lib/zip";
 import { downloadDocumentObject } from "@/lib/documentStorage";
@@ -31,7 +31,7 @@ export async function GET() {
 
     const availableRoles = await resolveAvailableRoles(user.id, profile.role);
     const cookieRole = await getActiveRoleCookie();
-    const activeRole = cookieRole && availableRoles.includes(cookieRole) ? cookieRole : availableRoles[0];
+    const activeRole = resolveActiveRole(availableRoles, cookieRole, profile.role);
     const admin = createSupabaseAdminClient();
 
     const docsQuery = admin
@@ -39,11 +39,11 @@ export async function GET() {
         .select("bucket_path,created_at,charge_id")
         .order("created_at", { ascending: false });
 
-    const tenantPropertyIds = activeRole === "TENANT" && availableRoles.length === 1
+    const tenantPropertyIds = activeRole === "TENANT"
         ? await listTenantPropertyIds(user.id)
         : [];
 
-    const { data: documents, error } = activeRole === "TENANT" && availableRoles.length === 1
+    const { data: documents, error } = activeRole === "TENANT"
         ? await docsQuery.in("property_id", tenantPropertyIds.length > 0 ? tenantPropertyIds : ["00000000-0000-0000-0000-000000000000"])
         : await docsQuery.eq("owner_id", user.id);
 
@@ -51,7 +51,7 @@ export async function GET() {
         return new Response(error.message, { status: 500 });
     }
 
-    const chargeIds = activeRole === "TENANT" && availableRoles.length === 1
+    const chargeIds = activeRole === "TENANT"
         ? Array.from(new Set((documents ?? []).map((doc) => doc.charge_id as string | null).filter(Boolean)))
         : [];
     const { data: linkedCharges } = chargeIds.length === 0
@@ -72,7 +72,7 @@ export async function GET() {
     for (const doc of documents ?? []) {
         const bucketPath = doc.bucket_path as string | null;
         if (!bucketPath) continue;
-        if (activeRole === "TENANT" && availableRoles.length === 1) {
+        if (activeRole === "TENANT") {
             const chargeId = doc.charge_id as string | null;
             if (chargeId && !visibleChargeIds.has(chargeId)) continue;
         }
@@ -97,7 +97,7 @@ export async function GET() {
     }
 
     const zip = buildZip(entries);
-    const fileBase = activeRole === "TENANT" && availableRoles.length === 1 ? "berlo-dokumentumok" : "berbeado-dokumentumok";
+    const fileBase = activeRole === "TENANT" ? "berlo-dokumentumok" : "berbeado-dokumentumok";
 
     return new Response(zip, {
         status: 200,

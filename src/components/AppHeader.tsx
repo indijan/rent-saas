@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { type MouseEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import type { AppRole } from "@/lib/auth/requireUser";
 
 type Profile = {
@@ -273,6 +273,38 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
     const currentPropertyLabel = dashboardContext?.value && dashboardContext.value !== "__all__"
         ? dashboardContext.items.find((item) => item.id === dashboardContext.value)?.label ?? "Összes ingatlan"
         : "Összes ingatlan";
+    const mobileNavItemCount = mobileNavItems.length + (profile.role === "OWNER" || navConfig.secondary.length > 0 ? 1 : 0);
+    const mobileNavStyle = useMemo(
+        () => ({ "--dashboard-mobile-nav-columns": String(mobileNavItemCount) }) as CSSProperties,
+        [mobileNavItemCount],
+    );
+
+    const closeOpenDashboardDropdowns = useCallback(() => {
+        document.querySelectorAll<HTMLDetailsElement>("details.dashboard-dropdown[open]").forEach((details) => {
+            details.open = false;
+        });
+    }, []);
+
+    const closeMobileSheets = useCallback(() => {
+        setMobileMoreOpen(false);
+        setMobileContextOpen(false);
+    }, []);
+
+    const closeTransientUi = useCallback(() => {
+        closeMobileSheets();
+        closeOpenDashboardDropdowns();
+    }, [closeMobileSheets, closeOpenDashboardDropdowns]);
+
+    const syncCompactViewport = useCallback(() => {
+        const compact = window.matchMedia("(max-width: 980px)").matches
+            || (window.visualViewport ? window.visualViewport.width <= 980 : false)
+            || window.innerWidth <= 980;
+
+        setIsCompactViewport(compact);
+        if (!compact) {
+            closeTransientUi();
+        }
+    }, [closeTransientUi]);
 
     useEffect(() => {
         window.localStorage.setItem("rentapp-sidebar-collapsed", sidebarCollapsed ? "1" : "0");
@@ -281,48 +313,67 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
 
     useEffect(() => {
         const media = window.matchMedia("(max-width: 980px)");
-        const syncViewport = () => {
-            const compact = media.matches;
-            setIsCompactViewport(compact);
-            if (!compact) {
-                setMobileMoreOpen(false);
-                setMobileContextOpen(false);
-            }
+        const handleViewportChange = () => {
+            syncCompactViewport();
         };
 
-        syncViewport();
-        media.addEventListener?.("change", syncViewport);
-        return () => media.removeEventListener?.("change", syncViewport);
-    }, []);
+        const frameId = window.requestAnimationFrame(() => {
+            syncCompactViewport();
+        });
+        media.addEventListener?.("change", handleViewportChange);
+        window.visualViewport?.addEventListener("resize", handleViewportChange);
+        window.addEventListener("resize", handleViewportChange);
+        window.addEventListener("orientationchange", handleViewportChange);
+
+        return () => {
+            window.cancelAnimationFrame(frameId);
+            media.removeEventListener?.("change", handleViewportChange);
+            window.visualViewport?.removeEventListener("resize", handleViewportChange);
+            window.removeEventListener("resize", handleViewportChange);
+            window.removeEventListener("orientationchange", handleViewportChange);
+        };
+    }, [syncCompactViewport]);
 
     useEffect(() => {
         const frame = window.requestAnimationFrame(() => {
             setMenuOpen(false);
-            setMobileMoreOpen(false);
-            setMobileContextOpen(false);
+            closeTransientUi();
         });
         return () => window.cancelAnimationFrame(frame);
-    }, [pathname, searchKey]);
+    }, [closeTransientUi, pathname, searchKey]);
 
     useEffect(() => {
-        const closeMobileSheets = () => {
-            setMobileMoreOpen(false);
-            setMobileContextOpen(false);
-        };
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === "Escape") {
-                closeMobileSheets();
+                closeTransientUi();
             }
         };
-        window.addEventListener("hashchange", closeMobileSheets);
-        window.addEventListener("popstate", closeMobileSheets);
-        window.addEventListener("keydown", handleKeyDown);
-        return () => {
-            window.removeEventListener("hashchange", closeMobileSheets);
-            window.removeEventListener("popstate", closeMobileSheets);
-            window.removeEventListener("keydown", handleKeyDown);
+        const handleVisibilityChange = () => {
+            if (document.hidden) {
+                closeTransientUi();
+            } else {
+                syncCompactViewport();
+                closeTransientUi();
+            }
         };
-    }, []);
+        const handlePageShow = () => {
+            syncCompactViewport();
+            closeTransientUi();
+        };
+
+        window.addEventListener("hashchange", closeTransientUi);
+        window.addEventListener("popstate", closeTransientUi);
+        window.addEventListener("keydown", handleKeyDown);
+        window.addEventListener("pageshow", handlePageShow);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => {
+            window.removeEventListener("hashchange", closeTransientUi);
+            window.removeEventListener("popstate", closeTransientUi);
+            window.removeEventListener("keydown", handleKeyDown);
+            window.removeEventListener("pageshow", handlePageShow);
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+        };
+    }, [closeTransientUi, syncCompactViewport]);
 
     useEffect(() => {
         if (appearanceMode === "auto") {
@@ -367,15 +418,10 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
         setMobileMoreOpen((value) => !value);
     };
 
-    const closeMobileSheets = () => {
-        setMobileMoreOpen(false);
-        setMobileContextOpen(false);
-    };
-
     const handleMobileNavigate = (href: string) => (event: MouseEvent<HTMLElement>) => {
         event.preventDefault();
         event.stopPropagation();
-        closeMobileSheets();
+        closeTransientUi();
         window.setTimeout(() => {
             window.dispatchEvent(new CustomEvent(MANUAL_ROUTE_EVENT));
             window.location.assign(href);
@@ -767,7 +813,11 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                         </div>
                     ) : null}
 
-                    <nav className="dashboard-mobile-nav" aria-label="Mobil navigáció">
+                    <nav
+                        className="dashboard-mobile-nav"
+                        aria-label="Mobil navigáció"
+                        style={mobileNavStyle}
+                    >
                         {mobileNavItems.map((item) => (
                             <button
                                 key={item.href}

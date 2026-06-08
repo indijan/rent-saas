@@ -309,11 +309,30 @@ export async function POST(request: Request) {
             continue;
         }
 
-        processed.push({
-            id: created.id,
-            fileName,
-            result: await processStoredIngestion(created.id),
-        });
+        try {
+            processed.push({
+                id: created.id,
+                fileName,
+                result: await processStoredIngestion(created.id),
+            });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "A feldolgozás közben ismeretlen hiba történt.";
+            await admin
+                .from("document_ingestions")
+                .update({
+                    status: "FAILED",
+                    error_message: message,
+                    processed_at: new Date().toISOString(),
+                })
+                .eq("id", created.id)
+                .eq("owner_id", ownerId);
+
+            processed.push({
+                id: created.id,
+                fileName,
+                result: { ok: false as const, error: message },
+            });
+        }
     }
 
     return new Response(JSON.stringify({ ok: true, ingestions: createdIngestions, processed }), {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { resolveAvailableRoles } from "@/lib/auth/availableRoles";
+import { getActiveRoleCookie, resolveActiveRole } from "@/lib/auth/context";
 import { downloadDocumentObject } from "@/lib/documentStorage";
 import { listTenantPropertyIds } from "@/lib/propertyTenants";
 import type { AppRole } from "@/lib/auth/requireUser";
@@ -84,7 +85,8 @@ export async function GET(_request: Request, { params }: Params) {
     }
 
     const roles = await resolveAvailableRoles(user.id, profile.role as AppRole);
-    const propertyIds = roles.includes("TENANT") ? await listTenantPropertyIds(user.id) : [];
+    const activeRole = resolveActiveRole(roles, await getActiveRoleCookie(), profile.role as AppRole);
+    const propertyIds = activeRole === "TENANT" ? await listTenantPropertyIds(user.id) : [];
     const { data: linkedCharge } = document.charge_id
         ? await admin
             .from("charges")
@@ -92,12 +94,12 @@ export async function GET(_request: Request, { params }: Params) {
             .eq("id", document.charge_id)
             .maybeSingle()
         : { data: null };
-    const tenantCanAccessByProperty = roles.includes("TENANT")
+    const tenantCanAccessByProperty = activeRole === "TENANT"
         && Boolean(document.property_id ? propertyIds.includes(document.property_id) : false)
         && (!linkedCharge || isTenantFacingCharge(linkedCharge));
-    const canAccess = roles.includes("ADMIN")
-        || (roles.includes("OWNER") && document.owner_id === user.id)
-        || (roles.includes("TENANT") && (
+    const canAccess = activeRole === "ADMIN"
+        || (activeRole === "OWNER" && document.owner_id === user.id)
+        || (activeRole === "TENANT" && (
             document.tenant_id === user.id
             || tenantCanAccessByProperty
         ));

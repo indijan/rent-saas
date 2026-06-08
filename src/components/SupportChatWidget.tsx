@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const SupportChatPanel = dynamic(() => import("@/components/SupportChatPanel"), {
     ssr: false,
@@ -11,16 +11,54 @@ const SupportChatPanel = dynamic(() => import("@/components/SupportChatPanel"), 
 export default function SupportChatWidget() {
     const [open, setOpen] = useState(false);
     const [bubbleHint, setBubbleHint] = useState(false);
+    const hintTimeoutRef = useRef<number | null>(null);
 
     useEffect(() => {
-        if (open) return;
+        if (open) {
+            const frameId = window.requestAnimationFrame(() => {
+                setBubbleHint(false);
+            });
+            if (hintTimeoutRef.current !== null) {
+                window.clearTimeout(hintTimeoutRef.current);
+                hintTimeoutRef.current = null;
+            }
+            return () => window.cancelAnimationFrame(frameId);
+        }
 
-        const interval = window.setInterval(() => {
+        const triggerHint = () => {
+            if (document.hidden) return;
             setBubbleHint(true);
-            window.setTimeout(() => setBubbleHint(false), 2000);
-        }, 9000);
+            if (hintTimeoutRef.current !== null) {
+                window.clearTimeout(hintTimeoutRef.current);
+            }
+            hintTimeoutRef.current = window.setTimeout(() => {
+                setBubbleHint(false);
+                hintTimeoutRef.current = null;
+            }, 2000);
+        };
 
-        return () => window.clearInterval(interval);
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                return;
+            }
+            if (hintTimeoutRef.current !== null) {
+                window.clearTimeout(hintTimeoutRef.current);
+                hintTimeoutRef.current = null;
+            }
+            setBubbleHint(false);
+        };
+
+        const interval = window.setInterval(triggerHint, 9000);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+
+        return () => {
+            window.clearInterval(interval);
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            if (hintTimeoutRef.current !== null) {
+                window.clearTimeout(hintTimeoutRef.current);
+                hintTimeoutRef.current = null;
+            }
+        };
     }, [open]);
 
     return (

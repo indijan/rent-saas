@@ -1,4 +1,4 @@
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://albimenedzsment.work.gd";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu";
 
 type NewChargeInput = {
     tenantEmail: string;

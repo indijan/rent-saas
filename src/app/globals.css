@@ -8025,9 +8025,9 @@ html[data-dashboard-theme="dark"] .private-skin .account-list-card {
 @media (max-width: 980px) {
   .private-skin .app-shell {
     padding-top: 18px;
-    padding-bottom: calc(280px + env(safe-area-inset-bottom));
+    padding-bottom: calc(196px + env(safe-area-inset-bottom));
     scroll-padding-top: 72px;
-    scroll-padding-bottom: calc(280px + env(safe-area-inset-bottom));
+    scroll-padding-bottom: calc(196px + env(safe-area-inset-bottom));
   }
 
   .private-skin .tenant-directory-scroll {
@@ -8059,6 +8059,9 @@ html[data-dashboard-theme="dark"] .private-skin .account-list-card {
 
   .private-skin .dashboard-topbar {
     z-index: 110;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
   }
 
   .private-skin .dashboard-topbar-main {
@@ -8083,6 +8086,8 @@ html[data-dashboard-theme="dark"] .private-skin .account-list-card {
     justify-content: flex-end;
     position: relative;
     z-index: 130;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
   }
 
   .private-skin .dashboard-settings-dropdown {
@@ -8105,6 +8110,14 @@ html[data-dashboard-theme="dark"] .private-skin .account-list-card {
     padding: 0;
     border-radius: 999px;
     justify-items: center;
+  }
+
+  .private-skin .dashboard-profile-mobile-trigger {
+    position: relative;
+    z-index: 131;
+    pointer-events: auto;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
   }
 
   .private-skin .dashboard-profile-copy,
@@ -8146,10 +8159,26 @@ html[data-dashboard-theme="dark"] .private-skin .account-list-card {
   }
 
   .private-skin .dashboard-mobile-nav {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: max(10px, calc(env(safe-area-inset-bottom) + 8px));
+    display: grid;
+    grid-template-columns: repeat(var(--dashboard-mobile-nav-columns, 6), minmax(0, 1fr));
+    align-items: stretch;
+    gap: 0;
     z-index: 150;
-    padding-bottom: calc(16px + env(safe-area-inset-bottom));
-    min-height: calc(96px + env(safe-area-inset-bottom));
+    min-height: calc(82px + env(safe-area-inset-bottom));
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+    border: 1px solid var(--dashboard-border);
+    border-radius: 26px;
+    background: var(--dashboard-surface-strong);
+    box-shadow: 0 22px 52px rgba(15, 23, 42, 0.18);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
   }
 
   .private-skin .dashboard-mobile-nav-item,
@@ -8157,20 +8186,55 @@ html[data-dashboard-theme="dark"] .private-skin .account-list-card {
     appearance: none;
     display: grid;
     justify-items: center;
-    gap: 6px;
-    padding: 8px 2px;
+    align-content: center;
+    gap: 5px;
+    min-height: 66px;
+    padding: 10px 2px 8px;
     border: 0;
     background: transparent;
     color: var(--dashboard-subtle);
-    font-size: 0.72rem;
+    font-size: 0.71rem;
     font-weight: 700;
+    line-height: 1.1;
     text-align: center;
     text-decoration: none;
     cursor: pointer;
+    position: relative;
+    transition: color 160ms ease, background-color 160ms ease, transform 160ms ease;
+  }
+
+  .private-skin .dashboard-mobile-nav > * + *::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 14px;
+    bottom: 14px;
+    width: 1px;
+    background: rgba(148, 163, 184, 0.16);
+  }
+
+  .private-skin .dashboard-mobile-nav-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+  }
+
+  .private-skin .dashboard-mobile-nav-item.is-active,
+  .private-skin .dashboard-mobile-nav-button.is-active {
+    color: var(--dashboard-ink);
+    background: rgba(37, 99, 235, 0.08);
+    border-radius: 18px;
+  }
+
+  .private-skin .dashboard-mobile-nav-item.is-active .dashboard-mobile-nav-icon,
+  .private-skin .dashboard-mobile-nav-button.is-active .dashboard-mobile-nav-icon {
+    color: #1663eb;
   }
 
   .private-skin .dashboard-mobile-nav-button.is-active {
-    color: #1663eb;
+    color: var(--dashboard-ink);
   }
 
   .private-skin .dashboard-mobile-more-backdrop {
@@ -8188,7 +8252,7 @@ html[data-dashboard-theme="dark"] .private-skin .account-list-card {
     position: fixed;
     left: 12px;
     right: 12px;
-    bottom: calc(108px + env(safe-area-inset-bottom));
+    bottom: calc(102px + env(safe-area-inset-bottom));
     z-index: 160;
     display: none;
     gap: 14px;
@@ -8199,6 +8263,9 @@ html[data-dashboard-theme="dark"] .private-skin .account-list-card {
     border-radius: 24px;
     background: var(--dashboard-surface);
     box-shadow: var(--dashboard-shadow);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
   }
 
   .private-skin .dashboard-mobile-sheet.is-open {
@@ -8206,7 +8273,7 @@ html[data-dashboard-theme="dark"] .private-skin .account-list-card {
   }
 
   .private-skin .dashboard-mobile-more-sheet {
-    bottom: calc(108px + env(safe-area-inset-bottom));
+    bottom: calc(102px + env(safe-area-inset-bottom));
   }
 
   .private-skin .dashboard-mobile-more-header {

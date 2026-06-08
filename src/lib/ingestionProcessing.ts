@@ -7,8 +7,8 @@ import { suggestOwnerPropertyForIngestion } from "@/lib/propertyMatching";
 import { extractInvoiceFromBuffer } from "@/app/owner/properties/[id]/charges/actions";
 import { downloadDocumentObject } from "@/lib/documentStorage";
 import { createEmailActionToken } from "@/lib/emailActionTokens";
-import { isOwnExpenseRestrictedChargeType, isOwnOnlyChargeType } from "@/lib/chargeTypes";
 import type { ImportMode } from "@/lib/importModes";
+import { normalizeImportedChargeMode } from "@/lib/importChargeNormalization";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu";
 
@@ -174,12 +174,10 @@ export async function processStoredIngestion(ingestionId: string) {
         import_mode: importMode,
     };
 
-    if (normalized.import_mode === "OWN_EXPENSE" && isOwnExpenseRestrictedChargeType(normalized.charge_type)) {
-        normalized.charge_type = "OTHER";
-    }
-    if (normalized.import_mode === "FORWARDED" && isOwnOnlyChargeType(normalized.charge_type)) {
-        normalized.import_mode = "OWN_EXPENSE";
-    }
+    ({ importMode: normalized.import_mode, chargeType: normalized.charge_type } = normalizeImportedChargeMode(
+        normalized.import_mode,
+        normalized.charge_type
+    ));
 
     if (normalized.issuer_name) {
         const supplierProfile = await findOwnerSupplierProfile(ingestionRow.owner_id, normalized.issuer_name);
@@ -192,9 +190,10 @@ export async function processStoredIngestion(ingestionId: string) {
         }
     }
 
-    if (normalized.import_mode === "OWN_EXPENSE" && isOwnExpenseRestrictedChargeType(normalized.charge_type)) {
-        normalized.charge_type = "OTHER";
-    }
+    ({ importMode: normalized.import_mode, chargeType: normalized.charge_type } = normalizeImportedChargeMode(
+        normalized.import_mode,
+        normalized.charge_type
+    ));
 
     let suggestedProperty:
         | Awaited<ReturnType<typeof suggestOwnerPropertyForIngestion>>

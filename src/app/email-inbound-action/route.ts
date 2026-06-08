@@ -120,7 +120,23 @@ export async function POST(request: Request) {
         redirectWithMessage("/owner/importok", "success", "A számla elutasítva lett.");
     }
 
-    const result = await processStoredIngestion(payload.ingestionId);
+    let result: Awaited<ReturnType<typeof processStoredIngestion>>;
+    try {
+        result = await processStoredIngestion(payload.ingestionId);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "A feldolgozás nem sikerült.";
+        await admin
+            .from("document_ingestions")
+            .update({
+                status: "FAILED",
+                error_message: message,
+                processed_at: new Date().toISOString(),
+            })
+            .eq("id", payload.ingestionId);
+        redirectWithMessage("/owner/importok", "error", message);
+        return;
+    }
+
     if (!result.ok) {
         redirectWithMessage("/owner/importok", "error", result.error ?? "A feldolgozás nem sikerült.");
         return;

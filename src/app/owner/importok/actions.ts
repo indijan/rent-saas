@@ -11,8 +11,8 @@ import { rotateInboundMailbox } from "@/lib/inboundMailboxes";
 import { findOwnerSupplierProfile } from "@/lib/supplierProfiles";
 import { getConfiguredStorageBucketName, removeDocumentObjects, uploadDocumentObject } from "@/lib/documentStorage";
 import { createEmailActionToken } from "@/lib/emailActionTokens";
-import { isOwnExpenseRestrictedChargeType, isOwnOnlyChargeType } from "@/lib/chargeTypes";
 import type { ImportMode } from "@/lib/importModes";
+import { normalizeImportedChargeMode } from "@/lib/importChargeNormalization";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu";
 
@@ -260,12 +260,10 @@ export async function createManualIngestion(formData: FormData) {
         import_mode: importMode,
     };
 
-    if (importMode === "OWN_EXPENSE" && isOwnExpenseRestrictedChargeType(normalized.charge_type)) {
-        normalized.charge_type = "OTHER";
-    }
-    if (importMode === "FORWARDED" && isOwnOnlyChargeType(normalized.charge_type)) {
-        normalized.import_mode = "OWN_EXPENSE";
-    }
+    ({ importMode: normalized.import_mode, chargeType: normalized.charge_type } = normalizeImportedChargeMode(
+        normalized.import_mode as ImportMode,
+        normalized.charge_type
+    ));
 
     if (normalized.issuer_name) {
         const supplierProfile = await findOwnerSupplierProfile(user.id, normalized.issuer_name);
@@ -277,9 +275,10 @@ export async function createManualIngestion(formData: FormData) {
         }
     }
 
-    if (normalized.import_mode === "OWN_EXPENSE" && isOwnExpenseRestrictedChargeType(normalized.charge_type)) {
-        normalized.charge_type = "OTHER";
-    }
+    ({ importMode: normalized.import_mode, chargeType: normalized.charge_type } = normalizeImportedChargeMode(
+        normalized.import_mode as ImportMode,
+        normalized.charge_type
+    ));
 
     if (!normalized.gross_amount || !normalized.due_date) {
         await admin
@@ -442,8 +441,9 @@ export async function finalizeIngestionReview(ingestionId: string, formData: For
     const ingestionRow = ingestion as IngestionRow & { created_charge_id?: string | null };
     const existingNormalized = (ingestionRow.normalized_data ?? {}) as Record<string, unknown>;
     const importMode = String(formData.get("import_mode") || existingNormalized.import_mode || "FORWARDED").trim().toUpperCase() as ImportMode;
-    const effectiveImportMode = importMode === "FORWARDED" && isOwnOnlyChargeType(chargeType) ? "OWN_EXPENSE" : importMode;
-    const normalizedChargeType = effectiveImportMode === "OWN_EXPENSE" && isOwnExpenseRestrictedChargeType(chargeType) ? "OTHER" : chargeType;
+    const normalizedImport = normalizeImportedChargeMode(importMode, chargeType);
+    const effectiveImportMode = normalizedImport.importMode;
+    const normalizedChargeType = normalizedImport.chargeType;
     const tenantId = effectiveImportMode === "OWN_EXPENSE" ? null : (property as PropertyRow).tenant_id;
     const normalizedInput = {
         issuer_name: issuerName,

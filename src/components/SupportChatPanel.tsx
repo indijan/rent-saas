@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type ChatMessage = {
     role: "user" | "assistant";
@@ -65,6 +65,7 @@ export default function SupportChatPanel({ onClose }: Props) {
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const inputRef = useRef<HTMLTextAreaElement | null>(null);
     const showOwnerCockpit = pathname.startsWith("/owner");
     const [activeView, setActiveView] = useState<SupportView>(() => (pathname.startsWith("/owner") ? "actions" : "chat"));
 
@@ -79,8 +80,7 @@ export default function SupportChatPanel({ onClose }: Props) {
 
     useEffect(() => {
         if (activeView !== "chat") return;
-        const textarea = document.querySelector<HTMLTextAreaElement>(".support-input");
-        textarea?.focus();
+        inputRef.current?.focus();
     }, [activeView]);
 
     async function sendMessage(text: string) {
@@ -254,6 +254,7 @@ export default function SupportChatPanel({ onClose }: Props) {
                     }}
                 >
                     <textarea
+                        ref={inputRef}
                         className="textarea support-input"
                         placeholder="Írd be a kérdésedet az appról..."
                         value={input}

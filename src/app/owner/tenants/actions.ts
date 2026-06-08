@@ -84,7 +84,7 @@ export async function createTenant(formData: FormData) {
 
     if (existingError) return { ok: false, error: existingError.message };
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu";
     const redirectTo = siteUrl ? `${siteUrl}/auth/callback?next=/account` : undefined;
     const existingUserId = (existing ?? [])[0]?.id as string | undefined;
 

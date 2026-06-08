@@ -1,8 +1,9 @@
+import { randomUUID } from "crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
 import { renderImportInvoiceStatusEmail } from "@/lib/email/templates";
-import { removeDocumentObjects, uploadDocumentObject } from "@/lib/documentStorage";
-import { extractInvoiceFromBuffer } from "@/app/owner/properties/[id]/charges/actions";
+import { getConfiguredStorageBucketName, removeDocumentObjects, uploadDocumentObject } from "@/lib/documentStorage";
+import { processStoredIngestion } from "@/lib/ingestionProcessing";
 
 function safeFileName(value: string) {
     return value.replaceAll(" ", "_").replace(/[^a-zA-Z0-9._-]/g, "");
@@ -31,149 +32,107 @@ export async function POST(request: Request) {
         return new Response("Csak PDF tölthető fel.", { status: 400 });
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const extraction = await extractInvoiceFromBuffer(buffer);
-    if (!extraction.ok || !extraction.data) {
-        await sendEmail(renderImportInvoiceStatusEmail({
-            ownerEmail,
-            status: "FAILED",
-            fileName: file.name,
-            error: extraction.error || "AI feldolgozás sikertelen.",
-        }));
-        return new Response(JSON.stringify({ ok: false, error: extraction.error }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-        });
-    }
-
-    const data = extraction.data;
-    const amount = Number.isFinite(data.amount ?? NaN) ? Number(data.amount) : null;
-    const dueDate = data.due_date ?? null;
-    const provider = data.name ?? null;
-    if (!amount || !dueDate || !provider) {
-        await sendEmail(renderImportInvoiceStatusEmail({
-            ownerEmail,
-            status: "FAILED",
-            fileName: file.name,
-            provider,
-            amount: amount ?? null,
-            currency: data.currency ?? "HUF",
-            dueDate,
-            error: "Hiányzó kötelező mező (összeg, határidő, szolgáltató).",
-        }));
-        return new Response(JSON.stringify({ ok: false, error: "Hiányzó kötelező mezők." }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-        });
-    }
-
     const admin = createSupabaseAdminClient();
-    const { data: property, error: propErr } = await admin
+    const { data: property, error: propertyError } = await admin
         .from("properties")
-        .select("id,name,owner_id,tenant_id")
+        .select("id,name,owner_id")
         .eq("id", propertyId)
         .single();
-    if (propErr || !property) {
+
+    if (propertyError || !property) {
         await sendEmail(renderImportInvoiceStatusEmail({
             ownerEmail,
             status: "FAILED",
             fileName: file.name,
-            provider,
-            amount,
-            currency: data.currency ?? "HUF",
-            dueDate,
             error: "Az ingatlan nem található.",
         }));
         return new Response("Az ingatlan nem található.", { status: 400 });
     }
 
-    const title = `Számla – ${provider} – ${dueDate}`;
-    const currency = data.currency ?? "HUF";
-    const { data: createdCharge, error: chargeErr } = await admin
-        .from("charges")
-        .insert({
-            property_id: propertyId,
-            owner_id: property.owner_id,
-            tenant_id: property.tenant_id,
-            type: data.type ?? "UTILITY",
-            title,
-            amount,
-            currency,
-            due_date: dueDate,
-            status: "IMPORT_DRAFT",
-        })
-        .select("id")
-        .single();
-
-    if (chargeErr || !createdCharge?.id) {
-        await sendEmail(renderImportInvoiceStatusEmail({
-            ownerEmail,
-            status: "FAILED",
-            fileName: file.name,
-            provider,
-            amount,
-            currency,
-            dueDate,
-            error: chargeErr?.message || "A díj létrehozása sikertelen volt.",
-        }));
-        return new Response("A díj létrehozása sikertelen volt.", { status: 500 });
-    }
-
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const ingestionId = randomUUID();
     const safeName = safeFileName(file.name || "invoice.pdf") || "invoice.pdf";
-    const path = `${property.owner_id}/${createdCharge.id}/${Date.now()}-${safeName}`;
+    const storageKey = `${property.owner_id}/ingestions/${ingestionId}/${Date.now()}-${safeName}`;
+
     try {
-        await uploadDocumentObject(path, buffer, file.type);
-    } catch (error) {
-        await admin.from("charges").delete().eq("id", createdCharge.id);
+        await uploadDocumentObject(storageKey, buffer, file.type);
+    } catch {
         await sendEmail(renderImportInvoiceStatusEmail({
             ownerEmail,
             status: "FAILED",
             fileName: file.name,
-            provider,
-            amount,
-            currency,
-            dueDate,
-            error: error instanceof Error ? error.message : "A fájl feltöltése sikertelen volt.",
+            error: "A fájl feltöltése sikertelen volt.",
         }));
         return new Response("A fájl feltöltése sikertelen volt.", { status: 500 });
     }
 
-    const { error: docErr } = await admin.from("documents").insert({
-        owner_id: property.owner_id,
-        tenant_id: property.tenant_id,
-        property_id: propertyId,
-        charge_id: createdCharge.id,
-        bucket_path: path,
-        type: "INVOICE",
-    });
-    if (docErr) {
-        await removeDocumentObjects([path]);
-        await admin.from("charges").delete().eq("id", createdCharge.id);
+    const { error: ingestionInsertError } = await admin
+        .from("document_ingestions")
+        .insert({
+            id: ingestionId,
+            owner_id: property.owner_id,
+            source_type: "UPLOAD",
+            source_attachment_name: file.name,
+            storage_bucket: getConfiguredStorageBucketName(),
+            storage_key: storageKey,
+            status: "RECEIVED",
+            normalized_data: {
+                property_id: property.id,
+                property_name: property.name,
+                import_mode: "FORWARDED",
+            },
+        });
+
+    if (ingestionInsertError) {
+        await removeDocumentObjects([storageKey]);
         await sendEmail(renderImportInvoiceStatusEmail({
             ownerEmail,
             status: "FAILED",
             fileName: file.name,
-            provider,
-            amount,
-            currency,
-            dueDate,
-            error: docErr.message,
+            error: ingestionInsertError.message,
         }));
-        return new Response("A dokumentum mentése sikertelen volt.", { status: 500 });
+        return new Response("Az import létrehozása sikertelen volt.", { status: 500 });
     }
 
-    await sendEmail(renderImportInvoiceStatusEmail({
-        ownerEmail,
-        status: "SUCCESS_DRAFT",
-        fileName: file.name,
-        provider,
-        amount,
-        currency,
-        dueDate,
-        propertyName: property.name ?? null,
-    }));
+    let result: Awaited<ReturnType<typeof processStoredIngestion>>;
+    try {
+        result = await processStoredIngestion(ingestionId);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "A feldolgozás nem sikerült.";
+        await admin
+            .from("document_ingestions")
+            .update({
+                status: "FAILED",
+                error_message: message,
+                processed_at: new Date().toISOString(),
+            })
+            .eq("id", ingestionId)
+            .eq("owner_id", property.owner_id);
+        await sendEmail(renderImportInvoiceStatusEmail({
+            ownerEmail,
+            status: "FAILED",
+            fileName: file.name,
+            error: message,
+        }));
+        return new Response(JSON.stringify({ ok: false, error: message, ingestionId }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+        });
+    }
 
-    return new Response(JSON.stringify({ ok: true, chargeId: createdCharge.id }), {
+    if (!result.ok) {
+        return new Response(JSON.stringify({ ok: false, error: result.error, ingestionId }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+        });
+    }
+
+    return new Response(JSON.stringify({
+        ok: true,
+        ingestionId,
+        chargeId: "chargeId" in result ? result.chargeId ?? null : null,
+        needsReview: result.needsReview ?? false,
+    }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
     });

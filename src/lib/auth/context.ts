@@ -8,6 +8,18 @@ export async function getActiveRoleCookie() {
     return store.get(ACTIVE_ROLE_COOKIE)?.value as AppRole | undefined;
 }
 
+export function resolveActiveRole(availableRoles: AppRole[], cookieRole: AppRole | undefined, fallbackRole: AppRole) {
+    if (cookieRole && availableRoles.includes(cookieRole)) {
+        return cookieRole;
+    }
+
+    if (availableRoles.includes(fallbackRole)) {
+        return fallbackRole;
+    }
+
+    return availableRoles[0];
+}
+
 export async function setActiveRoleCookie(role: AppRole) {
     const store = await cookies();
     store.set(ACTIVE_ROLE_COOKIE, role, {
