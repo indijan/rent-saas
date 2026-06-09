@@ -5,6 +5,7 @@ import { verifyEmailActionToken } from "@/lib/emailActionTokens";
 import { renderFriendlyArrearsReminderEmail, renderNewChargeEmail } from "@/lib/email/templates";
 import { sendEmail } from "@/lib/email/resend";
 import { listPropertyTenants } from "@/lib/propertyTenants";
+import { isTenantFacingCharge } from "@/lib/chargeVisibility";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu";
 
@@ -15,6 +16,7 @@ type ChargeWithProperty = {
     owner_id: string;
     tenant_id: string | null;
     property_id: string;
+    type: string | null;
     status: string;
     title: string;
     amount: number | string;
@@ -201,7 +203,7 @@ async function loadCharge(chargeId: string) {
     const admin = createSupabaseAdminClient();
     const { data: charge, error } = await admin
         .from("charges")
-        .select("id,owner_id,tenant_id,property_id,status,title,amount,currency,due_date,properties(name)")
+        .select("id,owner_id,tenant_id,property_id,type,status,title,amount,currency,due_date,properties(name)")
         .eq("id", chargeId)
         .limit(1)
         .maybeSingle();
@@ -270,6 +272,11 @@ export async function POST(request: Request) {
     }
 
     if (payload.action === "charge_send_reminder") {
+        if (!isTenantFacingCharge(charge)) {
+            redirectWithMessage("/owner/todo", "error", "Saját költséghez nem küldhető bérlői emlékeztető.");
+            return;
+        }
+
         const tenantProfiles = await listPropertyTenants(charge.property_id);
         if (tenantProfiles.length === 0) {
             redirectWithMessage("/owner/todo", "error", "A bérlő e-mail-címe nem érhető el.");
@@ -349,6 +356,20 @@ export async function POST(request: Request) {
                 })
                 .eq("owner_id", charge.owner_id)
                 .eq("created_charge_id", charge.id);
+
+            if (!isTenantFacingCharge(charge)) {
+                revalidatePath("/owner/importok");
+                revalidatePath("/owner/charges");
+                revalidatePath("/owner/osszefoglalo");
+                revalidatePath("/owner/todo");
+
+                redirectToResult(
+                    "success",
+                    "A számla sikeresen létrejött.",
+                    "A díj saját költségként lett publikálva, ezért nem küldtünk bérlői értesítést."
+                );
+                return;
+            }
 
             const property = getChargeProperty(charge);
             const propertyTenants = await listPropertyTenants(charge.property_id);

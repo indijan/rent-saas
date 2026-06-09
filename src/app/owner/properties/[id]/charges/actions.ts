@@ -17,6 +17,7 @@ import { extractInvoiceAmountFromText } from "@/lib/invoiceAmountExtraction";
 import { listPropertyTenants } from "@/lib/propertyTenants";
 import { isOwnExpenseRestrictedChargeType, isOwnOnlyChargeType } from "@/lib/chargeTypes";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { isTenantFacingCharge } from "@/lib/chargeVisibility";
 
 type ChargeIdRow = {
     id: string | null;
@@ -495,13 +496,16 @@ export async function sendManualChargeReminder(chargeId: string) {
 
     const { data: charge, error: chargeErr } = await supabase
         .from("charges")
-        .select("id,property_id,tenant_id,status,title,amount,currency,due_date,properties(name)")
+        .select("id,property_id,tenant_id,type,status,title,amount,currency,due_date,properties(name)")
         .eq("id", chargeId)
         .eq("owner_id", user.id)
         .single();
 
     if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
     if (charge.status !== "UNPAID") return { ok: false, error: "Csak aktív díjhoz küldhető emlékeztető." };
+    if (!isTenantFacingCharge(charge)) {
+        return { ok: false, error: "Saját költséghez nem küldhető bérlői emlékeztető." };
+    }
 
     const tenantProfiles = await listPropertyTenants(charge.property_id);
     if (tenantProfiles.length === 0) {
@@ -568,7 +572,7 @@ export async function publishCharge(chargeId: string) {
 
     const { data: charge, error: chargeErr } = await supabase
         .from("charges")
-        .select("id,property_id,tenant_id,status,title,amount,currency,due_date,properties(name)")
+        .select("id,property_id,tenant_id,type,status,title,amount,currency,due_date,properties(name)")
         .eq("id", chargeId)
         .eq("owner_id", user.id)
         .single();
@@ -593,8 +597,8 @@ export async function publishCharge(chargeId: string) {
         .eq("owner_id", user.id)
         .eq("created_charge_id", chargeId);
 
-    const propertyTenants = await listPropertyTenants(charge.property_id);
-    if (propertyTenants.length > 0) {
+    if (isTenantFacingCharge(charge)) {
+        const propertyTenants = await listPropertyTenants(charge.property_id);
         const propertyValue = (charge as { properties?: { name: string | null }[] | { name: string | null } | null }).properties;
         const property = Array.isArray(propertyValue) ? propertyValue[0] : propertyValue;
         for (const tenantProfile of propertyTenants) {
