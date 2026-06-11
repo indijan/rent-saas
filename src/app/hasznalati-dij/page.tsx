@@ -24,6 +24,7 @@ const pricingCards = [
         title: "4–9 ingatlan",
         price: "2 000 Ft",
         suffix: "/ ingatlan / hó",
+        featured: true,
         body: "Ha már kisebb portfóliót kezelsz, a Rentapp még jobban megtérül.",
         bullets: [
             "minden funkció",
@@ -99,10 +100,15 @@ export default async function PricingPage() {
 
             <section className="grid">
                 {pricingCards.map((card) => (
-                    <article key={card.title} className="card section-stack">
-                        <div className="eyebrow">{card.title}</div>
-                        <div className="kpi-value">{card.price}</div>
-                        <div className="muted-note">{card.suffix}</div>
+                    <article key={card.title} className={`card section-stack pricing-card${card.featured ? " pricing-card-featured" : ""}`}>
+                        <div className="pricing-card-head">
+                            <div className="eyebrow">{card.title}</div>
+                            {card.featured ? <span className="pricing-card-badge">Ajánlott</span> : null}
+                        </div>
+                        <div className="pricing-card-price-row">
+                            <div className="kpi-value">{card.price}</div>
+                            <div className="muted-note">{card.suffix}</div>
+                        </div>
                         <p>{card.body}</p>
                         <div className="feature-list">
                             {card.bullets.map((bullet) => (

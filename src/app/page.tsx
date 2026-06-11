@@ -61,6 +61,37 @@ const audiences = [
     },
 ];
 
+const heroProofs = [
+    {
+        label: "Próbaidő",
+        value: "30 nap ingyen",
+    },
+    {
+        label: "Import",
+        value: "AI támogatott számlafeldolgozás",
+    },
+    {
+        label: "Felület",
+        value: "Mobilról is kényelmes",
+    },
+];
+
+const pricingTiers = [
+    {
+        label: "1–3 ingatlan",
+        value: "3 000 Ft / ingatlan / hó",
+    },
+    {
+        label: "4–9 ingatlan",
+        value: "2 000 Ft / ingatlan / hó",
+        featured: true,
+    },
+    {
+        label: "10+ ingatlan",
+        value: "1 000 Ft / ingatlan / hó",
+    },
+];
+
 export default async function HomePage() {
     const dashboardHref = await getSignedInDashboardHref();
 
@@ -74,33 +105,23 @@ export default async function HomePage() {
                     <div className="eyebrow">Rentapp</div>
                     <h1>Automate for freedom.</h1>
                     <p className="hero-lead">
-                        A Rentapp rendet tesz a bérbeadás körüli káoszban: számlák, bérlők, dokumentumok, határidők és teendők egy rendszerben,
-                        hogy a működésed ne rád nehezedjen, hanem helyetted dolgozzon.
+                        A Rentapp egyetlen nyugodt rendszerbe rendezi a bérbeadás működését:
+                        számlák, bérlők, dokumentumok, határidők és teendők egy helyen.
                     </p>
                     <div className="hero-copy-note">
-                        Kevesebb adminisztráció, kevesebb fejben tartás, több kontroll a teljes bérbeadási működésed fölött.
+                        Kevesebb adminisztráció. Kevesebb fejben tartás. Több kontroll.
                     </div>
                     <div className="charge-actions">
                         <a className="btn btn-primary" href="/berbeadoi-regisztracio">Próbáld ki 30 napig ingyen</a>
                         <a className="btn btn-secondary" href="/funkciok">Funkciók megtekintése</a>
                     </div>
                     <div className="hero-proof-grid">
-                        <div className="hero-proof-card">
-                            <span className="hero-proof-label">Próbaidő</span>
-                            <strong>30 nap ingyen</strong>
-                        </div>
-                        <div className="hero-proof-card">
-                            <span className="hero-proof-label">Használat</span>
-                            <strong>Mobilról is kényelmes</strong>
-                        </div>
-                        <div className="hero-proof-card">
-                            <span className="hero-proof-label">Import</span>
-                            <strong>AI támogatott számlafeldolgozás</strong>
-                        </div>
-                        <div className="hero-proof-card">
-                            <span className="hero-proof-label">Workspace</span>
-                            <strong>Saját bérbeadói rendszer</strong>
-                        </div>
+                        {heroProofs.map((item) => (
+                            <div key={item.label} className="hero-proof-card">
+                                <span className="hero-proof-label">{item.label}</span>
+                                <strong>{item.value}</strong>
+                            </div>
+                        ))}
                     </div>
                 </div>
 
@@ -203,11 +224,17 @@ export default async function HomePage() {
                         Egy elfelejtett határidő, egy elveszett számla vagy egy kimaradt adminisztráció sokkal többe kerülhet,
                         mint egy rendezett rendszer.
                     </p>
-                    <div className="feature-list">
-                        <div className="feature-item">1–3 ingatlan · 3 000 Ft / ingatlan / hó</div>
-                        <div className="feature-item">4–9 ingatlan · 2 000 Ft / ingatlan / hó</div>
-                        <div className="feature-item">10+ ingatlan · 1 000 Ft / ingatlan / hó</div>
-                        <div className="feature-item">30 nap ingyenes próba</div>
+                    <div className="pricing-inline-list">
+                        {pricingTiers.map((tier) => (
+                            <div key={tier.label} className={`pricing-inline-item${tier.featured ? " pricing-inline-item-featured" : ""}`}>
+                                <span>{tier.label}</span>
+                                <strong>{tier.value}</strong>
+                            </div>
+                        ))}
+                        <div className="pricing-inline-item pricing-inline-item-muted">
+                            <span>Próbaidő</span>
+                            <strong>30 nap ingyenes próba</strong>
+                        </div>
                     </div>
                 </article>
             </section>

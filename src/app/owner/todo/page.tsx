@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth/requireRole";
 import { formatCurrency } from "@/lib/formatters";
 import AppHeader from "@/components/AppHeader";
 import DesignIcon from "@/components/dashboard/DesignIcon";
+import TodoInvoiceSuggestions from "@/components/dashboard/TodoInvoiceSuggestions";
 import PendingSubmitButton from "@/components/PendingSubmitButton";
 import { markChargePaid, publishCharge, sendManualChargeReminder } from "@/app/owner/properties/[id]/charges/actions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -104,14 +105,6 @@ function stateTone(state: TaskRow["state"]) {
     if (state === "done") return "dashboard-task-status-done";
     if (state === "progress") return "dashboard-task-status-progress";
     return "dashboard-task-status-open";
-}
-
-function formatIsoDate(dateValue: string) {
-    return new Intl.DateTimeFormat("hu-HU", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-    }).format(new Date(`${dateValue}T00:00:00`));
 }
 
 type Props = {
@@ -389,42 +382,7 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                     {invoiceSuggestions.length === 0 ? (
                         <div className="dashboard-empty-note">Jelenleg nincs olyan visszatérő saját költség, amelynél kimaradt számlára utaló mintát látnánk.</div>
                     ) : (
-                        <div className="todo-link-list">
-                            {invoiceSuggestions.slice(0, 6).map((suggestion) => (
-                                <article key={suggestion.suggestionKey} className="todo-link-card">
-                                    <div className="todo-task-head">
-                                        <div className="todo-task-copy">
-                                            <strong>{suggestion.title}</strong>
-                                            <span className="dashboard-table-subtitle">
-                                                Lehetségesen hiányzó saját költség tétel. Ellenőrizd, hogy nem maradt-e el a rögzítés.
-                                            </span>
-                                        </div>
-                                        <div className="todo-task-meta">
-                                            <span>{suggestion.propertyName || "Ingatlan nélkül"}</span>
-                                            <span>Várt időpont: {formatIsoDate(suggestion.expectedDate)}</span>
-                                            <span>Utolsó hasonló: {formatIsoDate(suggestion.lastSeenDate)}</span>
-                                            <span>Kb. {suggestion.cadenceDays} naponta</span>
-                                        </div>
-                                        <div className="todo-task-meta">
-                                            <span className={`dashboard-inline-badge ${suggestion.daysLate > 7 ? "dashboard-inline-badge-red" : "dashboard-inline-badge-amber"}`}>
-                                                {suggestion.daysLate} nap csúszás
-                                            </span>
-                                            <span className={`dashboard-inline-badge ${suggestion.confidence === "high" ? "dashboard-inline-badge-green" : "dashboard-inline-badge-blue"}`}>
-                                                {suggestion.confidence === "high" ? "Erős minta" : "Közepes minta"}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="todo-task-actions">
-                                        <Link className="btn btn-primary btn-sm" href={`/owner/charges?property=${suggestion.propertyId}&billing=OWN&compose=manual`}>
-                                            Tétel rögzítése
-                                        </Link>
-                                        <Link className="btn btn-secondary btn-sm" href={`/owner/charges?property=${suggestion.propertyId}&billing=OWN`}>
-                                            Pénzügyek megnyitása
-                                        </Link>
-                                    </div>
-                                </article>
-                            ))}
-                        </div>
+                        <TodoInvoiceSuggestions ownerId={user.id} suggestions={invoiceSuggestions.slice(0, 6)} />
                     )}
                 </section>
 
@@ -492,7 +450,7 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                                             </span>
                                         </td>
                                         <td>
-                                            <div className="dashboard-table-actions">
+                                            <div className="dashboard-table-actions dashboard-table-actions-wrap">
                                                 {task.actionType === "charge" && task.chargeId ? (
                                                     <>
                                                         <form

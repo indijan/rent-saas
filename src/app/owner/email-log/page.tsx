@@ -98,81 +98,146 @@ export default async function OwnerEmailLogPage() {
                     {logs.length === 0 ? (
                         <p className="dashboard-empty-note">Az elmúlt 30 napban még nem ment ki bérlői e-mail.</p>
                     ) : (
-                        <div className="finance-table-scroll">
-                            <table className="dashboard-data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Dátum</th>
-                                        <th>Levél</th>
-                                        <th>Címzett</th>
-                                        <th>Kapcsolódás</th>
-                                        <th>Állapot</th>
-                                        <th>Művelet</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {logs.map((row) => {
-                                        const meta = row.meta ?? {};
-                                        const tenantName = readMetaString(meta, "tenantName");
-                                        const propertyName = readMetaString(meta, "propertyName");
-                                        const chargeTitle = readMetaString(meta, "chargeTitle");
-                                        const dueDate = readMetaString(meta, "dueDate");
-                                        const amount = readMetaNumber(meta, "amount");
-                                        const currency = readMetaString(meta, "currency") ?? "HUF";
-                                        const chargeHref = buildChargeHref(row.property_id, row.charge_id);
+                        <>
+                            <div className="finance-table-scroll">
+                                <table className="dashboard-data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Dátum</th>
+                                            <th>Levél</th>
+                                            <th>Címzett</th>
+                                            <th>Kapcsolódás</th>
+                                            <th>Állapot</th>
+                                            <th>Művelet</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {logs.map((row) => {
+                                            const meta = row.meta ?? {};
+                                            const tenantName = readMetaString(meta, "tenantName");
+                                            const propertyName = readMetaString(meta, "propertyName");
+                                            const chargeTitle = readMetaString(meta, "chargeTitle");
+                                            const dueDate = readMetaString(meta, "dueDate");
+                                            const amount = readMetaNumber(meta, "amount");
+                                            const currency = readMetaString(meta, "currency") ?? "HUF";
+                                            const chargeHref = buildChargeHref(row.property_id, row.charge_id);
 
-                                        return (
-                                            <tr key={row.id}>
-                                                <td>{new Date(row.created_at).toLocaleString("hu-HU")}</td>
-                                                <td>
-                                                    <div className="dashboard-table-main">
-                                                        <strong>{getEmailLogCategoryLabel(row.category)}</strong>
-                                                        <span className="dashboard-table-subtitle">{row.subject}</span>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div className="dashboard-table-main">
-                                                        <strong>{tenantName || row.recipient_email}</strong>
-                                                        <span className="dashboard-table-subtitle">{row.recipient_email}</span>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div className="dashboard-table-main">
-                                                        <strong>{propertyName || "Nincs ingatlan"}</strong>
-                                                        <span className="dashboard-table-subtitle">
-                                                            {chargeTitle || "Nincs tétel"}
-                                                            {dueDate ? ` · ${dueDate}` : ""}
-                                                            {amount !== null ? ` · ${amount.toLocaleString("hu-HU")} ${currency}` : ""}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div className="dashboard-table-main">
-                                                        <span className={`dashboard-inline-badge ${getEmailLogStatusTone(row.status)}`}>
-                                                            {getEmailLogStatusLabel(row.status)}
-                                                        </span>
-                                                        <span className="dashboard-table-subtitle">
-                                                            {row.error_message || (row.provider_message_id ? `SES: ${row.provider_message_id}` : "Nincs SES azonosító")}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div className="dashboard-table-actions">
-                                                        {chargeHref ? (
-                                                            <Link className="btn btn-secondary btn-sm" href={chargeHref}>
-                                                                Megnyitás
-                                                            </Link>
-                                                        ) : (
-                                                            <span className="muted-note">Nincs kapcsolódó tétel</span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                                            return (
+                                                <tr key={row.id}>
+                                                    <td>{new Date(row.created_at).toLocaleString("hu-HU")}</td>
+                                                    <td>
+                                                        <div className="dashboard-table-main">
+                                                            <strong>{getEmailLogCategoryLabel(row.category)}</strong>
+                                                            <span className="dashboard-table-subtitle">{row.subject}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div className="dashboard-table-main">
+                                                            <strong>{tenantName || row.recipient_email}</strong>
+                                                            <span className="dashboard-table-subtitle">{row.recipient_email}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div className="dashboard-table-main">
+                                                            <strong>{propertyName || "Nincs ingatlan"}</strong>
+                                                            <span className="dashboard-table-subtitle">
+                                                                {chargeTitle || "Nincs tétel"}
+                                                                {dueDate ? ` · ${dueDate}` : ""}
+                                                                {amount !== null ? ` · ${amount.toLocaleString("hu-HU")} ${currency}` : ""}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div className="dashboard-table-main">
+                                                            <span className={`dashboard-inline-badge ${getEmailLogStatusTone(row.status)}`}>
+                                                                {getEmailLogStatusLabel(row.status)}
+                                                            </span>
+                                                            <span className="dashboard-table-subtitle">
+                                                                {row.error_message || (row.provider_message_id ? `SES: ${row.provider_message_id}` : "Nincs SES azonosító")}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div className="dashboard-table-actions dashboard-table-actions-wrap">
+                                                            {chargeHref ? (
+                                                                <Link className="btn btn-secondary btn-sm" href={chargeHref}>
+                                                                    Megnyitás
+                                                                </Link>
+                                                            ) : (
+                                                                <span className="muted-note">Nincs kapcsolódó tétel</span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div className="dashboard-mobile-record-list">
+                                {logs.map((row) => {
+                                    const meta = row.meta ?? {};
+                                    const tenantName = readMetaString(meta, "tenantName");
+                                    const propertyName = readMetaString(meta, "propertyName");
+                                    const chargeTitle = readMetaString(meta, "chargeTitle");
+                                    const dueDate = readMetaString(meta, "dueDate");
+                                    const amount = readMetaNumber(meta, "amount");
+                                    const currency = readMetaString(meta, "currency") ?? "HUF";
+                                    const chargeHref = buildChargeHref(row.property_id, row.charge_id);
+
+                                    return (
+                                        <article key={`${row.id}-mobile`} className="dashboard-mobile-record-card">
+                                            <div className="dashboard-mobile-record-head">
+                                                <div className="dashboard-table-main">
+                                                    <strong>{getEmailLogCategoryLabel(row.category)}</strong>
+                                                    <span className="dashboard-table-subtitle">{row.subject}</span>
+                                                </div>
+                                                <span className={`dashboard-inline-badge ${getEmailLogStatusTone(row.status)}`}>
+                                                    {getEmailLogStatusLabel(row.status)}
+                                                </span>
+                                            </div>
+                                            <div className="dashboard-mobile-record-meta">
+                                                <div>
+                                                    <small>Címzett</small>
+                                                    <strong>{tenantName || row.recipient_email}</strong>
+                                                </div>
+                                                <div>
+                                                    <small>Dátum</small>
+                                                    <strong>{new Date(row.created_at).toLocaleString("hu-HU")}</strong>
+                                                </div>
+                                                <div>
+                                                    <small>Kapcsolódás</small>
+                                                    <strong>{propertyName || "Nincs ingatlan"}</strong>
+                                                </div>
+                                                <div>
+                                                    <small>Tétel</small>
+                                                    <strong>
+                                                        {chargeTitle || "Nincs tétel"}
+                                                        {dueDate ? ` · ${dueDate}` : ""}
+                                                        {amount !== null ? ` · ${amount.toLocaleString("hu-HU")} ${currency}` : ""}
+                                                    </strong>
+                                                </div>
+                                            </div>
+                                            <div className="dashboard-mobile-record-footer">
+                                                <span className="dashboard-table-subtitle">
+                                                    {row.error_message || (row.provider_message_id ? `SES: ${row.provider_message_id}` : "Nincs SES azonosító")}
+                                                </span>
+                                                <div className="dashboard-mobile-record-actions">
+                                                    {chargeHref ? (
+                                                        <Link className="btn btn-secondary btn-sm" href={chargeHref}>
+                                                            Megnyitás
+                                                        </Link>
+                                                    ) : (
+                                                        <span className="muted-note">Nincs kapcsolódó tétel</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </article>
+                                    );
+                                })}
+                            </div>
+                        </>
                     )}
                 </section>
             </div>

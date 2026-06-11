@@ -276,7 +276,7 @@ export default async function OwnerSummaryPage({ searchParams }: Props) {
                     <article className="dashboard-summary-card">
                         <DesignIcon name="kintlevoseg" alt="Kintlévőség" tone="design-icon-badge-danger" />
                         <div className="dashboard-summary-copy">
-                            <div className="dashboard-summary-value">{formatCurrency(overdueReceivables, "HUF")}</div>
+                            <div className="dashboard-summary-value dashboard-kpi-value-currency">{formatCurrency(overdueReceivables, "HUF")}</div>
                             <div className="dashboard-summary-title">Kintlévőség</div>
                         </div>
                     </article>

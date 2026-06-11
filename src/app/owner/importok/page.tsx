@@ -331,50 +331,88 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
                     {ingestionRows.length === 0 ? (
                         <p className="dashboard-empty-note">Még nincs import.</p>
                     ) : (
-                        <div className="finance-table-scroll">
-                            <table className="dashboard-data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Dokumentum</th>
-                                        <th>Forrás</th>
-                                        <th>Dátum</th>
-                                        <th>Státusz</th>
-                                        <th>Művelet</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {ingestionRows.map((ingestion) => (
-                                        <tr key={ingestion.ingestionId}>
-                                            <td>
-                                                <div className="dashboard-table-main">
-                                                    <strong>{ingestion.sourceAttachmentName || ingestion.chargeTitle || "Név nélküli csatolmány"}</strong>
-                                                    {ingestion.errorMessage ? <span className="dashboard-table-subtitle text-red-600">{ingestion.errorMessage}</span> : null}
-                                                </div>
-                                            </td>
-                                            <td>{ingestion.sourceType === "EMAIL" ? "E-mail" : "Kézi feltöltés"}</td>
-                                            <td>{new Date(ingestion.createdAt).toLocaleString("hu-HU")}</td>
-                                            <td>
-                                                <span className={`dashboard-inline-badge ${ingestion.toneClass}`}>
-                                                    {ingestion.stateLabel}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <div className="dashboard-table-actions">
-                                                    {ingestion.chargeHref ? (
-                                                        <Link className="btn btn-secondary btn-sm" href={ingestion.chargeHref}>
-                                                            Piszkozat
-                                                        </Link>
-                                                    ) : null}
-                                                    <Link className="btn btn-secondary btn-sm" href={ingestion.reviewHref}>
-                                                        Megnyitás
-                                                    </Link>
-                                                </div>
-                                            </td>
+                        <>
+                            <div className="finance-table-scroll">
+                                <table className="dashboard-data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Dokumentum</th>
+                                            <th>Forrás</th>
+                                            <th>Dátum</th>
+                                            <th>Státusz</th>
+                                            <th>Művelet</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                        {ingestionRows.map((ingestion) => (
+                                            <tr key={ingestion.ingestionId}>
+                                                <td>
+                                                    <div className="dashboard-table-main">
+                                                        <strong>{ingestion.sourceAttachmentName || ingestion.chargeTitle || "Név nélküli csatolmány"}</strong>
+                                                        {ingestion.errorMessage ? <span className="dashboard-table-subtitle text-red-600">{ingestion.errorMessage}</span> : null}
+                                                    </div>
+                                                </td>
+                                                <td>{ingestion.sourceType === "EMAIL" ? "E-mail" : "Kézi feltöltés"}</td>
+                                                <td>{new Date(ingestion.createdAt).toLocaleString("hu-HU")}</td>
+                                                <td>
+                                                    <span className={`dashboard-inline-badge ${ingestion.toneClass}`}>
+                                                        {ingestion.stateLabel}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div className="dashboard-table-actions dashboard-table-actions-wrap">
+                                                        {ingestion.chargeHref ? (
+                                                            <Link className="btn btn-secondary btn-sm" href={ingestion.chargeHref}>
+                                                                Piszkozat
+                                                            </Link>
+                                                        ) : null}
+                                                        <Link className="btn btn-secondary btn-sm" href={ingestion.reviewHref}>
+                                                            Megnyitás
+                                                        </Link>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div className="dashboard-mobile-record-list">
+                                {ingestionRows.map((ingestion) => (
+                                    <article key={`${ingestion.ingestionId}-mobile`} className="dashboard-mobile-record-card">
+                                        <div className="dashboard-mobile-record-head">
+                                            <div className="dashboard-table-main">
+                                                <strong>{ingestion.sourceAttachmentName || ingestion.chargeTitle || "Név nélküli csatolmány"}</strong>
+                                                {ingestion.errorMessage ? <span className="dashboard-table-subtitle text-red-600">{ingestion.errorMessage}</span> : null}
+                                            </div>
+                                            <span className={`dashboard-inline-badge ${ingestion.toneClass}`}>
+                                                {ingestion.stateLabel}
+                                            </span>
+                                        </div>
+                                        <div className="dashboard-mobile-record-meta">
+                                            <div>
+                                                <small>Forrás</small>
+                                                <strong>{ingestion.sourceType === "EMAIL" ? "E-mail" : "Kézi feltöltés"}</strong>
+                                            </div>
+                                            <div>
+                                                <small>Dátum</small>
+                                                <strong>{new Date(ingestion.createdAt).toLocaleString("hu-HU")}</strong>
+                                            </div>
+                                        </div>
+                                        <div className="dashboard-mobile-record-actions">
+                                            {ingestion.chargeHref ? (
+                                                <Link className="btn btn-secondary btn-sm" href={ingestion.chargeHref}>
+                                                    Piszkozat
+                                                </Link>
+                                            ) : null}
+                                            <Link className="btn btn-secondary btn-sm" href={ingestion.reviewHref}>
+                                                Megnyitás
+                                            </Link>
+                                        </div>
+                                    </article>
+                                ))}
+                            </div>
+                        </>
                     )}
                 </section>
             </div>
