@@ -9888,3 +9888,175 @@ html[data-dashboard-theme="dark"] .private-skin .ops-list-item:hover .property-b
     color: #9fc4ff !important;
   }
 }
+
+@media (max-width: 720px) {
+  .app-shell {
+    padding: 28px 18px 64px;
+  }
+
+  .app-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .brand {
+    min-width: 0;
+  }
+
+  .brand-kicker,
+  .brand-meta {
+    display: none;
+  }
+
+  .brand-title-row {
+    gap: 10px;
+  }
+
+  .brand-mark-logo {
+    width: 48px;
+    height: 48px;
+    padding: 7px;
+    border-radius: 16px;
+  }
+
+  .brand-title {
+    font-size: 1.02rem;
+  }
+
+  .header-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+    display: grid;
+    justify-items: stretch;
+    gap: 12px;
+  }
+
+  .header-utility-bar {
+    display: inline-flex;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .header-toggle {
+    display: inline-flex;
+    width: 100%;
+  }
+
+  .nav-pills-desktop,
+  .sticky-subnav,
+  .sticky-subnav .nav-pills {
+    display: none;
+  }
+
+  .header-nav-shell-mobile {
+    display: block;
+    width: 100%;
+  }
+
+  .nav-pills-mobile {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: stretch;
+    padding: 10px;
+    border-radius: 18px;
+  }
+
+  .nav-pills-mobile.nav-open {
+    display: flex;
+  }
+
+  .pill {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .section-header,
+  .hero-marketing,
+  .signal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .section-header {
+    gap: 18px;
+  }
+
+  .hero-marketing {
+    gap: 24px;
+  }
+
+  .hero-proof-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .signal-column-input .signal-node::after,
+  .signal-column-output .signal-node-success::before,
+  .signal-core::before,
+  .signal-core::after {
+    display: none;
+  }
+
+  .charge-actions,
+  .charge-actions-primary,
+  .charge-actions-secondary,
+  .charge-actions-danger {
+    width: 100%;
+  }
+
+  .charge-actions > .btn,
+  .charge-actions-primary > .btn,
+  .charge-actions-secondary > .btn,
+  .charge-actions-danger > .btn,
+  .charge-actions > form,
+  .charge-actions-primary > form,
+  .charge-actions-secondary > form,
+  .charge-actions-danger > form {
+    width: 100%;
+  }
+
+  .card {
+    padding: 22px;
+  }
+
+  .grid,
+  .section-stack {
+    gap: 20px;
+  }
+
+  .founder-story {
+    padding: 22px 18px;
+    border-radius: 28px;
+  }
+
+  .founder-story-shell {
+    display: block;
+  }
+
+  .founder-story-photo-panel {
+    float: none;
+    width: 100%;
+    margin: 0 0 18px;
+  }
+
+  .founder-story-photo {
+    min-height: 0;
+    max-height: 420px;
+  }
+
+  .founder-story-copy h2 {
+    font-size: clamp(1.9rem, 10vw, 2.6rem);
+  }
+
+  .founder-story-headline {
+    font-size: 1.06rem;
+  }
+
+  .founder-story-mantra {
+    padding: 18px 16px;
+  }
+}
