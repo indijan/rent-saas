@@ -4585,10 +4585,23 @@ img {
 }
 
 .pill-active {
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.14), rgba(0, 168, 113, 0.08));
-  border-color: rgba(37, 99, 235, 0.14);
-  color: #1245c8;
-  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.08);
+  background: linear-gradient(180deg, rgba(231, 240, 255, 0.96), rgba(221, 234, 255, 0.94));
+  border-color: rgba(96, 165, 250, 0.24);
+  color: #163f9e;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88), 0 10px 24px rgba(37, 99, 235, 0.08);
+}
+
+.pill-cta {
+  background: linear-gradient(135deg, #1f4fd1 0%, #2563eb 72%, #178b72 100%);
+  border-color: rgba(37, 99, 235, 0.26);
+  color: #f8fbff;
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.2);
+}
+
+.pill-cta:hover {
+  background: linear-gradient(135deg, #1b45b8 0%, #2258d0 72%, #157961 100%);
+  border-color: rgba(37, 99, 235, 0.32);
+  box-shadow: 0 16px 34px rgba(37, 99, 235, 0.24);
 }
 
 .hero {
@@ -4912,14 +4925,16 @@ img {
 .founder-story-cta {
   justify-self: center;
   min-width: min(100%, 360px);
-  background: rgba(11, 18, 32, 0.8);
-  border-color: rgba(125, 211, 252, 0.2);
+  background: linear-gradient(135deg, #2451cf 0%, #2563eb 62%, #0ea5e9 100%);
+  border-color: rgba(125, 211, 252, 0.34);
   color: #f8fbff;
+  box-shadow: 0 16px 36px rgba(37, 99, 235, 0.26);
 }
 
 .founder-story-cta:hover:not(:disabled) {
-  background: rgba(18, 28, 46, 0.9);
-  border-color: rgba(125, 211, 252, 0.28);
+  background: linear-gradient(135deg, #1d46b8 0%, #2158d2 62%, #0c8fca 100%);
+  border-color: rgba(125, 211, 252, 0.4);
+  box-shadow: 0 18px 40px rgba(37, 99, 235, 0.3);
 }
 
 .feature-list {
@@ -5063,9 +5078,10 @@ img {
 }
 
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.62);
-  border-color: rgba(148, 163, 184, 0.16);
-  color: var(--ink-900);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(246, 249, 255, 0.92));
+  border-color: rgba(148, 163, 184, 0.2);
+  color: #23344f;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
 }
 
 .btn-success {
@@ -5095,8 +5111,9 @@ img {
 }
 
 .btn-secondary:hover:not(:disabled) {
-  border-color: rgba(37, 99, 235, 0.12);
-  background: rgba(255, 255, 255, 0.84);
+  border-color: rgba(37, 99, 235, 0.18);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(239, 246, 255, 0.96));
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.08);
 }
 
 .btn-success:hover:not(:disabled) {
@@ -10144,4 +10161,192 @@ html[data-dashboard-theme="dark"] .private-skin .ops-list-item:hover .property-b
   .founder-story-mantra {
     padding: 18px 16px;
   }
+}
+
+/* Final public-site light theme guard */
+body:not(:has(.private-skin)) {
+  --bg-cream: #f3f6fb !important;
+  --bg-warm: #e6edf6 !important;
+  --ink-900: #0f172a !important;
+  --ink-700: #334155 !important;
+  --ink-500: #64748b !important;
+  --surface: rgba(255, 255, 255, 0.78) !important;
+  --surface-muted: rgba(244, 248, 253, 0.9) !important;
+  --line: rgba(148, 163, 184, 0.16) !important;
+  --shadow: 0 32px 80px rgba(15, 23, 42, 0.08) !important;
+  --shadow-tight: 0 18px 48px rgba(15, 23, 42, 0.06) !important;
+  color-scheme: light !important;
+  color: var(--ink-700) !important;
+  background-image:
+    radial-gradient(circle at 14% 14%, rgba(37, 99, 235, 0.1), transparent 26%),
+    radial-gradient(circle at 86% 10%, rgba(0, 168, 113, 0.08), transparent 22%),
+    radial-gradient(circle at 50% 100%, rgba(14, 165, 233, 0.05), transparent 24%),
+    linear-gradient(180deg, #f8fbfe 0%, var(--bg-warm) 100%) !important;
+}
+
+body:not(:has(.private-skin)) p,
+body:not(:has(.private-skin)) li,
+body:not(:has(.private-skin)) .brand-meta,
+body:not(:has(.private-skin)) .muted-note,
+body:not(:has(.private-skin)) .hero-lead,
+body:not(:has(.private-skin)) .hero-copy-note,
+body:not(:has(.private-skin)) .hero-outcome-card p,
+body:not(:has(.private-skin)) .faq-item p,
+body:not(:has(.private-skin)) .input,
+body:not(:has(.private-skin)) .select,
+body:not(:has(.private-skin)) .textarea {
+  color: var(--ink-700) !important;
+}
+
+body:not(:has(.private-skin)) .eyebrow,
+body:not(:has(.private-skin)) .brand-kicker,
+body:not(:has(.private-skin)) .kpi-label,
+body:not(:has(.private-skin)) .field-label,
+body:not(:has(.private-skin)) .hero-proof-label {
+  color: var(--ink-500) !important;
+}
+
+body:not(:has(.private-skin)) h1,
+body:not(:has(.private-skin)) h2,
+body:not(:has(.private-skin)) h3,
+body:not(:has(.private-skin)) h4,
+body:not(:has(.private-skin)) .card-title,
+body:not(:has(.private-skin)) .hero-proof-card strong,
+body:not(:has(.private-skin)) .hero-outcome-title,
+body:not(:has(.private-skin)) .brand-title,
+body:not(:has(.private-skin)) .kpi-value,
+body:not(:has(.private-skin)) .faq-item summary,
+body:not(:has(.private-skin)) .feature-item strong {
+  color: var(--ink-900) !important;
+}
+
+body:not(:has(.private-skin)) .app-header {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(248, 250, 253, 0.78)) !important;
+  border-color: rgba(148, 163, 184, 0.12) !important;
+  box-shadow: var(--shadow-tight) !important;
+}
+
+body:not(:has(.private-skin)) .nav-pills {
+  background: rgba(255, 255, 255, 0.46) !important;
+  border-color: rgba(148, 163, 184, 0.1) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55) !important;
+}
+
+body:not(:has(.private-skin)) .pill,
+body:not(:has(.private-skin)) .header-toggle,
+body:not(:has(.private-skin)) .header-icon-link,
+body:not(:has(.private-skin)) .btn-secondary,
+body:not(:has(.private-skin)) .btn-ghost {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(245, 249, 255, 0.92)) !important;
+  border-color: rgba(148, 163, 184, 0.18) !important;
+  color: #23344f !important;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06) !important;
+}
+
+body:not(:has(.private-skin)) .pill-active {
+  background: linear-gradient(180deg, rgba(231, 240, 255, 0.98), rgba(221, 234, 255, 0.96)) !important;
+  border-color: rgba(96, 165, 250, 0.24) !important;
+  color: #163f9e !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88), 0 10px 24px rgba(37, 99, 235, 0.08) !important;
+}
+
+body:not(:has(.private-skin)) .pill-cta {
+  background: linear-gradient(135deg, #1f4fd1 0%, #2563eb 72%, #178b72 100%) !important;
+  border-color: rgba(37, 99, 235, 0.26) !important;
+  color: #f8fbff !important;
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.2) !important;
+}
+
+body:not(:has(.private-skin)) .card,
+body:not(:has(.private-skin)) .hero-card,
+body:not(:has(.private-skin)) .hero-proof-card,
+body:not(:has(.private-skin)) .hero-outcome-card,
+body:not(:has(.private-skin)) .feature-item,
+body:not(:has(.private-skin)) .kpi-card,
+body:not(:has(.private-skin)) .form-panel,
+body:not(:has(.private-skin)) .faq-item,
+body:not(:has(.private-skin)) .action-box,
+body:not(:has(.private-skin)) .info-strip,
+body:not(:has(.private-skin)) .todo-task-card,
+body:not(:has(.private-skin)) .todo-link-card,
+body:not(:has(.private-skin)) .support-intro-card,
+body:not(:has(.private-skin)) .support-message-assistant,
+body:not(:has(.private-skin)) .support-typing,
+body:not(:has(.private-skin)) .support-prompt,
+body:not(:has(.private-skin)) .document-preview-shell,
+body:not(:has(.private-skin)) .address-suggestions,
+body:not(:has(.private-skin)) .address-suggestion,
+body:not(:has(.private-skin)) .cookie-notice {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 251, 254, 0.82)) !important;
+  border-color: rgba(148, 163, 184, 0.12) !important;
+  box-shadow: var(--shadow-tight) !important;
+}
+
+body:not(:has(.private-skin)) .info-strip {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(245, 249, 255, 0.9)) !important;
+  border-color: rgba(148, 163, 184, 0.14) !important;
+  color: #42546f !important;
+}
+
+body:not(:has(.private-skin)) .info-strip span {
+  color: #42546f !important;
+}
+
+body:not(:has(.private-skin)) .input,
+body:not(:has(.private-skin)) .select,
+body:not(:has(.private-skin)) .textarea {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(148, 163, 184, 0.18) !important;
+}
+
+body:not(:has(.private-skin)) .input::placeholder,
+body:not(:has(.private-skin)) .textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+body:not(:has(.private-skin)) .signal-card {
+  background: linear-gradient(180deg, rgba(5, 10, 22, 0.98), rgba(10, 18, 34, 0.98)) !important;
+  border-color: rgba(37, 99, 235, 0.2) !important;
+}
+
+body:not(:has(.private-skin)) .signal-card .signal-badge,
+body:not(:has(.private-skin)) .signal-card .signal-core-title,
+body:not(:has(.private-skin)) .signal-card .signal-node,
+body:not(:has(.private-skin)) .signal-card .signal-node-success,
+body:not(:has(.private-skin)) .signal-card .signal-core-shell p,
+body:not(:has(.private-skin)) .signal-card .signal-core p {
+  color: #eff6ff !important;
+}
+
+body:not(:has(.private-skin)) .signal-card .signal-node {
+  background: rgba(14, 23, 42, 0.9) !important;
+}
+
+body:not(:has(.private-skin)) .signal-card .signal-node-success {
+  background: rgba(7, 32, 24, 0.86) !important;
+}
+
+body:not(:has(.private-skin)) .founder-story-cta {
+  background: linear-gradient(135deg, #2451cf 0%, #2563eb 62%, #0ea5e9 100%) !important;
+  border-color: rgba(125, 211, 252, 0.34) !important;
+  color: #f8fbff !important;
+  box-shadow: 0 16px 36px rgba(37, 99, 235, 0.26) !important;
+}
+
+body:not(:has(.private-skin)) .founder-story-cta:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1d46b8 0%, #2158d2 62%, #0c8fca 100%) !important;
+  border-color: rgba(125, 211, 252, 0.4) !important;
+  color: #f8fbff !important;
+  box-shadow: 0 18px 40px rgba(37, 99, 235, 0.3) !important;
+}
+
+body:not(:has(.private-skin)) .founder-story,
+body:not(:has(.private-skin)) .founder-story * {
+  color: #f8fbff !important;
+}
+
+body:not(:has(.private-skin)) .founder-story .founder-story-headline,
+body:not(:has(.private-skin)) .founder-story .founder-story-body p,
+body:not(:has(.private-skin)) .founder-story .founder-story-mantra span {
+  color: #d5e2f0 !important;
 }

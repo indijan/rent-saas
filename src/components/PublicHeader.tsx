@@ -2,6 +2,7 @@
 "use client";
 
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 
 type Props = {
@@ -25,6 +26,10 @@ function UtilityIcon({
 
 export default function PublicHeader({ dashboardHref }: Props) {
     const [menuOpen, setMenuOpen] = useState(false);
+    const pathname = usePathname();
+
+    const pillClassName = (href: string) =>
+        `pill${pathname === href ? " pill-active" : ""}`;
 
     return (
         <header className="app-header">
@@ -87,14 +92,14 @@ export default function PublicHeader({ dashboardHref }: Props) {
                     </a>
                 </div>
                 <nav id="public-navigation" className="nav-pills nav-pills-desktop">
-                    <a className="pill" href="/funkciok">Funkciók</a>
-                    <a className="pill" href="/hasznalati-dij">Díjak</a>
-                    <a className="pill" href="/gyik">GYIK</a>
-                    <a className="pill" href="/berbeadoi-regisztracio">Regisztráció</a>
+                    <a className={pillClassName("/funkciok")} href="/funkciok">Funkciók</a>
+                    <a className={pillClassName("/hasznalati-dij")} href="/hasznalati-dij">Díjak</a>
+                    <a className={pillClassName("/gyik")} href="/gyik">GYIK</a>
+                    <a className={pillClassName("/berbeadoi-regisztracio")} href="/berbeadoi-regisztracio">Regisztráció</a>
                     {dashboardHref ? (
-                        <a className="pill pill-active" href={dashboardHref}>Saját felület</a>
+                        <a className="pill pill-cta" href={dashboardHref}>Saját felület</a>
                     ) : (
-                        <a className="pill pill-active" href="/login">Belépés</a>
+                        <a className={`pill pill-cta${pathname === "/login" ? " pill-active" : ""}`} href="/login">Belépés</a>
                     )}
                 </nav>
                 <div className="header-nav-shell header-nav-shell-mobile">
@@ -108,14 +113,14 @@ export default function PublicHeader({ dashboardHref }: Props) {
                         Menü
                     </button>
                     <nav id="public-navigation-mobile" className={`nav-pills nav-pills-mobile${menuOpen ? " nav-open" : ""}`}>
-                        <a className="pill" href="/funkciok" onClick={() => setMenuOpen(false)}>Funkciók</a>
-                        <a className="pill" href="/hasznalati-dij" onClick={() => setMenuOpen(false)}>Díjak</a>
-                        <a className="pill" href="/gyik" onClick={() => setMenuOpen(false)}>GYIK</a>
-                        <a className="pill" href="/berbeadoi-regisztracio" onClick={() => setMenuOpen(false)}>Regisztráció</a>
+                        <a className={pillClassName("/funkciok")} href="/funkciok" onClick={() => setMenuOpen(false)}>Funkciók</a>
+                        <a className={pillClassName("/hasznalati-dij")} href="/hasznalati-dij" onClick={() => setMenuOpen(false)}>Díjak</a>
+                        <a className={pillClassName("/gyik")} href="/gyik" onClick={() => setMenuOpen(false)}>GYIK</a>
+                        <a className={pillClassName("/berbeadoi-regisztracio")} href="/berbeadoi-regisztracio" onClick={() => setMenuOpen(false)}>Regisztráció</a>
                         {dashboardHref ? (
-                            <a className="pill pill-active" href={dashboardHref} onClick={() => setMenuOpen(false)}>Saját felület</a>
+                            <a className="pill pill-cta" href={dashboardHref} onClick={() => setMenuOpen(false)}>Saját felület</a>
                         ) : (
-                            <a className="pill pill-active" href="/login" onClick={() => setMenuOpen(false)}>Belépés</a>
+                            <a className={`pill pill-cta${pathname === "/login" ? " pill-active" : ""}`} href="/login" onClick={() => setMenuOpen(false)}>Belépés</a>
                         )}
                     </nav>
                 </div>
