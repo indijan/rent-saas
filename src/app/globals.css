@@ -865,6 +865,14 @@ html[data-dashboard-sidebar="collapsed"] .private-skin .dashboard-topbar {
   gap: 8px;
 }
 
+.private-skin .dashboard-summary-copy > strong {
+  color: var(--dashboard-ink);
+}
+
+.private-skin .dashboard-summary-copy > span {
+  color: var(--dashboard-muted);
+}
+
 .private-skin .dashboard-summary-title {
   color: var(--dashboard-subtle);
   font-size: 0.92rem;
@@ -2837,7 +2845,7 @@ next-route-announcer,
 
 .private-skin .dashboard-summary-label,
 .private-skin .account-stat-label {
-  color: var(--dashboard-subtle);
+  color: color-mix(in srgb, var(--dashboard-subtle) 72%, var(--dashboard-ink) 28%);
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.08em;
