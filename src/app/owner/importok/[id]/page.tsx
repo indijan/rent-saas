@@ -236,7 +236,7 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
                         const msg = res.error ?? "Ismeretlen hiba.";
                         redirect(`/owner/importok/${ingestionRow.id}?status=error&message=${encodeURIComponent(msg)}`);
                     }
-                    redirect(`/owner/charges?property=${res.propertyId}&status=IMPORT_DRAFT#charge-${res.chargeId}`);
+                    redirect(`/owner/importok/${ingestionRow.id}?status=success&message=${encodeURIComponent("A piszkozat frissítve lett, publikálhatod.")}`);
                 }}
                 className="card form-shell"
             >

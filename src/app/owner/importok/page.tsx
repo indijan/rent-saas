@@ -201,10 +201,13 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
                                 if (!res.ok) {
                                     redirect(`/owner/importok?status=error&message=${encodeURIComponent(res.error ?? "Ismeretlen hiba.")}`);
                                 }
-                                if (res.needsReview) {
-                                    redirect(`/owner/importok?status=success&message=A+sz%C3%A1mla+be%C3%A9rkezett%2C+de+ellen%C5%91rz%C3%A9st+ig%C3%A9nyel.&ingestionId=${encodeURIComponent(res.ingestionId ?? "")}`);
+                                if (res.nextHref) {
+                                    redirect(res.nextHref);
                                 }
-                                redirect(`/owner/importok?status=success&message=A+sz%C3%A1ml%C3%A1b%C3%B3l+draft+d%C3%ADj+j%C3%B6tt+l%C3%A9tre.&chargeId=${encodeURIComponent(res.chargeId ?? "")}&ingestionId=${encodeURIComponent(res.ingestionId ?? "")}`);
+                                if (res.needsReview) {
+                                    redirect(`/owner/importok/${encodeURIComponent(res.ingestionId ?? "")}?status=success&message=A+sz%C3%A1mla+be%C3%A9rkezett%2C+de+ellen%C5%91rz%C3%A9st+ig%C3%A9nyel.`);
+                                }
+                                redirect(`/owner/importok/${encodeURIComponent(res.ingestionId ?? "")}?status=success&message=A+sz%C3%A1ml%C3%A1b%C3%B3l+import+piszkozat+j%C3%B6tt+l%C3%A9tre.`);
                             }}
                             className="dashboard-stack"
                         >

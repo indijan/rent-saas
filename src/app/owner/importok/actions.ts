@@ -5,16 +5,11 @@ import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/requireRole";
 import { extractInvoiceFromBuffer } from "@/app/owner/properties/[id]/charges/actions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { sendEmail } from "@/lib/email/resend";
-import { renderImportInvoiceStatusEmail } from "@/lib/email/templates";
 import { rotateInboundMailbox } from "@/lib/inboundMailboxes";
 import { findOwnerSupplierProfile } from "@/lib/supplierProfiles";
 import { getConfiguredStorageBucketName, removeDocumentObjects, uploadDocumentObject } from "@/lib/documentStorage";
-import { createEmailActionToken } from "@/lib/emailActionTokens";
 import type { ImportMode } from "@/lib/importModes";
 import { normalizeImportedChargeMode } from "@/lib/importChargeNormalization";
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu";
 
 function safeFileName(value: string) {
     return value.replaceAll(" ", "_").replace(/[^a-zA-Z0-9._-]/g, "");
@@ -178,12 +173,6 @@ export async function createManualIngestion(formData: FormData) {
         return { ok: false, error: "Az ingatlan nem található." };
     }
 
-    const { data: ownerProfile } = await admin
-        .from("profiles")
-        .select("email")
-        .eq("id", user.id)
-        .maybeSingle();
-
     const buffer = Buffer.from(await documentFile.arrayBuffer());
     const sha256 = createHash("sha256").update(buffer).digest("hex");
 
@@ -293,25 +282,15 @@ export async function createManualIngestion(formData: FormData) {
             })
             .eq("id", ingestionId)
             .eq("owner_id", user.id);
-        if (ownerProfile?.email) {
-            await sendEmail(renderImportInvoiceStatusEmail({
-                ownerEmail: ownerProfile.email,
-                status: "FAILED",
-                fileName: documentFile.name,
-                provider: normalized.issuer_name,
-                amount: normalized.gross_amount ?? null,
-                currency: normalized.currency,
-                dueDate: normalized.due_date,
-                propertyName: property.name,
-                error: "Az import beérkezett, de kézi ellenőrzést igényel.",
-                openUrl: `${SITE_URL}/owner/importok`,
-                reviewUrl: `${SITE_URL}/owner/importok/${ingestionId}`,
-            }));
-        }
         revalidatePath("/owner/importok");
         revalidatePath("/owner/todo");
         revalidatePath("/owner/osszefoglalo");
-        return { ok: true, needsReview: true, ingestionId };
+        return {
+            ok: true,
+            needsReview: true,
+            ingestionId,
+            nextHref: `/owner/importok/${ingestionId}?status=success&message=${encodeURIComponent("A számla beérkezett, de ellenőrzést igényel.")}`,
+        };
     }
 
     const draftResult = await createDraftFromNormalized(
@@ -379,29 +358,18 @@ export async function createManualIngestion(formData: FormData) {
         .eq("id", ingestionId)
         .eq("owner_id", user.id);
 
-    if (ownerProfile?.email) {
-        await sendEmail(renderImportInvoiceStatusEmail({
-            ownerEmail: ownerProfile.email,
-            status: "SUCCESS_DRAFT",
-            fileName: documentFile.name,
-            provider: normalized.issuer_name,
-            amount: normalized.gross_amount,
-            currency: normalized.currency,
-            dueDate: normalized.due_date,
-            propertyName: property.name,
-            openUrl: `${SITE_URL}/owner/importok`,
-            reviewUrl: `${SITE_URL}/owner/importok/${ingestionId}`,
-            chargeUrl: `${SITE_URL}/owner/charges?property=${property.id}&status=IMPORT_DRAFT#charge-${draftResult.chargeId}`,
-            publishUrl: `${SITE_URL}/email-action?token=${encodeURIComponent(createEmailActionToken("charge_publish", draftResult.chargeId))}`,
-        }));
-    }
-
     revalidatePath("/owner/importok");
     revalidatePath(`/owner/properties/${property.id}/charges`);
     revalidatePath("/owner/charges");
     revalidatePath("/owner/todo");
     revalidatePath("/owner/osszefoglalo");
-    return { ok: true, needsReview: false, chargeId: draftResult.chargeId, ingestionId };
+    return {
+        ok: true,
+        needsReview: false,
+        chargeId: draftResult.chargeId,
+        ingestionId,
+        nextHref: `/owner/importok/${ingestionId}?status=success&message=${encodeURIComponent("A számlából import piszkozat jött létre.")}`,
+    };
 }
 
 export async function finalizeIngestionReview(ingestionId: string, formData: FormData) {

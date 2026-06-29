@@ -140,11 +140,16 @@ export default function FinanceChargeComposer({
                     setUploadError(res.error || "A feltöltés nem sikerült.");
                     return;
                 }
-                setUploadSuccess(res.needsReview
+                const successMessage = res.needsReview
                     ? "A számla beérkezett, de ellenőrzést igényel."
-                    : "A számla feldolgozása elindult.");
-                router.refresh();
+                    : "A számlából import piszkozat jött létre.";
+                setUploadSuccess(successMessage);
                 closeComposer();
+                if (res.nextHref) {
+                    router.push(res.nextHref);
+                    return;
+                }
+                router.refresh();
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 setUploadError(`Feltöltési hiba: ${message}`);
