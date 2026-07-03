@@ -16,9 +16,9 @@ export default async function EmailActionResultPage({ searchParams }: Props) {
 
     return (
         <main className="auth-shell page-enter">
-            <section className="auth-card form-shell">
+            <section className="auth-card form-shell email-action-result-card">
                 <div className="eyebrow">Rentapp e-mailes művelet</div>
-                <div className="section-stack">
+                <div className="section-stack email-action-result-copy">
                     <div className="brand-title-row" style={{ justifyContent: "center" }}>
                         <div className="brand-mark" aria-hidden="true">
                             R

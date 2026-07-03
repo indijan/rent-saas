@@ -5544,6 +5544,30 @@ img {
   padding: 28px;
 }
 
+.email-action-result-card {
+  max-width: 404px;
+  background:
+    radial-gradient(circle at top, rgba(37, 99, 235, 0.18), transparent 44%),
+    linear-gradient(145deg, rgba(13, 22, 39, 0.98), rgba(23, 37, 60, 0.96));
+  border-color: rgba(96, 165, 250, 0.14);
+}
+
+.email-action-result-card .eyebrow {
+  color: rgba(173, 189, 216, 0.86);
+}
+
+.email-action-result-copy h1 {
+  color: #f8fbff;
+}
+
+.email-action-result-copy .muted-note {
+  color: rgba(222, 232, 248, 0.8);
+}
+
+.email-action-result-copy .text-red-600 {
+  color: #fca5a5;
+}
+
 .due-pill {
   display: inline-flex;
   align-items: center;
