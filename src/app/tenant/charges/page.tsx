@@ -11,7 +11,7 @@ import { FORWARDED_CHARGE_TYPE_OPTIONS, getChargeTypeLabel, type ChargeType } fr
 import { isTenantFacingCharge } from "@/lib/chargeVisibility";
 
 type ChargeStatus = "UNPAID" | "PAID" | "ARCHIVED" | "CANCELLED";
-type PeriodPreset = "CURRENT_MONTH" | "LAST_30_DAYS" | "LAST_3_MONTHS" | "LAST_6_MONTHS" | "LAST_12_MONTHS" | "MAX" | "CUSTOM";
+type PeriodPreset = "CURRENT_MONTH" | "NEXT_3_MONTHS" | "LAST_30_DAYS" | "LAST_3_MONTHS" | "LAST_6_MONTHS" | "LAST_12_MONTHS" | "MAX" | "CUSTOM";
 
 type SearchParams = {
     preset?: string;
@@ -106,7 +106,7 @@ function shiftMonths(base: Date, months: number) {
 
 function normalizePeriodPreset(value: string | undefined): PeriodPreset {
     const preset = String(value || "CURRENT_MONTH").trim().toUpperCase();
-    if (["CURRENT_MONTH", "LAST_30_DAYS", "LAST_3_MONTHS", "LAST_6_MONTHS", "LAST_12_MONTHS", "MAX", "CUSTOM"].includes(preset)) {
+    if (["CURRENT_MONTH", "NEXT_3_MONTHS", "LAST_30_DAYS", "LAST_3_MONTHS", "LAST_6_MONTHS", "LAST_12_MONTHS", "MAX", "CUSTOM"].includes(preset)) {
         return preset as PeriodPreset;
     }
     return "CURRENT_MONTH";
@@ -121,6 +121,15 @@ function resolvePeriodRange(preset: PeriodPreset, requestedFrom?: string, reques
     const monthEndValue = endOfCurrentMonth();
 
     switch (preset) {
+        case "NEXT_3_MONTHS":
+            {
+                const now = new Date();
+                return {
+                    from: toDateInputValue(new Date(now.getFullYear(), now.getMonth() + 1, 1)),
+                    to: toDateInputValue(new Date(now.getFullYear(), now.getMonth() + 4, 0)),
+                    label: "Következő 3 hónap",
+                };
+            }
         case "LAST_30_DAYS":
             {
                 const previousMonth = previousMonthRange();
@@ -151,8 +160,8 @@ function resolvePeriodRange(preset: PeriodPreset, requestedFrom?: string, reques
         case "MAX":
             return {
                 from: "2000-01-01",
-                to: monthEndValue,
-                label: "Maximum",
+                to: "2100-12-31",
+                label: "Minden időszak",
             };
         case "CUSTOM":
             return {

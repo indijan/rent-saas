@@ -5536,6 +5536,14 @@ img {
   color: rgba(239, 246, 255, 0.86);
 }
 
+.auth-hero .eyebrow {
+  color: rgba(191, 219, 254, 0.88);
+}
+
+.auth-hero h1 {
+  color: #f8fbff;
+}
+
 .auth-card {
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.94);
@@ -10381,4 +10389,35 @@ body:not(:has(.private-skin)) .founder-story .founder-story-headline,
 body:not(:has(.private-skin)) .founder-story .founder-story-body p,
 body:not(:has(.private-skin)) .founder-story .founder-story-mantra span {
   color: #d5e2f0 !important;
+}
+
+/* Dark authentication surfaces opt out of the public light-theme text guard. */
+body:not(:has(.private-skin)) .auth-hero h1,
+body:not(:has(.private-skin)) .email-action-result-copy h1 {
+  color: #f8fbff !important;
+}
+
+body:not(:has(.private-skin)) .auth-hero p,
+body:not(:has(.private-skin)) .email-action-result-copy .muted-note {
+  color: rgba(222, 232, 248, 0.88) !important;
+}
+
+body:not(:has(.private-skin)) .auth-hero .eyebrow,
+body:not(:has(.private-skin)) .email-action-result-card .eyebrow,
+body:not(:has(.private-skin)) .auth-hero .kpi-label {
+  color: rgba(191, 219, 254, 0.88) !important;
+}
+
+body:not(:has(.private-skin)) .auth-hero .kpi-card {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: none !important;
+}
+
+body:not(:has(.private-skin)) .auth-hero .kpi-value {
+  color: #eff6ff !important;
+}
+
+body:not(:has(.private-skin)) .email-action-result-copy .text-red-600 {
+  color: #fca5a5 !important;
 }
