@@ -6,6 +6,7 @@ import { createCharge } from "@/app/owner/properties/[id]/charges/actions";
 import { createManualIngestion } from "@/app/owner/importok/actions";
 import ActionPendingScreen from "@/components/ActionPendingScreen";
 import DesignIcon from "@/components/dashboard/DesignIcon";
+import PdfDropzone from "@/components/PdfDropzone";
 import { FORWARDED_CHARGE_TYPE_OPTIONS, OWN_EXPENSE_CHARGE_TYPE_OPTIONS, isOwnOnlyChargeType } from "@/lib/chargeTypes";
 
 type PropertyOption = {
@@ -335,11 +336,10 @@ export default function FinanceChargeComposer({
 
                                 <label className="field-stack">
                                     <span className="field-label">PDF számla</span>
-                                    <div className="dashboard-upload-dropzone finance-composer-dropzone">
+                                    <PdfDropzone className="dashboard-upload-dropzone finance-composer-dropzone" required>
                                         <strong>Húzd ide a PDF-et</strong>
                                         <div className="muted-note">vagy válaszd ki manuálisan</div>
-                                        <input name="document" type="file" accept="application/pdf" className="input" required />
-                                    </div>
+                                    </PdfDropzone>
                                 </label>
 
                                 <div className="dashboard-modal-actions">

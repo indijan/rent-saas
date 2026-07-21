@@ -2118,6 +2118,30 @@ html[data-dashboard-sidebar="collapsed"] .private-skin .dashboard-topbar {
   color: var(--dashboard-upload-dropzone-note);
 }
 
+.private-skin .pdf-dropzone {
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.private-skin .pdf-dropzone.is-dragging {
+  border-color: #2563eb;
+  background: color-mix(in srgb, var(--dashboard-upload-dropzone-bg) 78%, #dbeafe 22%);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+}
+
+.private-skin .pdf-dropzone-file {
+  color: var(--dashboard-upload-dropzone-title);
+  font-size: 0.82rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.private-skin .pdf-dropzone-error {
+  color: #dc2626;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
 .private-skin .dashboard-inline-upload {
   display: grid;
   justify-items: center;

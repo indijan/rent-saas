@@ -8,6 +8,7 @@ import { getOrCreateInboundMailbox, getOwnExpenseInboundEmail, getSharedInboundE
 import { getOwnerImportOverview } from "@/lib/importOverview";
 import { createManualIngestion, rotateOwnerInboundMailbox } from "./actions";
 import ImportSubmitButton from "./ImportSubmitButton";
+import PdfDropzone from "@/components/PdfDropzone";
 
 type Props = {
     searchParams?: Promise<{ status?: string; message?: string; chargeId?: string; ingestionId?: string }> | { status?: string; message?: string; chargeId?: string; ingestionId?: string };
@@ -241,14 +242,13 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
 
                             <label className="field-stack">
                                 <span className="field-label">PDF számla</span>
-                                <div className="dashboard-upload-dropzone">
+                                <PdfDropzone className="dashboard-upload-dropzone" required disabled={propertyRows.length === 0}>
                                     <DesignIcon name="szamla_importalasa" alt="PDF feltöltés" tone="design-icon-badge-blue" />
                                     <div>
                                         <strong>Húzd ide a PDF-et</strong>
                                         <div className="muted-note">vagy válaszd ki manuálisan</div>
                                     </div>
-                                    <input name="document" type="file" accept="application/pdf" className="input" required disabled={propertyRows.length === 0} />
-                                </div>
+                                </PdfDropzone>
                             </label>
 
                             {propertyRows.length > 0 ? <ImportSubmitButton /> : null}
