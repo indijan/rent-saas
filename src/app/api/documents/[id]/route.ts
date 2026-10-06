@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { resolveAvailableRoles } from "@/lib/auth/availableRoles";
+import { loadRoleMemberships, resolveAvailableRolesFromMemberships } from "@/lib/auth/availableRoles";
+import { getRequestAuthContext } from "@/lib/auth/requestContext";
 import { getActiveRoleCookie, resolveActiveRole } from "@/lib/auth/context";
 import { downloadDocumentObject } from "@/lib/documentStorage";
 import { listTenantPropertyIds } from "@/lib/propertyTenants";
@@ -64,17 +64,17 @@ function renderMissingDocumentPage(message: string) {
 
 export async function GET(_request: Request, { params }: Params) {
     const { id } = await params;
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { userId } = await getRequestAuthContext();
 
-    if (!user) {
+    if (!userId) {
         return new NextResponse("Unauthorized", { status: 401 });
     }
 
     const admin = createSupabaseAdminClient();
-    const [{ data: profile, error: profileError }, { data: document, error: documentError }] = await Promise.all([
-        admin.from("profiles").select("role").eq("id", user.id).single(),
+    const [{ data: profile, error: profileError }, { data: document, error: documentError }, roleMemberships] = await Promise.all([
+        admin.from("profiles").select("role").eq("id", userId).single(),
         admin.from("documents").select("id,bucket_path,owner_id,tenant_id,property_id,charge_id").eq("id", id).maybeSingle(),
+        loadRoleMemberships(userId),
     ]);
 
     if (profileError || !profile?.role) {
@@ -84,9 +84,9 @@ export async function GET(_request: Request, { params }: Params) {
         return new NextResponse("Not found", { status: 404 });
     }
 
-    const roles = await resolveAvailableRoles(user.id, profile.role as AppRole);
+    const roles = resolveAvailableRolesFromMemberships(profile.role as AppRole, roleMemberships);
     const activeRole = resolveActiveRole(roles, await getActiveRoleCookie(), profile.role as AppRole);
-    const propertyIds = activeRole === "TENANT" ? await listTenantPropertyIds(user.id) : [];
+    const propertyIds = activeRole === "TENANT" ? await listTenantPropertyIds(userId) : [];
     const { data: linkedCharge } = document.charge_id
         ? await admin
             .from("charges")
@@ -98,9 +98,9 @@ export async function GET(_request: Request, { params }: Params) {
         && Boolean(document.property_id ? propertyIds.includes(document.property_id) : false)
         && (!linkedCharge || isTenantFacingCharge(linkedCharge));
     const canAccess = activeRole === "ADMIN"
-        || (activeRole === "OWNER" && document.owner_id === user.id)
+        || (activeRole === "OWNER" && document.owner_id === userId)
         || (activeRole === "TENANT" && (
-            document.tenant_id === user.id
+            document.tenant_id === userId
             || tenantCanAccessByProperty
         ));
 

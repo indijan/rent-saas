@@ -251,7 +251,7 @@ export async function deleteTenant(tenantId: string) {
 }
 
 export async function approveTenantExitRequest(requestId: string) {
-    const { user } = await requireRole("OWNER");
+    const { user, profile } = await requireRole("OWNER");
     const admin = createSupabaseAdminClient();
 
     const { data: requestRow, error } = await admin
@@ -323,7 +323,7 @@ export async function approveTenantExitRequest(requestId: string) {
         const payload = renderTenantExitApprovedEmail({
             tenantEmail: tenant.email,
             tenantName: tenant.full_name,
-            ownerName: user.user_metadata?.full_name ?? null,
+            ownerName: profile.full_name,
             propertyName: property?.name || "Ingatlan",
             propertyAddress: property?.address || null,
             openUrl: `${process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu"}/account`,
@@ -359,7 +359,7 @@ export async function approveTenantExitRequest(requestId: string) {
 }
 
 export async function rejectTenantExitRequest(requestId: string) {
-    const { user } = await requireRole("OWNER");
+    const { user, profile } = await requireRole("OWNER");
     const admin = createSupabaseAdminClient();
 
     const { data: requestRow, error: requestLookupError } = await admin
@@ -391,7 +391,7 @@ export async function rejectTenantExitRequest(requestId: string) {
         const payload = renderTenantExitRejectedEmail({
             tenantEmail: tenant.email,
             tenantName: tenant.full_name,
-            ownerName: user.user_metadata?.full_name ?? null,
+            ownerName: profile.full_name,
             propertyName: property?.name || "Ingatlan",
             propertyAddress: property?.address || null,
             openUrl: `${process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu"}/account#kilepesi-kerelem-kuldes`,

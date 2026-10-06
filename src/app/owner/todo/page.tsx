@@ -123,7 +123,7 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
     const historyFrom = historyFromDate.toISOString().slice(0, 10);
     const todayIso = new Date().toISOString().slice(0, 10);
 
-    const [{ data: charges, error: chargeError }, { data: properties, error: propertyError }, { data: exitRequests }, { data: expenseHistoryRows, error: expenseHistoryError }, importOverview] = await Promise.all([
+    const [{ data: charges, error: chargeError }, { data: properties, error: propertyError }, { data: exitRequests }, { data: expenseHistoryRows, error: expenseHistoryError }, { data: propertyTenantRows }, importOverview] = await Promise.all([
         supabase
             .from("charges")
             .select("id,title,amount,currency,due_date,status,paid_at,property_id,properties(name)")
@@ -146,6 +146,10 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
             .is("tenant_id", null)
             .neq("type", "RENT")
             .gte("due_date", historyFrom),
+        admin
+            .from("property_tenants")
+            .select("property_id,tenant_id")
+            .eq("owner_id", user.id),
         getOwnerImportOverview(user.id, { limit: 50 }),
     ]);
 
@@ -163,14 +167,6 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
 
     const chargeRows = (charges ?? []) as ChargeTodoRow[];
     const propertyRows = (properties ?? []) as PropertyTodoRow[];
-    const propertyIds = propertyRows.map((property) => property.id);
-    const { data: propertyTenantRows } = propertyIds.length === 0
-        ? { data: [] as Array<{ property_id: string; tenant_id: string }> }
-        : await admin
-            .from("property_tenants")
-            .select("property_id,tenant_id")
-            .in("property_id", propertyIds)
-            .eq("owner_id", user.id);
 
     const tenantIds = Array.from(
         new Set(

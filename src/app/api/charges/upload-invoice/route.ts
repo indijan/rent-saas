@@ -1,16 +1,15 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { uploadDocumentObject } from "@/lib/documentStorage";
+import { getRequestAuthContext } from "@/lib/auth/requestContext";
 
 function safeFileName(value: string) {
     return value.replaceAll(" ", "_").replace(/[^a-zA-Z0-9._-]/g, "");
 }
 
 export async function POST(request: Request) {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { userId } = await getRequestAuthContext();
 
-    if (!user) {
+    if (!userId) {
         return Response.json({ ok: false, error: "Nincs jogosultság." }, { status: 401 });
     }
 
@@ -28,7 +27,7 @@ export async function POST(request: Request) {
         .from("charges")
         .select("owner_id,tenant_id,property_id,status")
         .eq("id", chargeId)
-        .eq("owner_id", user.id)
+        .eq("owner_id", userId)
         .single();
 
     if (chargeErr || !charge) {
@@ -41,7 +40,7 @@ export async function POST(request: Request) {
 
     const buffer = Buffer.from(await documentFile.arrayBuffer());
     const safeName = safeFileName(documentFile.name || "invoice.pdf") || "invoice.pdf";
-    const path = `${user.id}/${chargeId}/${Date.now()}-${safeName}`;
+    const path = `${userId}/${chargeId}/${Date.now()}-${safeName}`;
 
     try {
         await uploadDocumentObject(path, buffer, documentFile.type || "application/pdf");

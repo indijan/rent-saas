@@ -39,24 +39,26 @@ export default async function OwnerPropertyDetailPage({ params, searchParams }: 
     const status = sp.status ? String(sp.status) : "";
     const message = sp.message ? String(sp.message) : "";
 
-    const { data: property, error } = await supabase
-        .from("properties")
-        .select("id,name,address,status,created_at,tenant_id")
-        .eq("id", id)
-        .eq("owner_id", profile.id)
-        .single();
+    const [{ data: property, error }, tenantIds] = await Promise.all([
+        supabase
+            .from("properties")
+            .select("id,name,address,status,created_at,tenant_id")
+            .eq("id", id)
+            .eq("owner_id", profile.id)
+            .single(),
+        listOwnerTenantIds(profile.id),
+    ]);
 
     if (error || !property) return notFound();
 
     const admin = createSupabaseAdminClient();
-    const tenantIds = await listOwnerTenantIds(profile.id);
-    const assignedTenants = await listPropertyTenants(property.id);
-    const [{ data: tenants }, { data: chargeRows }, { data: documentRows }] = await Promise.all([
+    const [{ data: tenants }, { data: chargeRows }, { data: documentRows }, assignedTenants] = await Promise.all([
         tenantIds.length === 0
             ? Promise.resolve({ data: [] as TenantOption[] })
             : admin.from("profiles").select("id,email,full_name,role").in("id", tenantIds).order("email"),
         supabase.from("charges").select("id,tenant_id,status,due_date,type").eq("property_id", property.id),
         supabase.from("documents").select("id").eq("property_id", property.id),
+        listPropertyTenants(property.id),
     ]);
     const tenantOptions = (tenants ?? []) as TenantOption[];
     const charges = (chargeRows ?? []) as ChargeSummaryRow[];

@@ -19,21 +19,20 @@ export async function listTenantPropertyIds(tenantId: string) {
     const admin = createSupabaseAdminClient();
     const ids = new Set<string>();
 
-    try {
-        const { data: memberships } = await admin
-            .from("property_tenants")
-            .select("property_id")
-            .eq("tenant_id", tenantId);
+    const { data: memberships, error: membershipError } = await admin
+        .from("property_tenants")
+        .select("property_id")
+        .eq("tenant_id", tenantId);
 
+    if (!membershipError) {
         (memberships ?? []).forEach((row) => {
             const propertyId = row.property_id as string | null;
             if (propertyId) ids.add(propertyId);
         });
         return Array.from(ids);
-    } catch {
-        // A tábla migráció előtt még nem biztos, hogy létezik.
     }
 
+    // The PostgREST client returns schema errors instead of throwing them.
     const { data: fallbackProperties } = await admin
         .from("properties")
         .select("id")
@@ -52,10 +51,11 @@ export async function listPropertyTenants(propertyId: string) {
     const ids = new Set<string>();
 
     try {
-        const { data: memberships } = await admin
+        const { data: memberships, error: membershipError } = await admin
             .from("property_tenants")
             .select("tenant_id")
             .eq("property_id", propertyId);
+        if (membershipError) throw membershipError;
 
         (memberships ?? []).forEach((row) => {
             const tenantId = row.tenant_id as string | null;
@@ -64,11 +64,12 @@ export async function listPropertyTenants(propertyId: string) {
 
         if (ids.size === 0) return [] as TenantProfile[];
 
-        const { data: profiles } = await admin
+        const { data: profiles, error: profileError } = await admin
             .from("profiles")
             .select("id,email,full_name")
             .in("id", Array.from(ids))
             .order("email");
+        if (profileError) throw profileError;
 
         return (profiles ?? []) as TenantProfile[];
     } catch {
@@ -155,22 +156,43 @@ export async function syncOwnerTenantMembership(ownerId: string, tenantId: strin
 
 export async function listTenantProperties(tenantId: string) {
     const admin = createSupabaseAdminClient();
-    const propertyIds = await listTenantPropertyIds(tenantId);
+    const [assignmentResult, primaryPropertyResult] = await Promise.all([
+        admin
+            .from("property_tenants")
+            .select("properties!inner(id,name,address,owner_id)")
+            .eq("tenant_id", tenantId),
+        admin
+            .from("properties")
+            .select("id,name,address,owner_id")
+            .eq("tenant_id", tenantId),
+    ]);
 
-    if (propertyIds.length === 0) return [] as TenantPropertyRow[];
-
-    const { data: properties } = await admin
-        .from("properties")
-        .select("id,name,address,owner_id")
-        .in("id", propertyIds)
-        .order("name");
-
-    const rows = (properties ?? []) as Array<{
+    type PropertyRow = {
         id: string;
         name: string;
         address: string;
         owner_id: string;
-    }>;
+    };
+    const propertiesById = new Map<string, PropertyRow>();
+
+    if (!assignmentResult.error) {
+        (assignmentResult.data ?? []).forEach((assignment) => {
+            const related = assignment.properties;
+            const relatedProperties = Array.isArray(related) ? related : related ? [related] : [];
+            relatedProperties.forEach((property) => {
+                propertiesById.set(property.id, property as PropertyRow);
+            });
+        });
+    }
+
+    (primaryPropertyResult.data ?? []).forEach((property) => {
+        propertiesById.set(property.id, property as PropertyRow);
+    });
+
+    if (assignmentResult.error && primaryPropertyResult.error) return [] as TenantPropertyRow[];
+
+    const rows = Array.from(propertiesById.values()).sort((a, b) => a.name.localeCompare(b.name));
+    if (rows.length === 0) return [] as TenantPropertyRow[];
 
     const ownerIds = Array.from(new Set(rows.map((row) => row.owner_id).filter(Boolean)));
     const { data: owners } = ownerIds.length === 0

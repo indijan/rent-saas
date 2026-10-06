@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { resolveAvailableRoles } from "@/lib/auth/availableRoles";
+import { getRequestAuthContext } from "@/lib/auth/requestContext";
+import { loadRoleMemberships, resolveAvailableRolesFromMemberships } from "@/lib/auth/availableRoles";
 import type { AppRole } from "@/lib/auth/requireUser";
 
 type UserContext = {
@@ -20,26 +21,24 @@ type OwnerChargeExportRow = {
 };
 
 async function requireOwner(): Promise<UserContext | NextResponse> {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return new NextResponse("Unauthorized", { status: 401 });
+    const { supabase, userId } = await getRequestAuthContext();
+    if (!userId) return new NextResponse("Unauthorized", { status: 401 });
 
-    const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
+    const [{ data: profile, error }, roleMemberships] = await Promise.all([
+        supabase.from("profiles").select("role").eq("id", userId).single(),
+        loadRoleMemberships(userId),
+    ]);
 
     if (error || !profile?.role) {
         return new NextResponse("Forbidden", { status: 403 });
     }
 
-    const roles = await resolveAvailableRoles(user.id, profile.role as AppRole);
+    const roles = resolveAvailableRolesFromMemberships(profile.role as AppRole, roleMemberships);
     if (!roles.includes("OWNER")) {
         return new NextResponse("Forbidden", { status: 403 });
     }
 
-    return { supabase, userId: user.id };
+    return { supabase, userId };
 }
 
 function escapeCsv(value: unknown) {

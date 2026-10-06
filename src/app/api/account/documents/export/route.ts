@@ -1,7 +1,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getRequestAuthContext } from "@/lib/auth/requestContext";
 import { getActiveRoleCookie, resolveActiveRole } from "@/lib/auth/context";
-import { resolveAvailableRoles } from "@/lib/auth/availableRoles";
+import { loadRoleMemberships, resolveAvailableRolesFromMemberships } from "@/lib/auth/availableRoles";
 import { buildZip } from "@/lib/zip";
 import { downloadDocumentObject } from "@/lib/documentStorage";
 import { listTenantPropertyIds } from "@/lib/propertyTenants";
@@ -12,24 +12,22 @@ function safeFileName(value: string) {
 }
 
 export async function GET() {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, userId } = await getRequestAuthContext();
 
-    if (!user) {
+    if (!userId) {
         return new Response("Nincs jogosultság.", { status: 401 });
     }
 
-    const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
+    const [{ data: profile, error: profileError }, roleMemberships] = await Promise.all([
+        supabase.from("profiles").select("role").eq("id", userId).single(),
+        loadRoleMemberships(userId),
+    ]);
 
     if (profileError || !profile) {
         return new Response("A profil nem található.", { status: 404 });
     }
 
-    const availableRoles = await resolveAvailableRoles(user.id, profile.role);
+    const availableRoles = resolveAvailableRolesFromMemberships(profile.role, roleMemberships);
     const cookieRole = await getActiveRoleCookie();
     const activeRole = resolveActiveRole(availableRoles, cookieRole, profile.role);
     const admin = createSupabaseAdminClient();
@@ -40,12 +38,12 @@ export async function GET() {
         .order("created_at", { ascending: false });
 
     const tenantPropertyIds = activeRole === "TENANT"
-        ? await listTenantPropertyIds(user.id)
+        ? await listTenantPropertyIds(userId)
         : [];
 
     const { data: documents, error } = activeRole === "TENANT"
         ? await docsQuery.in("property_id", tenantPropertyIds.length > 0 ? tenantPropertyIds : ["00000000-0000-0000-0000-000000000000"])
-        : await docsQuery.eq("owner_id", user.id);
+        : await docsQuery.eq("owner_id", userId);
 
     if (error) {
         return new Response(error.message, { status: 500 });

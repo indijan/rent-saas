@@ -191,50 +191,54 @@ export async function requestTenantProfileDeletion(formData: FormData) {
         redirect("/account?status=error&message=A+kiv%C3%A1lasztott+ingatlan+nem+tal%C3%A1lhat%C3%B3+a+b%C3%A9rl%C5%91i+hozz%C3%A1rendel%C3%A9seid+k%C3%B6z%C3%B6tt.");
     }
 
-    let created = 0;
-    let existing = 0;
+    const targetPropertyIds = targetProperties.map((property) => property.id);
+    const { data: pendingRows, error: pendingError } = await admin
+        .from("tenant_exit_requests")
+        .select("property_id")
+        .eq("tenant_id", user.id)
+        .eq("status", "PENDING")
+        .in("property_id", targetPropertyIds);
 
-    for (const property of targetProperties) {
-        const { data: currentRequest } = await admin
+    if (pendingError) {
+        redirect(`/account?status=error&message=${encodeURIComponent(pendingError.message)}`);
+    }
+
+    const pendingPropertyIds = new Set((pendingRows ?? []).map((row) => row.property_id as string));
+    const newProperties = targetProperties.filter((property) => !pendingPropertyIds.has(property.id));
+    const { data: createdRows, error: requestError } = newProperties.length > 0
+        ? await admin
             .from("tenant_exit_requests")
-            .select("id,status")
-            .eq("tenant_id", user.id)
-            .eq("property_id", property.id)
-            .eq("status", "PENDING")
-            .maybeSingle();
-
-        if (currentRequest) {
-            existing += 1;
-            continue;
-        }
-
-        const { error: requestError } = await admin
-            .from("tenant_exit_requests")
-            .insert({
+            .insert(newProperties.map((property) => ({
                 tenant_id: user.id,
                 owner_id: property.owner_id,
                 property_id: property.id,
-                status: "PENDING",
-            });
+                status: "PENDING" as const,
+            })))
+            .select("property_id")
+        : { data: [] as Array<{ property_id: string }>, error: null };
 
-        if (requestError) {
-            redirect(`/account?status=error&message=${encodeURIComponent(requestError.message)}`);
-        }
-
-        if (property.owner_email) {
-            await sendEmail(renderTenantExitRequestEmail({
-                ownerEmail: property.owner_email,
-                ownerName: property.owner_name,
-                tenantName: profile.full_name ?? null,
-                tenantEmail: profile.email,
-                propertyName: property.name,
-                propertyAddress: property.address,
-                openUrl: `${process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu"}/owner/tenants`,
-            }));
-        }
-
-        created += 1;
+    if (requestError) {
+        redirect(`/account?status=error&message=${encodeURIComponent(requestError.message)}`);
     }
+
+    const createdPropertyIds = new Set((createdRows ?? []).map((row) => row.property_id));
+    const created = createdPropertyIds.size;
+    const existing = pendingPropertyIds.size;
+    const createdProperties = newProperties.filter((property) => createdPropertyIds.has(property.id));
+    const openUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu"}/owner/tenants`;
+
+    await Promise.all(createdProperties.map((property) => {
+        if (!property.owner_email) return Promise.resolve();
+        return sendEmail(renderTenantExitRequestEmail({
+            ownerEmail: property.owner_email,
+            ownerName: property.owner_name,
+            tenantName: profile.full_name ?? null,
+            tenantEmail: profile.email,
+            propertyName: property.name,
+            propertyAddress: property.address,
+            openUrl,
+        }));
+    }));
 
     if (created === 0 && existing > 0) {
         redirect("/account?status=success&message=M%C3%A1r+van+folyamatban+l%C3%A9v%C5%91+kil%C3%A9p%C3%A9si+k%C3%A9relem.+V%C3%A1rd+meg+a+b%C3%A9rbead%C3%B3+j%C3%B3v%C3%A1hagy%C3%A1s%C3%A1t.");

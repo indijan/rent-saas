@@ -290,8 +290,7 @@ export async function createCharge(propertyId: string, formData: FormData) {
 
     if (tenantId) {
         const propertyTenants = await listPropertyTenants(propertyId);
-        for (const tenantProfile of propertyTenants) {
-            if (!tenantProfile.email) continue;
+        await Promise.all(propertyTenants.filter((tenantProfile) => tenantProfile.email).map(async (tenantProfile) => {
             const emailPayload = renderNewChargeEmail({
                 tenantEmail: tenantProfile.email,
                 title,
@@ -301,7 +300,7 @@ export async function createCharge(propertyId: string, formData: FormData) {
                 propertyName: property.name,
                 count: recurringCount,
             });
-            await sendEmail({
+            return sendEmail({
                 ...emailPayload,
                 log: {
                     ownerId: user.id,
@@ -322,7 +321,7 @@ export async function createCharge(propertyId: string, formData: FormData) {
                     },
                 },
             });
-        }
+        }));
     }
     revalidatePath(`/owner/properties/${propertyId}/charges`);
     revalidatePath("/owner/charges");
@@ -434,26 +433,20 @@ export async function extractInvoiceFromBuffer(buffer: Buffer) {
 export async function markChargePaid(chargeId: string) {
     const { supabase, user } = await requireRole("OWNER");
 
-    const { data: charge, error: chargeErr } = await supabase
-        .from("charges")
-        .select("property_id,status")
-        .eq("id", chargeId)
-        .eq("owner_id", user.id)
-        .single();
-
-    if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
-    if (charge.status !== "UNPAID") return { ok: false, error: "Csak aktív díj jelölhető fizetettnek." };
-
-    const { error } = await supabase
+    const { data: charge, error } = await supabase
         .from("charges")
         .update({
             status: "PAID",
             paid_at: new Date().toISOString(),
         })
         .eq("id", chargeId)
-        .eq("owner_id", user.id);
+        .eq("owner_id", user.id)
+        .eq("status", "UNPAID")
+        .select("property_id")
+        .maybeSingle();
 
     if (error) return { ok: false, error: error.message };
+    if (!charge) return { ok: false, error: "A díj nem található vagy már nem aktív." };
     revalidatePath(`/owner/properties/${charge.property_id}/charges`);
     revalidatePath("/owner/charges");
     revalidatePath("/owner/osszefoglalo");
@@ -464,26 +457,20 @@ export async function markChargePaid(chargeId: string) {
 export async function undoChargePaid(chargeId: string) {
     const { supabase, user } = await requireRole("OWNER");
 
-    const { data: charge, error: chargeErr } = await supabase
-        .from("charges")
-        .select("property_id,status")
-        .eq("id", chargeId)
-        .eq("owner_id", user.id)
-        .single();
-
-    if (chargeErr || !charge) return { ok: false, error: "A díj nem található." };
-    if (charge.status !== "PAID") return { ok: false, error: "Csak fizetett díj visszavonása lehetséges." };
-
-    const { error } = await supabase
+    const { data: charge, error } = await supabase
         .from("charges")
         .update({
             status: "UNPAID",
             paid_at: null,
         })
         .eq("id", chargeId)
-        .eq("owner_id", user.id);
+        .eq("owner_id", user.id)
+        .eq("status", "PAID")
+        .select("property_id")
+        .maybeSingle();
 
     if (error) return { ok: false, error: error.message };
+    if (!charge) return { ok: false, error: "A díj nem található vagy nem fizetett státuszú." };
     revalidatePath(`/owner/properties/${charge.property_id}/charges`);
     revalidatePath("/owner/charges");
     revalidatePath("/owner/osszefoglalo");
@@ -514,8 +501,7 @@ export async function sendManualChargeReminder(chargeId: string) {
 
     const propertyValue = (charge as { properties?: { name: string | null }[] | { name: string | null } | null }).properties;
     const property = Array.isArray(propertyValue) ? propertyValue[0] : propertyValue;
-    for (const tenantProfile of tenantProfiles) {
-        if (!tenantProfile.email) continue;
+    const emailResults = await Promise.all(tenantProfiles.filter((tenantProfile) => tenantProfile.email).map(async (tenantProfile) => {
         const payload = renderFriendlyArrearsReminderEmail({
             tenantEmail: tenantProfile.email,
             tenantName: tenantProfile.full_name ?? null,
@@ -526,7 +512,7 @@ export async function sendManualChargeReminder(chargeId: string) {
             propertyName: property?.name ?? null,
         });
 
-        const emailResult = await sendEmail({
+        return sendEmail({
             ...payload,
             log: {
                 ownerId: user.id,
@@ -546,9 +532,10 @@ export async function sendManualChargeReminder(chargeId: string) {
                 },
             },
         });
-        if (!emailResult.ok) {
-            return { ok: false, error: emailResult.error ?? "Az emlékeztető e-mail küldése nem sikerült." };
-        }
+    }));
+    const failedEmail = emailResults.find((result) => !result.ok);
+    if (failedEmail) {
+        return { ok: false, error: failedEmail.error ?? "Az emlékeztető e-mail küldése nem sikerült." };
     }
 
     const { error } = await supabase
@@ -601,8 +588,7 @@ export async function publishCharge(chargeId: string) {
         const propertyTenants = await listPropertyTenants(charge.property_id);
         const propertyValue = (charge as { properties?: { name: string | null }[] | { name: string | null } | null }).properties;
         const property = Array.isArray(propertyValue) ? propertyValue[0] : propertyValue;
-        for (const tenantProfile of propertyTenants) {
-            if (!tenantProfile.email) continue;
+        await Promise.all(propertyTenants.filter((tenantProfile) => tenantProfile.email).map(async (tenantProfile) => {
             const emailPayload = renderNewChargeEmail({
                 tenantEmail: tenantProfile.email,
                 title: charge.title,
@@ -612,7 +598,7 @@ export async function publishCharge(chargeId: string) {
                 propertyName: property?.name ?? null,
                 count: 1,
             });
-            await sendEmail({
+            return sendEmail({
                 ...emailPayload,
                 log: {
                     ownerId: user.id,
@@ -634,7 +620,7 @@ export async function publishCharge(chargeId: string) {
                     },
                 },
             });
-        }
+        }));
     }
 
     revalidatePath(`/owner/properties/${charge.property_id}/charges`);
@@ -710,26 +696,30 @@ export async function updateCharge(chargeId: string, formData: FormData) {
         const rows = (futureCharges ?? []) as Array<{ id: string; recurring_index: number | null; due_date: string; status: string }>;
         updatedCount = rows.length || 1;
 
-        for (const row of rows) {
-            const monthOffset = currentIndex !== null && row.recurring_index !== null
-                ? row.recurring_index - currentIndex
-                : 0;
+        for (let offset = 0; offset < rows.length; offset += 10) {
+            const rowUpdates = await Promise.all(rows.slice(offset, offset + 10).map(async (row) => {
+                const monthOffset = currentIndex !== null && row.recurring_index !== null
+                    ? row.recurring_index - currentIndex
+                    : 0;
 
-            const { error: rowError } = await supabase
-                .from("charges")
-                .update({
-                    title,
-                    notes,
-                    type,
-                    amount,
-                    currency,
-                    due_date: addMonths(due_date, monthOffset),
-                    tenant_id: tenantId,
-                })
-                .eq("id", row.id)
-                .eq("owner_id", user.id);
+                const { error: rowError } = await supabase
+                    .from("charges")
+                    .update({
+                        title,
+                        notes,
+                        type,
+                        amount,
+                        currency,
+                        due_date: addMonths(due_date, monthOffset),
+                        tenant_id: tenantId,
+                    })
+                    .eq("id", row.id)
+                    .eq("owner_id", user.id);
 
-            if (rowError) return { ok: false, error: rowError.message };
+                return rowError;
+            }));
+            const failedUpdate = rowUpdates.find(Boolean);
+            if (failedUpdate) return { ok: false, error: failedUpdate.message };
         }
     } else {
         const { error } = await supabase
@@ -765,8 +755,7 @@ export async function updateCharge(chargeId: string, formData: FormData) {
 
     if (hasTenantNow && charge.status !== "IMPORT_DRAFT") {
         const propertyTenants = await listPropertyTenants(charge.property_id);
-        for (const tenantProfile of propertyTenants) {
-            if (!tenantProfile.email) continue;
+        await Promise.all(propertyTenants.filter((tenantProfile) => tenantProfile.email).map(async (tenantProfile) => {
             if (!hadTenantBefore) {
                 const payload = renderNewChargeEmail({
                     tenantEmail: tenantProfile.email,
@@ -799,10 +788,10 @@ export async function updateCharge(chargeId: string, formData: FormData) {
                         },
                     },
                 });
-                continue;
+                return;
             }
 
-            if (changedFields.length === 0) continue;
+            if (changedFields.length === 0) return;
             const payload = renderChargeUpdatedEmail({
                 tenantEmail: tenantProfile.email,
                 title,
@@ -813,7 +802,7 @@ export async function updateCharge(chargeId: string, formData: FormData) {
                 changedFields,
                 count: updatedCount,
             });
-            await sendEmail({
+            return sendEmail({
                 ...payload,
                 log: {
                     ownerId: user.id,
@@ -835,7 +824,7 @@ export async function updateCharge(chargeId: string, formData: FormData) {
                     },
                 },
             });
-        }
+        }));
     }
 
     revalidatePath(`/owner/properties/${charge.property_id}/charges`);

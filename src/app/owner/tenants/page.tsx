@@ -33,15 +33,8 @@ export default async function OwnerTenantsPage({ searchParams }: Props) {
     const status = sp.status ? String(sp.status) : "";
     const message = sp.message ? String(sp.message) : "";
 
-    const tenantIds = await listOwnerTenantIds(profile.id);
-    const [{ data: tenants, error }, { data: properties }, { data: propertyTenantRows }, { data: exitRequests }] = await Promise.all([
-        tenantIds.length === 0
-            ? Promise.resolve({ data: [], error: null })
-            : admin
-                .from("profiles")
-                .select("id,email,full_name,created_at")
-                .in("id", tenantIds)
-                .order("created_at", { ascending: false }),
+    const [tenantIds, { data: properties }, { data: propertyTenantRows }, { data: exitRequests }] = await Promise.all([
+        listOwnerTenantIds(profile.id),
         admin
             .from("properties")
             .select("id,name,status")
@@ -59,6 +52,13 @@ export default async function OwnerTenantsPage({ searchParams }: Props) {
             .eq("status", "PENDING")
             .order("created_at", { ascending: true }),
     ]);
+    const { data: tenants, error } = tenantIds.length === 0
+        ? { data: [] as TenantProfileRow[], error: null }
+        : await admin
+            .from("profiles")
+            .select("id,email,full_name,created_at")
+            .in("id", tenantIds)
+            .order("created_at", { ascending: false });
 
     if (error) {
         return (

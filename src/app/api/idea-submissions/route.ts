@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getRequestAuthContext } from "@/lib/auth/requestContext";
 
 export async function POST(request: Request) {
     const formData = await request.formData();
@@ -14,9 +14,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, error: "A funkció megnevezése és a leírás kötelező." }, { status: 400 });
     }
 
-    const supabase = await createSupabaseServerClient();
+    const { userId: requestUserId } = await getRequestAuthContext();
     const admin = createSupabaseAdminClient();
-    const { data: { user } } = await supabase.auth.getUser();
 
     let email = submittedEmail;
     let fullName = submittedName || null;
@@ -24,11 +23,11 @@ export async function POST(request: Request) {
     let source: "PUBLIC" | "SIGNED_IN" = "PUBLIC";
     let userId: string | null = null;
 
-    if (user) {
+    if (requestUserId) {
         const { data: profile } = await admin
             .from("profiles")
             .select("id,email,full_name,role")
-            .eq("id", user.id)
+            .eq("id", requestUserId)
             .maybeSingle();
 
         if (profile?.email) {

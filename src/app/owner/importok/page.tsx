@@ -28,11 +28,8 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
     const chargeId = sp.chargeId ? String(sp.chargeId) : "";
     const ingestionId = sp.ingestionId ? String(sp.ingestionId) : "";
 
-    const mailbox = await getOrCreateInboundMailbox(user.id);
-    const usingSharedInbox = mailbox.email_address === getSharedInboundEmail();
-    const ownExpenseEmail = getOwnExpenseInboundEmail();
-
-    const [{ data: properties, error: propertyError }, importOverview] = await Promise.all([
+    const [mailbox, { data: properties, error: propertyError }, importOverview] = await Promise.all([
+        getOrCreateInboundMailbox(user.id),
         supabase
             .from("properties")
             .select("id,name,address")
@@ -40,6 +37,8 @@ export default async function OwnerImportsPage({ searchParams }: Props) {
             .order("name"),
         getOwnerImportOverview(user.id, { limit: 24 }),
     ]);
+    const usingSharedInbox = mailbox.email_address === getSharedInboundEmail();
+    const ownExpenseEmail = getOwnExpenseInboundEmail();
 
     if (propertyError) {
         return (

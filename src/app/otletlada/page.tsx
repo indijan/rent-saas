@@ -2,23 +2,24 @@ import PublicHeader from "@/components/PublicHeader";
 import PublicPageEnhancements from "@/components/PublicPageEnhancements";
 import IdeaBoxForm from "@/components/IdeaBoxForm";
 import { getSignedInDashboardHref } from "@/lib/auth/getDashboardHref";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getRequestAuthContext } from "@/lib/auth/requestContext";
 
 export default async function IdeaBoxPage() {
-    const dashboardHref = await getSignedInDashboardHref();
-    const supabase = await createSupabaseServerClient();
+    const [dashboardHref, { userId }] = await Promise.all([
+        getSignedInDashboardHref(),
+        getRequestAuthContext(),
+    ]);
     const admin = createSupabaseAdminClient();
-    const { data: { user } } = await supabase.auth.getUser();
 
     let defaultEmail = "";
     let defaultName = "";
 
-    if (user) {
+    if (userId) {
         const { data: profile } = await admin
             .from("profiles")
             .select("email,full_name")
-            .eq("id", user.id)
+            .eq("id", userId)
             .maybeSingle();
         defaultEmail = String(profile?.email || "");
         defaultName = String(profile?.full_name || "");

@@ -80,15 +80,16 @@ export default async function TenantChargeDetailPage({ params }: Props) {
     const { id } = await params;
     const { user, profile } = await requireRole("TENANT");
     const admin = createSupabaseAdminClient();
-    const tenantProperties = await listTenantProperties(user.id);
+    const [{ data: charge, error }, tenantProperties] = await Promise.all([
+        admin
+            .from("charges")
+            .select("id,title,tenant_id,type,amount,currency,due_date,status,paid_at,notes,property_id,properties(name,address)")
+            .eq("id", id)
+            .neq("status", "IMPORT_DRAFT")
+            .single(),
+        listTenantProperties(user.id),
+    ]);
     const propertyIds = tenantProperties.map((property) => property.id);
-
-    const { data: charge, error } = await admin
-        .from("charges")
-        .select("id,title,tenant_id,type,amount,currency,due_date,status,paid_at,notes,property_id,properties(name,address)")
-        .eq("id", id)
-        .neq("status", "IMPORT_DRAFT")
-        .single();
 
     if (error || !charge || !propertyIds.includes(charge.property_id) || !isTenantFacingCharge(charge)) return notFound();
 
