@@ -91,7 +91,8 @@ export async function POST(request: Request) {
         .from("charges")
         .select("id,title,amount,currency,due_date,owner_id,tenant_id,type,property_id,properties(name)")
         .eq("status", "UNPAID")
-        .eq("due_date", reminderTargetDate);
+        .gte("due_date", todayDate)
+        .lte("due_date", reminderTargetDate);
 
     const { data: dueSoonChargesWithTracking, error } = await buildDueSoonQuery().is("reminder_sent_at", null);
     const dueSoonCharges = isMissingReminderColumnError(error?.message)
