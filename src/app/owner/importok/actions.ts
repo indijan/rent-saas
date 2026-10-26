@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/auth/requireRole";
 import { extractInvoiceFromBuffer } from "@/app/owner/properties/[id]/charges/actions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { rotateInboundMailbox } from "@/lib/inboundMailboxes";
-import { findOwnerSupplierProfile } from "@/lib/supplierProfiles";
+import { findOwnerSupplierProfile, learnSupplierCorrection } from "@/lib/supplierProfiles";
 import { getConfiguredStorageBucketName, removeDocumentObjects, uploadDocumentObject } from "@/lib/documentStorage";
 import type { ImportMode } from "@/lib/importModes";
 import { normalizeImportedChargeMode } from "@/lib/importChargeNormalization";
@@ -222,7 +222,7 @@ export async function createManualIngestion(formData: FormData) {
         return { ok: false, error: ingestionInsertError.message };
     }
 
-    const extraction = await extractInvoiceFromBuffer(buffer);
+    const extraction = await extractInvoiceFromBuffer(buffer, user.id);
     if (!extraction.ok || !extraction.data) {
         await admin
             .from("document_ingestions")
@@ -245,7 +245,7 @@ export async function createManualIngestion(formData: FormData) {
         charge_type: extraction.data.type || "OTHER",
         property_id: property.id,
         property_name: property.name,
-        document_text: extraction.text,
+        document_text: extraction.text.slice(0, 30_000),
         import_mode: importMode,
     };
 
@@ -453,8 +453,29 @@ export async function finalizeIngestionReview(ingestionId: string, formData: For
         charge_type: normalizedChargeType,
         property_id: property.id,
         property_name: property.name,
+        document_text: typeof existingNormalized.document_text === "string" ? existingNormalized.document_text : "",
         import_mode: effectiveImportMode,
     };
+
+    try {
+        await learnSupplierCorrection({
+            ownerId: user.id,
+            text: typeof existingNormalized.document_text === "string" ? existingNormalized.document_text : "",
+            raw: ingestion.extracted_data && typeof ingestion.extracted_data === "object"
+                ? ingestion.extracted_data as Record<string, unknown>
+                : null,
+            final: {
+                issuer_name: issuerName,
+                due_date: dueDate,
+                gross_amount: amount,
+                currency,
+                charge_type: normalizedChargeType,
+                property_id: property.id,
+            },
+        });
+    } catch (error) {
+        console.warn("Could not learn from reviewed invoice extraction.", error);
+    }
 
     await admin.from("extraction_reviews").insert({
         ingestion_id: ingestionId,

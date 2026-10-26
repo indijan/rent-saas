@@ -128,7 +128,7 @@ export async function processStoredIngestion(ingestionId: string) {
             .eq("owner_id", ingestionRow.owner_id);
         return { ok: false as const, error: message };
     }
-    const extraction = await extractInvoiceFromBuffer(buffer);
+    const extraction = await extractInvoiceFromBuffer(buffer, ingestionRow.owner_id);
 
     if (!extraction.ok || !extraction.data) {
         await admin
@@ -171,6 +171,7 @@ export async function processStoredIngestion(ingestionId: string) {
         charge_type: extraction.data.type || "OTHER",
         property_id: propertyId,
         property_hint: propertyHint,
+        document_text: extraction.text.slice(0, 30_000),
         import_mode: importMode,
     };
 

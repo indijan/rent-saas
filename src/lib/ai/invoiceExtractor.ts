@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { CHARGE_TYPES, type ChargeType } from "@/lib/chargeTypes";
 import { extractInvoiceAmountFromText } from "@/lib/invoiceAmountExtraction";
+import type { SupplierExtractionProfile } from "@/lib/supplierProfiles";
 
 const allowedTypes = CHARGE_TYPES;
 export type InvoiceExtract = {
@@ -119,11 +120,11 @@ function normalizeDate(input: string | null) {
     const raw = input.trim();
     if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
 
-    const dotMatch = raw.match(/^(\d{4})[.](\d{2})[.](\d{2})$/);
-    if (dotMatch) return `${dotMatch[1]}-${dotMatch[2]}-${dotMatch[3]}`;
+    const dotMatch = raw.match(/^(\d{4})[.](\d{1,2})[.](\d{1,2})$/);
+    if (dotMatch) return `${dotMatch[1]}-${dotMatch[2].padStart(2, "0")}-${dotMatch[3].padStart(2, "0")}`;
 
-    const dmyMatch = raw.match(/^(\d{2})[./-](\d{2})[./-](\d{4})$/);
-    if (dmyMatch) return `${dmyMatch[3]}-${dmyMatch[2]}-${dmyMatch[1]}`;
+    const dmyMatch = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+    if (dmyMatch) return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, "0")}-${dmyMatch[1].padStart(2, "0")}`;
 
     const mdyMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (mdyMatch) {
@@ -135,7 +136,109 @@ function normalizeDate(input: string | null) {
     return null;
 }
 
-export async function extractInvoiceFields(text: string) {
+function isValidIsoDate(value: string | null): value is string {
+    if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const date = new Date(`${value}T00:00:00Z`);
+    return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+}
+
+function getLearnedLabels(profile: SupplierExtractionProfile | null | undefined, field: "amount" | "due_date") {
+    const rules = profile?.field_rules_json;
+    const labels = rules?.learned_labels;
+    if (!labels || typeof labels !== "object") return [];
+    const values = (labels as Record<string, unknown>)[field];
+    return Array.isArray(values)
+        ? values.filter((value): value is string => typeof value === "string" && value.trim().length >= 4)
+        : [];
+}
+
+const invoiceDatePattern = /\b(?:\d{4}[./-]\d{1,2}[./-]\d{1,2}|\d{1,2}[./-]\d{1,2}[./-]\d{4})\b/g;
+
+function learnedValueLines(text: string, labels: string[]) {
+    if (labels.length === 0) return [];
+    const lines = text.split(/\r?\n/);
+    const normalizedLabels = labels.map(normalizeStandard).filter(Boolean);
+    const matchedIndexes = lines.flatMap((line, index) => {
+        const normalizedLine = normalizeStandard(line);
+        return normalizedLabels.some((label) => normalizedLine.includes(label)) ? [index] : [];
+    });
+    const indexes = new Set<number>();
+    const orderedIndexes: number[] = [];
+    for (const index of matchedIndexes) {
+        for (const offset of [0, 1, -1, 2]) {
+            const candidate = index + offset;
+            if (candidate >= 0 && candidate < lines.length && !indexes.has(candidate)) {
+                indexes.add(candidate);
+                orderedIndexes.push(candidate);
+            }
+        }
+    }
+    return orderedIndexes.map((index) => lines[index]);
+}
+
+function extractLearnedAmount(text: string, profile: SupplierExtractionProfile | null | undefined) {
+    const lines = learnedValueLines(text, getLearnedLabels(profile, "amount"));
+    const amountPattern = /-?\d[\d .\u00a0]*(?:,\d{1,2})?/g;
+    for (const line of lines) {
+        const withoutDates = line.replace(invoiceDatePattern, " ");
+        const matches = withoutDates.match(amountPattern) ?? [];
+        for (const raw of matches) {
+            const amount = parseHungarianAmount(raw);
+            if (amount !== null && amount > 0) return amount;
+        }
+    }
+    return null;
+}
+
+function extractDates(text: string) {
+    const matches = text.match(invoiceDatePattern) ?? [];
+    return matches.map(normalizeDate).filter(isValidIsoDate);
+}
+
+function extractLearnedDueDate(text: string, profile: SupplierExtractionProfile | null | undefined) {
+    const lines = learnedValueLines(text, getLearnedLabels(profile, "due_date"));
+    for (const line of lines) {
+        const dueDate = extractDates(line)[0];
+        if (dueDate) return dueDate;
+    }
+    return null;
+}
+
+function extractLabeledDueDate(text: string) {
+    const lines = text.split(/\r?\n/);
+    const dueLabel = /(?:fizetesi\s+hatarido|esedekesseg|hatarido|payment\s+due|due\s+date)/;
+    for (let index = 0; index < lines.length; index += 1) {
+        if (!dueLabel.test(normalizeStandard(lines[index]))) continue;
+        for (let offset = 0; offset <= 2; offset += 1) {
+            const date = extractDates(lines[index + offset] ?? "")[0];
+            if (date) return date;
+        }
+    }
+    return null;
+}
+
+function extractExplicitCurrency(text: string) {
+    const match = text.match(/\b(HUF|EUR|USD|GBP|CHF|PLN|CZK|AUD|NZD|CAD)\b|\bFt\b/i);
+    if (!match) return null;
+    return /^ft$/i.test(match[0]) ? "HUF" : match[0].toUpperCase();
+}
+
+function extractLocalSupplierFields(text: string, profile: SupplierExtractionProfile | null | undefined) {
+    const provider = applyProviderHints(text);
+    const amount = extractLearnedAmount(text, profile) ?? extractInvoiceAmountFromText(text);
+    const dueDate = extractLearnedDueDate(text, profile) ?? extractLabeledDueDate(text);
+    const name = profile?.issuer_name ?? provider?.name ?? null;
+    const currency = profile?.currency_hint?.toUpperCase() ?? extractExplicitCurrency(text);
+    const type = profile?.default_charge_type ?? provider?.type ?? null;
+
+    if (!amount || amount <= 0 || !isValidIsoDate(dueDate) || !name || !currency) return null;
+    return { amount, currency, due_date: dueDate, name, type } satisfies InvoiceExtract;
+}
+
+export async function extractInvoiceFields(text: string, supplierProfile?: SupplierExtractionProfile | null) {
+    const localExtraction = extractLocalSupplierFields(text, supplierProfile);
+    if (localExtraction) return { ok: true as const, data: localExtraction };
+
     if (!process.env.OPENAI_API_KEY) {
         return { ok: false, error: "OPENAI_API_KEY nincs beállítva." as const };
     }
@@ -298,14 +401,17 @@ export async function extractInvoiceFields(text: string) {
     const safeType = (hints || labeledName) ? "UTILITY" : type;
     const safeDueDate = labeledDueDate ?? (isReasonableYear(dueDate) ? dueDate : null);
 
+    const learnedAmount = extractLearnedAmount(text, supplierProfile);
+    const learnedDueDate = extractLearnedDueDate(text, supplierProfile);
     return {
         ok: true,
         data: {
-            amount: robustAmount ?? labeledAmountParsed ?? safeAmount,
-            currency: labeledAmount ? (labeledCurrency ?? "HUF") : currency,
-            due_date: safeDueDate,
-            name: labeledName ?? hints?.name ?? safeName,
-            type: hints?.type ?? safeType,
+            amount: learnedAmount ?? robustAmount ?? labeledAmountParsed ?? safeAmount,
+            currency: supplierProfile?.currency_hint?.toUpperCase()
+                ?? (labeledAmount ? (labeledCurrency ?? "HUF") : currency),
+            due_date: learnedDueDate ?? safeDueDate,
+            name: supplierProfile?.issuer_name ?? labeledName ?? hints?.name ?? safeName,
+            type: supplierProfile?.default_charge_type ?? hints?.type ?? safeType,
         },
     };
 }

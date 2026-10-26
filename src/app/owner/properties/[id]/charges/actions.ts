@@ -14,6 +14,11 @@ import path from "path";
 import { writeFile, readFile, rm } from "fs/promises";
 import { extractInvoiceFields } from "@/lib/ai/invoiceExtractor";
 import { extractInvoiceAmountFromText } from "@/lib/invoiceAmountExtraction";
+import {
+    findOwnerSupplierProfileForText,
+    learnSupplierCorrection,
+    type SupplierExtractionProfile,
+} from "@/lib/supplierProfiles";
 import { listPropertyTenants } from "@/lib/propertyTenants";
 import { isOwnExpenseRestrictedChargeType, isOwnOnlyChargeType } from "@/lib/chargeTypes";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -331,7 +336,7 @@ export async function createCharge(propertyId: string, formData: FormData) {
 }
 
 export async function extractInvoiceData(formData: FormData) {
-    await requireRole("OWNER");
+    const { user } = await requireRole("OWNER");
 
     const document = formData.get("document");
     const documentFile = document instanceof File ? document : null;
@@ -343,10 +348,10 @@ export async function extractInvoiceData(formData: FormData) {
     }
 
     const buffer = Buffer.from(await documentFile.arrayBuffer());
-    return extractInvoiceFromBuffer(buffer);
+    return extractInvoiceFromBuffer(buffer, user.id);
 }
 
-export async function extractInvoiceFromBuffer(buffer: Buffer) {
+export async function extractInvoiceFromBuffer(buffer: Buffer, ownerId?: string) {
     const pdf = await pdfParse(buffer);
     const textFromPdf = (pdf.text || "").trim();
     let text = textFromPdf;
@@ -388,7 +393,16 @@ export async function extractInvoiceFromBuffer(buffer: Buffer) {
         };
     }
 
-    const aiRes = await extractInvoiceFields(text);
+    let supplierProfile: SupplierExtractionProfile | null = null;
+    if (ownerId) {
+        try {
+            supplierProfile = await findOwnerSupplierProfileForText(ownerId, text);
+        } catch (error) {
+            console.warn("Supplier extraction profile lookup failed; using standard extraction.", error);
+        }
+    }
+
+    const aiRes = await extractInvoiceFields(text, supplierProfile);
     if (!aiRes.ok || !aiRes.data) return { ok: false, error: aiRes.error };
     const labeledAmount = extractInvoiceAmountFromText(text);
     const labeledDue = extractDueDateFromText(text);
@@ -752,6 +766,42 @@ export async function updateCharge(chargeId: string, formData: FormData) {
         String(charge.currency || "HUF").toUpperCase() !== currency ? "pénznem" : null,
         charge.due_date !== due_date ? "esedékesség" : null,
     ].filter((value): value is string => Boolean(value));
+
+    const extractionFieldsChanged = changedFields.some((field) =>
+        ["megnevezés", "kategória", "összeg", "pénznem", "esedékesség"].includes(field)
+    );
+    if (charge.status === "IMPORT_DRAFT" && extractionFieldsChanged) {
+        try {
+            const admin = createSupabaseAdminClient();
+            const { data: ingestion } = await admin
+                .from("document_ingestions")
+                .select("extracted_data,normalized_data")
+                .eq("owner_id", user.id)
+                .eq("created_charge_id", chargeId)
+                .maybeSingle();
+            const normalizedData = (ingestion?.normalized_data ?? {}) as Record<string, unknown>;
+            const rawExtraction = ingestion?.extracted_data && typeof ingestion.extracted_data === "object"
+                ? ingestion.extracted_data as Record<string, unknown>
+                : null;
+            await learnSupplierCorrection({
+                ownerId: user.id,
+                text: typeof normalizedData.document_text === "string" ? normalizedData.document_text : "",
+                raw: rawExtraction,
+                final: {
+                    issuer_name: charge.title !== title
+                        ? title
+                        : (typeof rawExtraction?.name === "string" && rawExtraction.name.trim()) || charge.title,
+                    due_date,
+                    gross_amount: amount,
+                    currency,
+                    charge_type: type,
+                    property_id: charge.property_id,
+                },
+            });
+        } catch (error) {
+            console.warn("Could not learn from edited invoice draft.", error);
+        }
+    }
 
     if (hasTenantNow && charge.status !== "IMPORT_DRAFT") {
         const propertyTenants = await listPropertyTenants(charge.property_id);
