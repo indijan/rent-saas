@@ -24,6 +24,7 @@ export default function UploadInvoice({ chargeId, variant = "button" }: Props) {
     const router = useRouter();
     const [busy, setBusy] = useState(false);
     const [msg, setMsg] = useState<string>("");
+    const [duplicateDocumentId, setDuplicateDocumentId] = useState<string | null>(null);
 
     async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
@@ -31,6 +32,7 @@ export default function UploadInvoice({ chargeId, variant = "button" }: Props) {
 
         setBusy(true);
         setMsg("");
+        setDuplicateDocumentId(null);
 
         try {
             const formData = new FormData();
@@ -44,6 +46,9 @@ export default function UploadInvoice({ chargeId, variant = "button" }: Props) {
 
             const json = await response.json();
             if (!response.ok || !json?.ok) {
+                if (typeof json?.duplicateDocumentId === "string") {
+                    setDuplicateDocumentId(json.duplicateDocumentId);
+                }
                 throw new Error(json?.error || "Dokumentum mentés sikertelen.");
             }
 
@@ -78,7 +83,14 @@ export default function UploadInvoice({ chargeId, variant = "button" }: Props) {
                             disabled={busy}
                         />
                     </label>
-                    {msg ? <span className="dashboard-inline-upload-message">{msg}</span> : null}
+                    {msg ? (
+                        <span className="dashboard-inline-upload-message">
+                            {msg}
+                            {duplicateDocumentId ? (
+                                <> <a href={`/api/documents/${duplicateDocumentId}`} target="_blank" rel="noreferrer">Meglévő PDF megnyitása</a></>
+                            ) : null}
+                        </span>
+                    ) : null}
                 </div>
                 <ActionPendingScreen active={busy} label="Dokumentum feltöltése..." />
             </>
@@ -99,7 +111,14 @@ export default function UploadInvoice({ chargeId, variant = "button" }: Props) {
                     />
                 </label>
 
-                {msg ? <span className="text-xs text-gray-600">{msg}</span> : null}
+                {msg ? (
+                    <span className="text-xs text-gray-600">
+                        {msg}
+                        {duplicateDocumentId ? (
+                            <> <a href={`/api/documents/${duplicateDocumentId}`} target="_blank" rel="noreferrer">Meglévő PDF megnyitása</a></>
+                        ) : null}
+                    </span>
+                ) : null}
             </div>
             <ActionPendingScreen active={busy} label="Dokumentum feltöltése..." />
         </>

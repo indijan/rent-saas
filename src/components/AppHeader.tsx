@@ -39,6 +39,32 @@ type NavConfig = {
 
 type ThemeMode = "auto" | "light" | "dark";
 const MANUAL_ROUTE_EVENT = "rentapp:route-transition-start";
+const TODO_COUNT_CACHE_MS = 15_000;
+let todoCountCache: { ownerKey: string; count: number; updatedAt: number } | null = null;
+let todoCountRequest: { ownerKey: string; promise: Promise<number | null> } | null = null;
+
+async function loadTodoCount(ownerKey: string, force = false) {
+    if (!force && todoCountCache?.ownerKey === ownerKey && Date.now() - todoCountCache.updatedAt < TODO_COUNT_CACHE_MS) {
+        return todoCountCache.count;
+    }
+    if (todoCountRequest?.ownerKey === ownerKey) return todoCountRequest.promise;
+
+    const request = fetch("/api/owner/todo-count", { cache: "no-store" })
+        .then(async (response) => {
+            if (!response.ok) return null;
+            const result = await response.json() as { count?: unknown };
+            if (typeof result.count !== "number" || !Number.isFinite(result.count)) return null;
+            todoCountCache = { ownerKey, count: result.count, updatedAt: Date.now() };
+            return result.count;
+        })
+        .catch(() => null)
+        .finally(() => {
+            if (todoCountRequest?.promise === request) todoCountRequest = null;
+        });
+    todoCountRequest = { ownerKey, promise: request };
+
+    return request;
+}
 
 function HomeIcon() {
     return (
@@ -254,6 +280,7 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
     const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
     const [mobileContextOpen, setMobileContextOpen] = useState(false);
     const [isCompactViewport, setIsCompactViewport] = useState(false);
+    const [pendingTaskCount, setPendingTaskCount] = useState(() => todoCountCache?.ownerKey === profile.email ? todoCountCache.count : 0);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
         if (typeof window === "undefined") return false;
         return window.localStorage.getItem("rentapp-sidebar-collapsed") === "1";
@@ -376,6 +403,54 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
     }, [closeTransientUi, syncCompactViewport]);
 
     useEffect(() => {
+        if (profile.role !== "OWNER") return;
+
+        let active = true;
+        const refreshCount = async (force = false) => {
+            const count = await loadTodoCount(profile.email, force);
+            if (active && count !== null) setPendingTaskCount(count);
+        };
+        const handleRefresh = () => void refreshCount(true);
+        const handleVisibility = () => {
+            if (!document.hidden) void refreshCount(true);
+        };
+
+        void refreshCount();
+        const interval = window.setInterval(() => void refreshCount(true), 60_000);
+        window.addEventListener("rentapp:todo-count-refresh", handleRefresh);
+        document.addEventListener("visibilitychange", handleVisibility);
+
+        return () => {
+            active = false;
+            window.clearInterval(interval);
+            window.removeEventListener("rentapp:todo-count-refresh", handleRefresh);
+            document.removeEventListener("visibilitychange", handleVisibility);
+        };
+    }, [profile.email, profile.role]);
+
+    const ownerTaskCount = profile.role === "OWNER" && todoCountCache?.ownerKey === profile.email
+        ? pendingTaskCount
+        : 0;
+
+    useEffect(() => {
+        if (profile.role !== "OWNER") return;
+        const affectsOwnerTasks = pathname === "/owner/importok"
+            || pathname.startsWith("/owner/importok/")
+            || pathname === "/owner/todo"
+            || pathname === "/owner/charges"
+            || pathname.endsWith("/charges");
+        if (!affectsOwnerTasks) return;
+
+        let active = true;
+        void loadTodoCount(profile.email, true).then((count) => {
+            if (active && count !== null) setPendingTaskCount(count);
+        });
+        return () => {
+            active = false;
+        };
+    }, [pathname, profile.email, profile.role, searchKey]);
+
+    useEffect(() => {
         if (appearanceMode === "auto") {
             delete document.documentElement.dataset.dashboardTheme;
             return;
@@ -485,21 +560,29 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                     </div>
 
                     <nav id="app-navigation" className={`dashboard-nav${menuOpen ? " nav-open" : ""}`}>
-                        {navItems.map((item) => (
-                            <Link
-                                key={item.href}
-                                className={`dashboard-nav-item${isNavItemActive(pathname, item) ? " is-active" : ""}`}
-                                href={item.href}
-                                data-tooltip={item.label}
-                                title={sidebarCollapsed ? item.label : undefined}
-                                aria-label={item.label}
-                                onClick={() => setMenuOpen(false)}
-                            >
-                                <span className="dashboard-nav-icon">{item.icon}</span>
-                                <span className="dashboard-nav-label">{item.label}</span>
-                                <span className="dashboard-nav-tooltip" aria-hidden="true">{item.label}</span>
-                            </Link>
-                        ))}
+                        {navItems.map((item) => {
+                            const showTodoCount = item.href === "/owner/todo" && ownerTaskCount > 0;
+                            const countLabel = ownerTaskCount > 99 ? "99+" : String(ownerTaskCount);
+
+                            return (
+                                <Link
+                                    key={item.href}
+                                    className={`dashboard-nav-item${isNavItemActive(pathname, item) ? " is-active" : ""}`}
+                                    href={item.href}
+                                    data-tooltip={item.label}
+                                    title={sidebarCollapsed ? item.label : undefined}
+                                    aria-label={showTodoCount ? `${item.label}, ${ownerTaskCount} teendő` : item.label}
+                                    onClick={() => setMenuOpen(false)}
+                                >
+                                    <span className="dashboard-nav-icon">
+                                        {item.icon}
+                                        {showTodoCount ? <span className="dashboard-task-count-badge" aria-hidden="true">{countLabel}</span> : null}
+                                    </span>
+                                    <span className="dashboard-nav-label">{item.label}</span>
+                                    <span className="dashboard-nav-tooltip" aria-hidden="true">{item.label}</span>
+                                </Link>
+                            );
+                        })}
                     </nav>
 
                     <div className="dashboard-sidebar-footer">
@@ -818,17 +901,26 @@ export default function AppHeader({ profile, dashboardContext }: Props) {
                         aria-label="Mobil navigáció"
                         style={mobileNavStyle}
                     >
-                        {mobileNavItems.map((item) => (
-                            <button
-                                key={item.href}
-                                type="button"
-                                className={`dashboard-mobile-nav-item${isNavItemActive(pathname, item) ? " is-active" : ""}`}
-                                onClick={handleMobileNavigate(item.href)}
-                            >
-                                <span className="dashboard-mobile-nav-icon">{item.icon}</span>
-                                <span>{item.label}</span>
-                            </button>
-                        ))}
+                        {mobileNavItems.map((item) => {
+                            const showTodoCount = item.href === "/owner/todo" && ownerTaskCount > 0;
+                            const countLabel = ownerTaskCount > 99 ? "99+" : String(ownerTaskCount);
+
+                            return (
+                                <button
+                                    key={item.href}
+                                    type="button"
+                                    className={`dashboard-mobile-nav-item${isNavItemActive(pathname, item) ? " is-active" : ""}`}
+                                    aria-label={showTodoCount ? `${item.label}, ${ownerTaskCount} teendő` : item.label}
+                                    onClick={handleMobileNavigate(item.href)}
+                                >
+                                    <span className="dashboard-mobile-nav-icon">
+                                        {item.icon}
+                                        {showTodoCount ? <span className="dashboard-task-count-badge" aria-hidden="true">{countLabel}</span> : null}
+                                    </span>
+                                    <span>{item.label}</span>
+                                </button>
+                            );
+                        })}
                         {profile.role === "OWNER" || navConfig.secondary.length > 0 ? (
                             <button
                                 type="button"

@@ -1,4 +1,3 @@
-import { createHash } from "crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
 import { renderImportInvoiceStatusEmail } from "@/lib/email/templates";
@@ -9,6 +8,7 @@ import { downloadDocumentObject } from "@/lib/documentStorage";
 import { createEmailActionToken } from "@/lib/emailActionTokens";
 import type { ImportMode } from "@/lib/importModes";
 import { normalizeImportedChargeMode } from "@/lib/importChargeNormalization";
+import { findExactDocumentMatch, saveDocumentFingerprint } from "@/lib/documentFingerprints";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu";
 
@@ -20,6 +20,7 @@ type IngestionRecord = {
     source_email_subject: string | null;
     storage_bucket: string;
     storage_key: string;
+    created_document_id: string | null;
     normalized_data: Record<string, unknown> | null;
 };
 
@@ -97,7 +98,7 @@ export async function processStoredIngestion(ingestionId: string) {
     const admin = createSupabaseAdminClient();
     const { data: ingestion, error: ingestionError } = await admin
         .from("document_ingestions")
-        .select("id,owner_id,source_attachment_name,source_email_from,source_email_subject,storage_bucket,storage_key,normalized_data")
+        .select("id,owner_id,source_attachment_name,source_email_from,source_email_subject,storage_bucket,storage_key,created_document_id,normalized_data")
         .eq("id", ingestionId)
         .single();
 
@@ -128,6 +129,59 @@ export async function processStoredIngestion(ingestionId: string) {
             .eq("owner_id", ingestionRow.owner_id);
         return { ok: false as const, error: message };
     }
+    const fingerprintResult = await findExactDocumentMatch(admin, ingestionRow.owner_id, buffer);
+    if (!fingerprintResult.ok) {
+        await admin
+            .from("document_ingestions")
+            .update({
+                status: "FAILED",
+                error_message: fingerprintResult.error,
+                processed_at: new Date().toISOString(),
+            })
+            .eq("id", ingestionId)
+            .eq("owner_id", ingestionRow.owner_id);
+        return { ok: false as const, error: fingerprintResult.error };
+    }
+
+    if (fingerprintResult.duplicate) {
+        if (fingerprintResult.duplicate.documentId === ingestionRow.created_document_id) {
+            return { ok: true as const, needsReview: false, duplicate: true as const };
+        }
+
+        const duplicateMessage = "Ez a PDF byte-ra megegyezik egy már rögzített számlával. Új díjpiszkozat nem készült.";
+        const { error: duplicateUpdateError } = await admin
+            .from("document_ingestions")
+            .update({
+                status: "NEEDS_REVIEW",
+                error_message: duplicateMessage,
+                normalized_data: {
+                    ...(ingestionRow.normalized_data ?? {}),
+                    duplicate_match: fingerprintResult.duplicate,
+                },
+                processed_at: new Date().toISOString(),
+            })
+            .eq("id", ingestionId)
+            .eq("owner_id", ingestionRow.owner_id);
+
+        if (duplicateUpdateError) return { ok: false as const, error: duplicateUpdateError.message };
+
+        if (ownerProfile?.email) {
+            await sendEmail(renderImportInvoiceStatusEmail({
+                ownerEmail: ownerProfile.email,
+                status: "DUPLICATE",
+                fileName: ingestionRow.source_attachment_name,
+                error: duplicateMessage,
+                reviewUrl: `${SITE_URL}/owner/importok/${ingestionId}`,
+                duplicateUrl: fingerprintResult.duplicate.documentId
+                    ? `${SITE_URL}/api/documents/${fingerprintResult.duplicate.documentId}`
+                    : null,
+            }));
+        }
+
+        return { ok: true as const, needsReview: true, duplicate: true as const };
+    }
+
+    const sha256 = fingerprintResult.sha256;
     const extraction = await extractInvoiceFromBuffer(buffer, ingestionRow.owner_id);
 
     if (!extraction.ok || !extraction.data) {
@@ -305,17 +359,14 @@ export async function processStoredIngestion(ingestionId: string) {
         return { ok: false as const, error: draftResult.error };
     }
 
-    const sha256 = createHash("sha256").update(buffer).digest("hex");
-    await admin
-        .from("document_fingerprints")
-        .insert({
-            owner_id: ingestionRow.owner_id,
-            sha256,
-            issuer_name: normalized.issuer_name,
-            gross_amount: normalized.gross_amount,
-            due_date: normalized.due_date,
-            document_id: draftResult.documentId,
-        });
+    await saveDocumentFingerprint(admin, {
+        ownerId: ingestionRow.owner_id,
+        sha256,
+        issuerName: normalized.issuer_name,
+        grossAmount: normalized.gross_amount,
+        dueDate: normalized.due_date,
+        documentId: draftResult.documentId,
+    });
 
     await admin
         .from("document_ingestions")

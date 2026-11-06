@@ -71,7 +71,7 @@ type OwnerInviteInput = {
 
 type ImportInvoiceStatusInput = {
     ownerEmail: string;
-    status: "SUCCESS" | "SUCCESS_DRAFT" | "FAILED";
+    status: "SUCCESS" | "SUCCESS_DRAFT" | "FAILED" | "DUPLICATE";
     provider?: string | null;
     amount?: number | null;
     currency?: string | null;
@@ -83,6 +83,7 @@ type ImportInvoiceStatusInput = {
     publishUrl?: string | null;
     reviewUrl?: string | null;
     chargeUrl?: string | null;
+    duplicateUrl?: string | null;
 };
 
 function renderActionButtons(actions: Array<{ label: string; href: string; primary?: boolean }>) {
@@ -451,35 +452,39 @@ export function renderOwnerInviteEmail(input: OwnerInviteInput) {
 }
 
 export function renderImportInvoiceStatusEmail(input: ImportInvoiceStatusInput) {
-    const subject = `Számla import ${input.status}`;
+    const statusLabel = input.status === "DUPLICATE" ? "pontos fájlegyezés" : input.status;
+    const subject = `Számla import: ${statusLabel}`;
     const text = [
-        `Státusz: ${input.status}`,
+        `Státusz: ${statusLabel}`,
         input.fileName ? `Fájl: ${input.fileName}` : null,
         input.propertyName ? `Ingatlan: ${input.propertyName}` : null,
         input.provider ? `Szolgáltató: ${input.provider}` : null,
         input.amount !== null && input.amount !== undefined ? `Összeg: ${input.amount} ${input.currency ?? ""}` : null,
         input.dueDate ? `Határidő: ${input.dueDate}` : null,
-        input.error ? `Hiba: ${input.error}` : null,
+        input.error ? `${input.status === "DUPLICATE" ? "Figyelmeztetés" : "Hiba"}: ${input.error}` : null,
+        input.duplicateUrl ? `Az eredeti PDF: ${input.duplicateUrl}` : null,
         `Részletek: ${input.openUrl || input.reviewUrl || `${SITE_URL}/owner/importok`}`,
     ].filter(Boolean).join("\n");
 
     const actionButtons = renderActionButtons([
+        input.duplicateUrl ? { label: "Meglévő számla PDF-je", href: input.duplicateUrl } : null,
         input.publishUrl ? { label: "Jónak tűnik, mehet", href: input.publishUrl, primary: true } : null,
         input.chargeUrl ? { label: "Megnyitom a piszkozatot", href: input.chargeUrl } : null,
-        input.reviewUrl ? { label: input.status === "FAILED" ? "Megnyitom az importot" : "Nem jó, szerkesztem", href: input.reviewUrl } : null,
+        input.reviewUrl ? { label: input.status === "FAILED" || input.status === "DUPLICATE" ? "Import megnyitása" : "Nem jó, szerkesztem", href: input.reviewUrl } : null,
         (input.status === "FAILED" || (!input.chargeUrl && !input.reviewUrl)) ? { label: "Importok megnyitása", href: input.openUrl || `${SITE_URL}/owner/importok` } : null,
     ].filter(Boolean) as Array<{ label: string; href: string; primary?: boolean }>);
 
     const html = `
         <div style="font-family: Arial, sans-serif; line-height: 1.5;">
-            <h2>Számla import: ${input.status}</h2>
+            <h2>Számla import: ${statusLabel}</h2>
             <ul>
                 ${input.fileName ? `<li><b>Fájl:</b> ${input.fileName}</li>` : ""}
                 ${input.propertyName ? `<li><b>Ingatlan:</b> ${input.propertyName}</li>` : ""}
                 ${input.provider ? `<li><b>Szolgáltató:</b> ${input.provider}</li>` : ""}
                 ${input.amount !== null && input.amount !== undefined ? `<li><b>Összeg:</b> ${input.amount} ${input.currency ?? ""}</li>` : ""}
                 ${input.dueDate ? `<li><b>Határidő:</b> ${input.dueDate}</li>` : ""}
-                ${input.error ? `<li><b>Hiba:</b> ${input.error}</li>` : ""}
+                ${input.error ? `<li><b>${input.status === "DUPLICATE" ? "Figyelmeztetés" : "Hiba"}:</b> ${input.error}</li>` : ""}
+                ${input.duplicateUrl ? `<li><a href="${input.duplicateUrl}">Meglévő számla PDF-jének megnyitása</a></li>` : ""}
             </ul>
             ${actionButtons}
         </div>

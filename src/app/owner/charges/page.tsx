@@ -10,6 +10,12 @@ import { formatCurrency } from "@/lib/formatters";
 import { archiveCharge, cancelCharge, deleteCharge, markChargePaid, publishCharge, restoreCharge, undoChargePaid } from "@/app/owner/properties/[id]/charges/actions";
 import FinanceChargeComposer from "./FinanceChargeComposer";
 import FinanceChargeEditor from "./FinanceChargeEditor";
+import {
+    FinanceBulkSelectAllButton,
+    FinanceBulkSelection,
+    FinanceSelectableCard,
+    FinanceSelectableTableRow,
+} from "./FinanceBulkSelection";
 import FinancePeriodFilter from "./FinancePeriodFilter";
 import { ALL_CHARGE_TYPE_OPTIONS, getChargeTypeLabel, type ChargeType } from "@/lib/chargeTypes";
 import { buildCustomTrendSeries, buildExpenseCategoryTotals, buildRecentTrendSeries, buildRecentTrendWindow, isExpenseCharge, summarizeFinanceRows } from "@/lib/ownerFinance";
@@ -386,6 +392,13 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
     const billingFilter = sp.billing ? String(sp.billing).toUpperCase() : "";
     const sortFilter = normalizeSortOrder(sp.sort ? String(sp.sort) : undefined);
     const keywordFilter = String(sp.q || "").trim();
+    const activeFilterCount = [
+        keywordFilter || null,
+        statusFilter || null,
+        typeFilter || null,
+        billingFilter || null,
+        sortFilter !== "due_desc" ? sortFilter : null,
+    ].filter(Boolean).length;
     const page = Math.max(1, Number(sp.page || 1) || 1);
     const pageSize = 10;
     const composeMode = sp.compose === "upload" ? "upload" : sp.compose === "manual" ? "manual" : null;
@@ -495,6 +508,30 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
             : b.due_date.localeCompare(a.due_date))
         .slice((page - 1) * pageSize, page * pageSize);
 
+    const bulkRows = filteredRows
+        .slice()
+        .sort((a, b) => sortFilter === "due_asc"
+            ? a.due_date.localeCompare(b.due_date)
+            : b.due_date.localeCompare(a.due_date))
+        .slice(0, 500);
+    const bulkSelectionItems = bulkRows.map((row) => ({
+        id: row.id,
+        status: row.status,
+        tenant_id: row.tenant_id,
+        type: row.type,
+    }));
+    const bulkSelectionScopeKey = buildQuery({
+        property: selectedPropertyId || undefined,
+        preset,
+        from: preset === "CUSTOM" ? from : undefined,
+        to: preset === "CUSTOM" ? to : undefined,
+        status: statusFilter || undefined,
+        type: typeFilter || undefined,
+        billing: billingFilter || undefined,
+        sort: sortFilter,
+        q: keywordFilter || undefined,
+    });
+
     const chargeIds = paginatedRows.map((row) => row.id);
     const tenantIds = Array.from(new Set(paginatedRows.map((row) => row.tenant_id).filter((value): value is string => Boolean(value))));
 
@@ -599,7 +636,14 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                     </article>
                 </section>
 
-                <section className="finance-analytics-grid">
+                <details className="card finance-analytics-disclosure">
+                    <summary className="finance-disclosure-summary">
+                        <span>
+                            <strong>Részletes elemzés</strong>
+                            <small>Trend és kiadás kategóriák szerint</small>
+                        </span>
+                    </summary>
+                    <div className="finance-analytics-grid">
                     <article className="card chart-panel">
                         <div className="chart-panel-header">
                             <div>
@@ -663,13 +707,16 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                             </div>
                         )}
                     </article>
-                </section>
-
-                <section className="card finance-filter-shell">
-                    <div>
-                        <div className="card-title">Szűrők</div>
-                        <p className="muted-note">A lista a megadott szűrőknek megfelelő tételeket mutatja.</p>
                     </div>
+                </details>
+
+                <details className="card finance-filter-shell" open={composeMode ? true : undefined}>
+                    <summary className="finance-disclosure-summary">
+                        <span>
+                            <strong>Részletes szűrők</strong>
+                            <small>{activeFilterCount ? `${activeFilterCount} egyedi szűrő aktív` : "Keresés, státusz, típus és nézet"}</small>
+                        </span>
+                    </summary>
                     <div className="finance-filter-period-note">
                         <span className="field-label">Aktív időszak</span>
                         <strong>{periodLabel}</strong>
@@ -771,17 +818,23 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                             closeHref={composeMode ? composerCloseHref : undefined}
                         />
                     </div>
-                </section>
+                </details>
 
                 <section className="card finance-table-shell">
-                    <div className="section-header">
-                        <div>
-                            <div className="card-title">Tranzakciók</div>
-                            <p className="muted-note">Összesen {filteredRows.length} tétel</p>
+                    <FinanceBulkSelection
+                        key={bulkSelectionScopeKey}
+                        items={bulkSelectionItems}
+                        totalCount={filteredRows.length}
+                    >
+                        <div className="section-header">
+                            <div>
+                                <div className="card-title">Tranzakciók</div>
+                                <p className="muted-note">Összesen {filteredRows.length} tétel</p>
+                            </div>
+                            <FinanceBulkSelectAllButton />
                         </div>
-                    </div>
 
-                    <div className="finance-table-scroll">
+                        <div className="finance-table-scroll">
                         <table className="finance-table">
                             <colgroup>
                                 <col className="finance-col-date" />
@@ -824,7 +877,11 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                     const restoreTooltip = charge.status === "ARCHIVED" ? "Újranyitás" : "Visszaállítás";
 
                                     return (
-                                        <tr id={`charge-${charge.id}`} key={charge.id} className={charge.status === "ARCHIVED" ? "finance-row-muted" : ""}>
+                                        <FinanceSelectableTableRow
+                                            id={charge.id}
+                                            key={charge.id}
+                                            className={charge.status === "ARCHIVED" ? "finance-row-muted" : ""}
+                                        >
                                             <td>{formatDisplayDate(charge.due_date)}</td>
                                             <td>
                                                 <span className={`dashboard-inline-badge ${typeTone(charge.type, charge.tenant_id)}`}>
@@ -963,7 +1020,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                                     ) : null}
                                                 </div>
                                             </td>
-                                        </tr>
+                                        </FinanceSelectableTableRow>
                                     );
                                 })}
                                 {paginatedRows.length === 0 ? (
@@ -973,9 +1030,9 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                 ) : null}
                             </tbody>
                         </table>
-                    </div>
+                        </div>
 
-                    <div className="finance-mobile-list">
+                        <div className="finance-mobile-list">
                         {paginatedRows.length === 0 ? (
                             <div className="dashboard-empty-note">Nincs találat a megadott szűrőkkel.</div>
                         ) : paginatedRows.map((charge) => {
@@ -994,7 +1051,11 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                             const restoreTooltip = charge.status === "ARCHIVED" ? "Újranyitás" : "Visszaállítás";
 
                             return (
-                                <article key={`${charge.id}-mobile`} className={`finance-mobile-card${charge.status === "ARCHIVED" ? " finance-row-muted" : ""}`}>
+                                <FinanceSelectableCard
+                                    id={charge.id}
+                                    key={`${charge.id}-mobile`}
+                                    className={`finance-mobile-card${charge.status === "ARCHIVED" ? " finance-row-muted" : ""}`}
+                                >
                                     <div className="finance-mobile-head">
                                         <div className="dashboard-table-main">
                                             <strong>{charge.title}</strong>
@@ -1154,12 +1215,12 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                             ) : null}
                                         </div>
                                     </div>
-                                </article>
+                                </FinanceSelectableCard>
                             );
                         })}
-                    </div>
+                        </div>
 
-                    {totalPages > 1 ? (
+                        {totalPages > 1 ? (
                         <div className="charge-actions">
                             {page > 1 ? (
                                 <Link className="btn btn-secondary btn-sm" href={`/owner/charges${buildQuery({
@@ -1195,7 +1256,8 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                 </Link>
                             ) : <span />}
                         </div>
-                    ) : null}
+                        ) : null}
+                    </FinanceBulkSelection>
                 </section>
             </div>
         </main>

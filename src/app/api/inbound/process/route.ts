@@ -2,13 +2,14 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { processStoredIngestion } from "@/lib/ingestionProcessing";
 import { downloadDocumentObject } from "@/lib/documentStorage";
 import { extractInvoiceFromBuffer } from "@/app/owner/properties/[id]/charges/actions";
-import { renderUnknownInboundInvoiceEmail } from "@/lib/email/templates";
+import { renderImportInvoiceStatusEmail, renderUnknownInboundInvoiceEmail } from "@/lib/email/templates";
 import { sendEmail } from "@/lib/email/resend";
 import { createInboundApprovalToken } from "@/lib/inboundApprovalTokens";
 import { suggestPropertyAcrossOwnersForIngestion } from "@/lib/propertyMatching";
 import { getOrCreateInboundMailbox, getOwnExpenseInboundEmail, getSharedInboundEmail } from "@/lib/inboundMailboxes";
 import { resolveAvailableRoles } from "@/lib/auth/availableRoles";
 import type { ImportMode } from "@/lib/importModes";
+import { findExactDocumentMatch, type ExactDocumentMatch } from "@/lib/documentFingerprints";
 
 type InboundAttachment = {
     fileName: string;
@@ -191,12 +192,13 @@ export async function POST(request: Request) {
         let ownerId = mailbox.ownerId;
         let presetPropertyId: string | null = attachment.propertyId || null;
         let pendingApproval = false;
+        let ownerGuessBuffer: Buffer | null = null;
         const importMode = mailbox.importMode;
 
         if (!ownerId && mailbox.isShared) {
             try {
-                const buffer = await downloadDocumentObject(storageKey);
-                const extraction = await extractInvoiceFromBuffer(buffer);
+                ownerGuessBuffer = await downloadDocumentObject(storageKey);
+                const extraction = await extractInvoiceFromBuffer(ownerGuessBuffer);
                 const suggested = await suggestPropertyAcrossOwnersForIngestion({
                     attachmentName: fileName,
                     sourceEmailSubject: body.subject,
@@ -224,6 +226,23 @@ export async function POST(request: Request) {
             continue;
         }
 
+        let duplicateMatch: ExactDocumentMatch | null = null;
+        if (pendingApproval && ownerGuessBuffer) {
+            const fingerprintResult = await findExactDocumentMatch(admin, ownerId, ownerGuessBuffer);
+            if (!fingerprintResult.ok) {
+                return new Response(fingerprintResult.error, { status: 500 });
+            }
+            duplicateMatch = fingerprintResult.duplicate;
+        }
+
+        const duplicateMessage = "Ez a PDF byte-ra megegyezik egy már rögzített számlával. Új díjpiszkozat nem készült.";
+        const normalizedData: Record<string, unknown> = presetPropertyId
+            ? { property_id: presetPropertyId, import_mode: importMode }
+            : { import_mode: importMode };
+        if (duplicateMatch) {
+            Object.assign(normalizedData, { duplicate_match: duplicateMatch });
+        }
+
         const { data: created, error: insertError } = await admin
             .from("document_ingestions")
             .insert({
@@ -235,8 +254,9 @@ export async function POST(request: Request) {
                 source_attachment_name: fileName,
                 storage_bucket: attachment.storageBucket || "documents",
                 storage_key: storageKey,
-                normalized_data: presetPropertyId ? { property_id: presetPropertyId, import_mode: importMode } : { import_mode: importMode },
+                normalized_data: normalizedData,
                 status: pendingApproval ? "NEEDS_REVIEW" : "RECEIVED",
+                error_message: duplicateMatch ? duplicateMessage : null,
             })
             .select("id,source_attachment_name,status")
             .single();
@@ -268,6 +288,30 @@ export async function POST(request: Request) {
         }
 
         createdIngestions.push(created);
+        if (duplicateMatch) {
+            const { data: ownerProfile } = await admin
+                .from("profiles")
+                .select("email")
+                .eq("id", ownerId)
+                .maybeSingle();
+
+            if (ownerProfile?.email) {
+                await sendEmail(renderImportInvoiceStatusEmail({
+                    ownerEmail: ownerProfile.email,
+                    status: "DUPLICATE",
+                    fileName,
+                    error: duplicateMessage,
+                    reviewUrl: `${process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu"}/owner/importok/${created.id}`,
+                    duplicateUrl: duplicateMatch.documentId
+                        ? `${process.env.NEXT_PUBLIC_SITE_URL || "https://rentapp.hu"}/api/documents/${duplicateMatch.documentId}`
+                        : null,
+                }));
+            }
+
+            processed.push({ id: created.id, fileName, skipped: true, reason: duplicateMessage });
+            continue;
+        }
+
         if (pendingApproval) {
             const { data: ownerProfile } = await admin
                 .from("profiles")

@@ -69,6 +69,7 @@ export default function FinanceChargeComposer({
     const [manualSuccess, setManualSuccess] = useState<string | null>(null);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+    const [uploadDuplicateDocumentId, setUploadDuplicateDocumentId] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
 
     const defaultPropertyId = selectedPropertyId || properties[0]?.id || "";
@@ -88,6 +89,7 @@ export default function FinanceChargeComposer({
         setManualSuccess(null);
         setUploadError(null);
         setUploadSuccess(null);
+        setUploadDuplicateDocumentId(null);
         setMode(defaultMode);
         setBillingMode("FORWARDED");
         setSelectedType("RENT");
@@ -119,6 +121,7 @@ export default function FinanceChargeComposer({
                     return;
                 }
                 setManualSuccess("A tétel létrejött.");
+                window.dispatchEvent(new Event("rentapp:todo-count-refresh"));
                 router.refresh();
                 closeComposer();
             } catch (error) {
@@ -139,12 +142,14 @@ export default function FinanceChargeComposer({
                 const res = await createManualIngestion(formData);
                 if (!res.ok) {
                     setUploadError(res.error || "A feltöltés nem sikerült.");
+                    setUploadDuplicateDocumentId("duplicateDocumentId" in res ? res.duplicateDocumentId ?? null : null);
                     return;
                 }
                 const successMessage = res.needsReview
                     ? "A számla beérkezett, de ellenőrzést igényel."
                     : "A számlából import piszkozat jött létre.";
                 setUploadSuccess(successMessage);
+                window.dispatchEvent(new Event("rentapp:todo-count-refresh"));
                 closeComposer();
                 if (res.nextHref) {
                     router.push(res.nextHref);
@@ -348,7 +353,14 @@ export default function FinanceChargeComposer({
                                         {isPending ? "Feldolgozás..." : "Feldolgozás indítása"}
                                     </button>
                                 </div>
-                                {uploadError ? <p className="text-sm text-red-600">{uploadError}</p> : null}
+                                {uploadError ? (
+                                    <p className="text-sm text-red-600">
+                                        {uploadError}
+                                        {uploadDuplicateDocumentId ? (
+                                            <> <a href={`/api/documents/${uploadDuplicateDocumentId}`} target="_blank" rel="noreferrer">Meglévő PDF megnyitása</a></>
+                                        ) : null}
+                                    </p>
+                                ) : null}
                                 {uploadSuccess ? <p className="text-sm text-green-600">{uploadSuccess}</p> : null}
                             </form>
                         )}

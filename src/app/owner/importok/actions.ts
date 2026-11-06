@@ -1,6 +1,6 @@
 "use server";
 
-import { createHash, randomUUID } from "crypto";
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/requireRole";
 import { extractInvoiceFromBuffer } from "@/app/owner/properties/[id]/charges/actions";
@@ -10,6 +10,7 @@ import { findOwnerSupplierProfile, learnSupplierCorrection } from "@/lib/supplie
 import { getConfiguredStorageBucketName, removeDocumentObjects, uploadDocumentObject } from "@/lib/documentStorage";
 import type { ImportMode } from "@/lib/importModes";
 import { normalizeImportedChargeMode } from "@/lib/importChargeNormalization";
+import { findExactDocumentMatch, saveDocumentFingerprint } from "@/lib/documentFingerprints";
 
 function safeFileName(value: string) {
     return value.replaceAll(" ", "_").replace(/[^a-zA-Z0-9._-]/g, "");
@@ -174,20 +175,16 @@ export async function createManualIngestion(formData: FormData) {
     }
 
     const buffer = Buffer.from(await documentFile.arrayBuffer());
-    const sha256 = createHash("sha256").update(buffer).digest("hex");
-
-    const { data: existingFingerprint, error: fingerprintLookupError } = await supabase
-        .from("document_fingerprints")
-        .select("id")
-        .eq("owner_id", user.id)
-        .eq("sha256", sha256)
-        .maybeSingle();
-
-    if (fingerprintLookupError) {
-        return { ok: false, error: fingerprintLookupError.message };
+    const fingerprintResult = await findExactDocumentMatch(admin, user.id, buffer);
+    if (!fingerprintResult.ok) {
+        return { ok: false, error: fingerprintResult.error };
     }
-    if (existingFingerprint) {
-        return { ok: false, error: "Ez a számla már fel lett dolgozva ehhez a bérbeadóhoz." };
+    if (fingerprintResult.duplicate) {
+        return {
+            ok: false,
+            error: "Ez a PDF byte-ra megegyezik egy már rögzített számlával.",
+            duplicateDocumentId: fingerprintResult.duplicate.documentId,
+        };
     }
 
     const ingestionId = randomUUID();
@@ -333,16 +330,14 @@ export async function createManualIngestion(formData: FormData) {
         return { ok: false, error: draftResult.error };
     }
 
-    await admin
-        .from("document_fingerprints")
-        .insert({
-            owner_id: user.id,
-            sha256,
-            issuer_name: normalized.issuer_name,
-            gross_amount: normalized.gross_amount,
-            due_date: normalized.due_date,
-            document_id: draftResult.documentId,
-        });
+    await saveDocumentFingerprint(admin, {
+        ownerId: user.id,
+        sha256: fingerprintResult.sha256,
+        issuerName: normalized.issuer_name,
+        grossAmount: normalized.gross_amount,
+        dueDate: normalized.due_date,
+        documentId: draftResult.documentId,
+    });
 
     await admin
         .from("document_ingestions")

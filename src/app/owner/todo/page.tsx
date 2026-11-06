@@ -234,9 +234,12 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
         }),
         ...importRows.map((importRow) => {
             const property = propertyRows.find((row) => row.id === importRow.propertyId);
+            const duplicatePdf = importRow.stateLabel === "Pontos PDF-egyezés";
             return {
                 id: `import-${importRow.ingestionId}`,
-                label: importRow.state === "draft" ? "Import piszkozat publikálásra vár" : "Import ellenőrzés szükséges",
+                label: duplicatePdf
+                    ? "Ismételt PDF ellenőrzése"
+                    : importRow.state === "draft" ? "Import piszkozat publikálásra vár" : "Import ellenőrzés szükséges",
                 description: importRow.chargeTitle || importRow.sourceAttachmentName || "Importált számla",
                 propertyLabel: property?.name || "Ingatlan nélkül",
                 counterparty: importRow.state === "draft" ? "Import piszkozat" : "AI import",

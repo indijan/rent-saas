@@ -11,7 +11,10 @@ type IngestionRow = {
     error_message: string | null;
     created_charge_id: string | null;
     created_at: string;
-    normalized_data: { property_id?: string | null } | null;
+    normalized_data: {
+        property_id?: string | null;
+        duplicate_match?: { documentId?: string | null } | null;
+    } | null;
 };
 
 type ChargeRow = {
@@ -90,10 +93,11 @@ function deriveState(row: IngestionRow, charge: ChargeRow | null) {
     }
 
     if (row.status === "NEEDS_REVIEW") {
+        const isDuplicate = Boolean(row.normalized_data?.duplicate_match);
         return {
             state: "review" as const,
-            stateLabel: "Ellenőrzésre vár",
-            toneClass: "dashboard-inline-badge-purple",
+            stateLabel: isDuplicate ? "Pontos PDF-egyezés" : "Ellenőrzésre vár",
+            toneClass: isDuplicate ? "dashboard-inline-badge-red" : "dashboard-inline-badge-purple",
             canPublish: false,
             needsOwnerAction: true,
         };

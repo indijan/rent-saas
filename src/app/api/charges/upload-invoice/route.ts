@@ -1,6 +1,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { uploadDocumentObject } from "@/lib/documentStorage";
+import { removeDocumentObjects, uploadDocumentObject } from "@/lib/documentStorage";
 import { getRequestAuthContext } from "@/lib/auth/requestContext";
+import { findExactDocumentMatch, saveDocumentFingerprint } from "@/lib/documentFingerprints";
 
 function safeFileName(value: string) {
     return value.replaceAll(" ", "_").replace(/[^a-zA-Z0-9._-]/g, "");
@@ -39,6 +40,19 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await documentFile.arrayBuffer());
+    const isPdf = documentFile.type === "application/pdf" || documentFile.name.toLowerCase().endsWith(".pdf");
+    const fingerprint = isPdf ? await findExactDocumentMatch(admin, userId, buffer) : null;
+    if (fingerprint && !fingerprint.ok) {
+        return Response.json({ ok: false, error: "A PDF-egyezés nem ellenőrizhető." }, { status: 500 });
+    }
+    if (fingerprint?.ok && fingerprint.duplicate) {
+        return Response.json({
+            ok: false,
+            error: "Ez a PDF byte-ra megegyezik egy már rögzített számlával.",
+            duplicateDocumentId: fingerprint.duplicate.documentId,
+        }, { status: 409 });
+    }
+
     const safeName = safeFileName(documentFile.name || "invoice.pdf") || "invoice.pdf";
     const path = `${userId}/${chargeId}/${Date.now()}-${safeName}`;
 
@@ -48,17 +62,32 @@ export async function POST(request: Request) {
         return Response.json({ ok: false, error: "A dokumentum feltöltése nem sikerült." }, { status: 500 });
     }
 
-    const { error } = await admin.from("documents").insert({
+    const { data: createdDocument, error } = await admin.from("documents").insert({
         owner_id: charge.owner_id,
         tenant_id: charge.tenant_id,
         property_id: charge.property_id,
         charge_id: chargeId,
         bucket_path: path,
         type: "INVOICE",
-    });
+    }).select("id").single();
 
-    if (error) {
-        return Response.json({ ok: false, error: error.message }, { status: 500 });
+    if (error || !createdDocument) {
+        await removeDocumentObjects([path]);
+        return Response.json({ ok: false, error: error?.message || "A dokumentum mentése nem sikerült." }, { status: 500 });
+    }
+
+    if (fingerprint?.ok) {
+        try {
+            await saveDocumentFingerprint(admin, {
+                ownerId: userId,
+                sha256: fingerprint.sha256,
+                documentId: createdDocument.id,
+            });
+        } catch {
+            await admin.from("documents").delete().eq("id", createdDocument.id).eq("owner_id", userId);
+            await removeDocumentObjects([path]);
+            return Response.json({ ok: false, error: "A számla ujjlenyomatának mentése nem sikerült." }, { status: 500 });
+        }
     }
 
     return Response.json({ ok: true });

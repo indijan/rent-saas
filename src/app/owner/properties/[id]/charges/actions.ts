@@ -23,6 +23,7 @@ import { listPropertyTenants } from "@/lib/propertyTenants";
 import { isOwnExpenseRestrictedChargeType, isOwnOnlyChargeType } from "@/lib/chargeTypes";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isTenantFacingCharge } from "@/lib/chargeVisibility";
+import { saveDocumentFingerprint, sha256Document } from "@/lib/documentFingerprints";
 
 type ChargeIdRow = {
     id: string | null;
@@ -268,6 +269,7 @@ export async function createCharge(propertyId: string, formData: FormData) {
 
     if (documentFile && createdIds.length > 0) {
         const buffer = Buffer.from(await documentFile.arrayBuffer());
+        const sha256 = sha256Document(buffer);
         const safeName = safeFileName(documentFile.name || "invoice.pdf") || "invoice.pdf";
         const path = `${user.id}/${createdIds[0]}/${Date.now()}-${safeName}`;
         try {
@@ -277,19 +279,32 @@ export async function createCharge(propertyId: string, formData: FormData) {
             return { ok: false, error: "Dokumentum feltöltés sikertelen, a díj nem jött létre." };
         }
 
-        const { error: docErr } = await supabase.from("documents").insert({
+        const { data: createdDocument, error: docErr } = await supabase.from("documents").insert({
             owner_id: user.id,
             tenant_id: tenantId,
             property_id: propertyId,
             charge_id: createdIds[0],
             bucket_path: path,
             type: "INVOICE",
-        });
+        }).select("id").single();
 
-        if (docErr) {
+        if (docErr || !createdDocument) {
             await removeDocumentObjects([path]);
             await supabase.from("charges").delete().in("id", createdIds);
             return { ok: false, error: "Dokumentum mentés sikertelen, a díj nem jött létre." };
+        }
+
+        try {
+            await saveDocumentFingerprint(createSupabaseAdminClient(), {
+                ownerId: user.id,
+                sha256,
+                documentId: createdDocument.id,
+            });
+        } catch {
+            await supabase.from("documents").delete().eq("id", createdDocument.id);
+            await removeDocumentObjects([path]);
+            await supabase.from("charges").delete().in("id", createdIds);
+            return { ok: false, error: "A számla ujjlenyomatának mentése nem sikerült, a díj nem jött létre." };
         }
     }
 
@@ -466,6 +481,84 @@ export async function markChargePaid(chargeId: string) {
     revalidatePath("/owner/osszefoglalo");
     revalidatePath("/owner/todo");
     return { ok: true };
+}
+
+export async function applyBulkChargeAction(chargeIds: string[], operation: "mark-paid" | "archive") {
+    const { supabase, user } = await requireRole("OWNER");
+    if (operation !== "mark-paid" && operation !== "archive") {
+        return { ok: false as const, error: "Ismeretlen tömeges művelet." };
+    }
+    const ids = Array.isArray(chargeIds)
+        ? Array.from(new Set(chargeIds.filter((id) => typeof id === "string" && id.length <= 80)))
+        : [];
+
+    if (ids.length === 0) return { ok: false as const, error: "Nincs kijelölt tétel." };
+    if (ids.length > 500) return { ok: false as const, error: "Egyszerre legfeljebb 500 tétel kezelhető." };
+
+    const { data, error } = await supabase
+        .from("charges")
+        .select("id,property_id,status,tenant_id,type")
+        .eq("owner_id", user.id)
+        .in("id", ids);
+
+    if (error) return { ok: false as const, error: error.message };
+
+    const rows = (data ?? []) as Array<{
+        id: string;
+        property_id: string;
+        status: string;
+        tenant_id: string | null;
+        type: string;
+    }>;
+    const isExpense = (row: typeof rows[number]) => !row.tenant_id && row.type !== "RENT";
+    const eligibleRows = rows.filter((row) => operation === "mark-paid"
+        ? row.status === "UNPAID" && !isExpense(row)
+        : (isExpense(row) && row.status === "UNPAID") || (!isExpense(row) && row.status === "PAID")
+    );
+
+    if (eligibleRows.length === 0) {
+        return { ok: false as const, error: "A kijelölt tételek közül egyikre sem alkalmazható ez a művelet." };
+    }
+
+    const updatedIds: string[] = [];
+    if (operation === "mark-paid") {
+        const { data: updated, error: updateError } = await supabase
+            .from("charges")
+            .update({ status: "PAID", paid_at: new Date().toISOString() })
+            .eq("owner_id", user.id)
+            .eq("status", "UNPAID")
+            .or("tenant_id.not.is.null,type.eq.RENT")
+            .in("id", eligibleRows.map((row) => row.id))
+            .select("id");
+
+        if (updateError) return { ok: false as const, error: updateError.message };
+        updatedIds.push(...((updated ?? []) as Array<{ id: string }>).map((row) => row.id));
+    } else {
+        const { data: updated, error: updateError } = await supabase
+            .from("charges")
+            .update({ status: "ARCHIVED" })
+            .eq("owner_id", user.id)
+            .or("and(status.eq.UNPAID,tenant_id.is.null,type.neq.RENT),and(status.eq.PAID,tenant_id.not.is.null),and(status.eq.PAID,tenant_id.is.null,type.eq.RENT)")
+            .in("id", eligibleRows.map((row) => row.id))
+            .select("id");
+
+        if (updateError) return { ok: false as const, error: updateError.message };
+        updatedIds.push(...((updated ?? []) as Array<{ id: string }>).map((row) => row.id));
+    }
+
+    const propertyIds = new Set(eligibleRows.map((row) => row.property_id));
+    for (const propertyId of propertyIds) {
+        revalidatePath(`/owner/properties/${propertyId}/charges`);
+    }
+    revalidatePath("/owner/charges");
+    revalidatePath("/owner/osszefoglalo");
+    revalidatePath("/owner/todo");
+
+    return {
+        ok: true as const,
+        updatedCount: updatedIds.length,
+        skippedCount: ids.length - updatedIds.length,
+    };
 }
 
 export async function undoChargePaid(chargeId: string) {

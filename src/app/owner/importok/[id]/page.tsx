@@ -122,6 +122,18 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
         : { data: null as ChargeRow | null };
     const normalized = (ingestionRow.normalized_data ?? {}) as Record<string, unknown>;
     const selectedPropertyId = asString(normalized.property_id);
+    const duplicateMatch = normalized.duplicate_match && typeof normalized.duplicate_match === "object"
+        ? normalized.duplicate_match as Record<string, unknown>
+        : null;
+    const duplicateDocumentId = duplicateMatch ? asString(duplicateMatch.documentId) : "";
+    const { data: duplicateDocument } = duplicateDocumentId
+        ? await admin
+            .from("documents")
+            .select("id")
+            .eq("id", duplicateDocumentId)
+            .eq("owner_id", user.id)
+            .maybeSingle()
+        : { data: null };
     const chargeLink = ingestionRow.created_charge_id && selectedPropertyId
         ? `/owner/charges?property=${selectedPropertyId}${createdCharge?.status === "IMPORT_DRAFT" ? "&status=IMPORT_DRAFT" : ""}#charge-${ingestionRow.created_charge_id}`
         : "/owner/importok";
@@ -171,6 +183,21 @@ export default async function OwnerImportDetailPage({ params, searchParams }: Pr
                     </div>
                 ) : null}
             </section>
+
+            {duplicateMatch ? (
+                <section className="card import-duplicate-alert" role="alert">
+                    <div>
+                        <strong>Pontos PDF-egyezés</strong>
+                        <p>Ez a fájl byte-ra megegyezik egy már rögzített számlával. Az emailes import nem hozott létre új piszkozatot.</p>
+                        <p>Ha ez valóban külön tétel, az alábbi ellenőrzés után kézzel továbbra is létrehozhatod.</p>
+                    </div>
+                    {duplicateDocument ? (
+                        <a className="btn btn-secondary btn-sm" href={`/api/documents/${duplicateDocument.id}`} target="_blank" rel="noreferrer">
+                            Meglévő PDF megnyitása
+                        </a>
+                    ) : null}
+                </section>
+            ) : null}
 
             {message ? (
                 <div className={`card ${status === "error" ? "text-red-600" : "text-green-600"}`}>
