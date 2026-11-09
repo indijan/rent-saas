@@ -471,6 +471,7 @@ export async function markChargePaid(chargeId: string) {
         .eq("id", chargeId)
         .eq("owner_id", user.id)
         .eq("status", "UNPAID")
+        .or("tenant_id.not.is.null,type.eq.RENT")
         .select("property_id")
         .maybeSingle();
 

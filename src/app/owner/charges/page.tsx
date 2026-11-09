@@ -126,6 +126,7 @@ function statusLabel(charge: Pick<ChargeRow, "status" | "due_date" | "tenant_id"
     if (isExpenseCharge(charge)) {
         if (charge.status === "CANCELLED") return "Sztornó";
         if (charge.status === "ARCHIVED") return "Archivált";
+        if (charge.status === "PAID") return "Fizetett";
         return "Rögzítve";
     }
     if (charge.status === "UNPAID" && new Date(`${charge.due_date}T00:00:00`).getTime() < startOfToday().getTime()) {
@@ -868,7 +869,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                                     const expenseRow = isExpenseCharge(charge);
                                     const status = statusLabel(charge);
                                     const canMarkPaid = !expenseRow && charge.status === "UNPAID";
-                                    const canUndoPaid = !expenseRow && charge.status === "PAID";
+                                    const canUndoPaid = charge.status === "PAID";
                                     const canPublish = charge.status === "IMPORT_DRAFT";
                                     const canCancel = charge.status !== "PAID" && charge.status !== "ARCHIVED" && charge.status !== "CANCELLED";
                                     const canArchive = expenseRow ? charge.status === "UNPAID" : charge.status === "PAID";
@@ -1042,7 +1043,7 @@ export default async function OwnerChargesOverviewPage({ searchParams }: Props) 
                             const expenseRow = isExpenseCharge(charge);
                             const status = statusLabel(charge);
                             const canMarkPaid = !expenseRow && charge.status === "UNPAID";
-                            const canUndoPaid = !expenseRow && charge.status === "PAID";
+                            const canUndoPaid = charge.status === "PAID";
                             const canPublish = charge.status === "IMPORT_DRAFT";
                             const canCancel = charge.status !== "PAID" && charge.status !== "ARCHIVED" && charge.status !== "CANCELLED";
                             const canArchive = expenseRow ? charge.status === "UNPAID" : charge.status === "PAID";

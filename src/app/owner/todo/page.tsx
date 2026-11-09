@@ -4,9 +4,10 @@ import { requireRole } from "@/lib/auth/requireRole";
 import { formatCurrency } from "@/lib/formatters";
 import AppHeader from "@/components/AppHeader";
 import DesignIcon from "@/components/dashboard/DesignIcon";
+import ConfirmActionForm from "@/app/owner/properties/[id]/charges/ConfirmActionForm";
 import TodoInvoiceSuggestions from "@/components/dashboard/TodoInvoiceSuggestions";
 import PendingSubmitButton from "@/components/PendingSubmitButton";
-import { markChargePaid, publishCharge, sendManualChargeReminder } from "@/app/owner/properties/[id]/charges/actions";
+import { archiveCharge, markChargePaid, publishCharge, sendManualChargeReminder } from "@/app/owner/properties/[id]/charges/actions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { buildMissingInvoiceSuggestions } from "@/lib/invoiceSuggestions";
 import { getOwnerImportOverview } from "@/lib/importOverview";
@@ -17,6 +18,8 @@ type ChargeTodoRow = {
     amount: number | string;
     currency: string | null;
     due_date: string;
+    tenant_id: string | null;
+    type: string;
     status: "UNPAID" | "PAID" | "ARCHIVED" | "CANCELLED" | "IMPORT_DRAFT";
     paid_at: string | null;
     property_id: string;
@@ -67,6 +70,7 @@ type TaskRow = {
     actionType: "charge" | "import" | "exit" | "done";
     chargeId?: string;
     chargeHref?: string | null;
+    isOwnerExpense?: boolean;
 };
 
 function firstProperty(value: ChargeTodoRow["properties"] | ExitRequestRow["properties"]) {
@@ -126,7 +130,7 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
     const [{ data: charges, error: chargeError }, { data: properties, error: propertyError }, { data: exitRequests }, { data: expenseHistoryRows, error: expenseHistoryError }, { data: propertyTenantRows }, importOverview] = await Promise.all([
         supabase
             .from("charges")
-            .select("id,title,amount,currency,due_date,status,paid_at,property_id,properties(name)")
+            .select("id,title,amount,currency,due_date,tenant_id,type,status,paid_at,property_id,properties(name)")
             .eq("owner_id", user.id)
             .in("status", ["UNPAID", "IMPORT_DRAFT", "PAID"]),
         supabase
@@ -216,12 +220,15 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
             const property = firstProperty(charge.properties);
             const tenantNames = tenantNamesByPropertyId.get(charge.property_id) ?? [];
             const days = Math.abs(getDayDiff(charge.due_date));
+            const ownerExpense = !charge.tenant_id && charge.type !== "RENT";
             return {
                 id: `overdue-${charge.id}`,
                 label: charge.title,
-                description: "Bérleti díj vagy költség lejárt, utánkövetést igényel.",
+                description: ownerExpense
+                    ? "Saját költség; rendezés után archiválható."
+                    : "Bérleti díj vagy költség lejárt, utánkövetést igényel.",
                 propertyLabel: property?.name || "Ingatlan nélkül",
-                counterparty: tenantNames.join(", ") || "Bérlő nincs hozzárendelve",
+                counterparty: ownerExpense ? "Saját költség" : tenantNames.join(", ") || "Bérlő nincs hozzárendelve",
                 deadlineLabel: `${days} napja lejárt`,
                 deadlineSubLabel: charge.due_date,
                 priority: "high",
@@ -230,6 +237,7 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                 amountLabel: formatCurrency(Number(charge.amount), charge.currency || "HUF"),
                 actionType: "charge",
                 chargeId: charge.id,
+                isOwnerExpense: ownerExpense,
             } satisfies TaskRow;
         }),
         ...importRows.map((importRow) => {
@@ -258,12 +266,15 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
             const property = firstProperty(charge.properties);
             const tenantNames = tenantNamesByPropertyId.get(charge.property_id) ?? [];
             const days = getDayDiff(charge.due_date);
+            const ownerExpense = !charge.tenant_id && charge.type !== "RENT";
             return {
                 id: `upcoming-${charge.id}`,
                 label: charge.title,
-                description: "Közelgő esedékesség, érdemes előre kommunikálni.",
+                description: ownerExpense
+                    ? "Saját költség; rendezés után archiválható."
+                    : "Közelgő esedékesség, érdemes előre kommunikálni.",
                 propertyLabel: property?.name || "Ingatlan nélkül",
-                counterparty: tenantNames.join(", ") || "Bérlő nincs hozzárendelve",
+                counterparty: ownerExpense ? "Saját költség" : tenantNames.join(", ") || "Bérlő nincs hozzárendelve",
                 deadlineLabel: `${days} nap múlva`,
                 deadlineSubLabel: charge.due_date,
                 priority: "medium",
@@ -271,6 +282,8 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                 actionHref: `/owner/charges?property=${charge.property_id}`,
                 amountLabel: formatCurrency(Number(charge.amount), charge.currency || "HUF"),
                 actionType: "charge",
+                chargeId: charge.id,
+                isOwnerExpense: ownerExpense,
             } satisfies TaskRow;
         }),
         ...pendingExitRequests.map((request) => {
@@ -450,7 +463,22 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                                         </td>
                                         <td>
                                             <div className="dashboard-table-actions dashboard-table-actions-wrap">
-                                                {task.actionType === "charge" && task.chargeId ? (
+                                                {task.actionType === "charge" && task.chargeId && task.isOwnerExpense ? (
+                                                    <ConfirmActionForm
+                                                        action={async () => {
+                                                            "use server";
+                                                            const res = await archiveCharge(task.chargeId!);
+                                                            if (!res.ok) {
+                                                                redirect(`/owner/todo?status=error&message=${encodeURIComponent(res.error ?? "Ismeretlen hiba.")}`);
+                                                            }
+                                                            redirect("/owner/todo?status=success&message=A+saj%C3%A1t+k%C3%B6lts%C3%A9g+archiv%C3%A1lva+lett.");
+                                                        }}
+                                                        confirmMessage="Biztosan archiválod a rendezett saját költséget?"
+                                                    >
+                                                        <PendingSubmitButton className="btn btn-secondary btn-sm" label="Archiválás" pendingLabel="Archiválás..." />
+                                                    </ConfirmActionForm>
+                                                ) : null}
+                                                {task.actionType === "charge" && task.chargeId && !task.isOwnerExpense ? (
                                                     <>
                                                         <form
                                                             action={async () => {
@@ -540,7 +568,22 @@ export default async function OwnerTodoPage({ searchParams }: Props) {
                                         </div>
                                     </div>
                                     <div className="todo-task-actions todo-mobile-actions">
-                                        {task.actionType === "charge" && task.chargeId ? (
+                                        {task.actionType === "charge" && task.chargeId && task.isOwnerExpense ? (
+                                            <ConfirmActionForm
+                                                action={async () => {
+                                                    "use server";
+                                                    const res = await archiveCharge(task.chargeId!);
+                                                    if (!res.ok) {
+                                                        redirect(`/owner/todo?status=error&message=${encodeURIComponent(res.error ?? "Ismeretlen hiba.")}`);
+                                                    }
+                                                    redirect("/owner/todo?status=success&message=A+saj%C3%A1t+k%C3%B6lts%C3%A9g+archiv%C3%A1lva+lett.");
+                                                }}
+                                                confirmMessage="Biztosan archiválod a rendezett saját költséget?"
+                                            >
+                                                <PendingSubmitButton className="btn btn-secondary btn-sm" label="Archiválás" pendingLabel="Archiválás..." />
+                                            </ConfirmActionForm>
+                                        ) : null}
+                                        {task.actionType === "charge" && task.chargeId && !task.isOwnerExpense ? (
                                             <>
                                                 <form
                                                     action={async () => {

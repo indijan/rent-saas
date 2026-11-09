@@ -32,6 +32,7 @@ type ChargeRow = {
     amount: number | string;
     currency: string | null;
     due_date: string;
+    tenant_id: string | null;
     status: ChargeStatus;
     paid_at: string | null;
     created_at: string;
@@ -165,7 +166,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
 
     let listQuery = supabase
         .from("charges")
-        .select("id,title,notes,type,amount,currency,due_date,status,paid_at,created_at,recurring_group,recurring_index,recurring_count", { count: "exact" })
+        .select("id,title,notes,type,amount,currency,due_date,tenant_id,status,paid_at,created_at,recurring_group,recurring_index,recurring_count", { count: "exact" })
         .eq("property_id", propertyId)
         .eq("owner_id", profile.id)
         .order("due_date", { ascending: false });
@@ -400,6 +401,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                 ? `Ismétlődés ${charge.recurring_index}/${charge.recurring_count}`
                                 : null;
                             const dueState = getDueState(charge.due_date, charge.status);
+                            const isOwnerExpense = !charge.tenant_id && charge.type !== "RENT";
                             const canEdit = charge.status === "UNPAID" || charge.status === "IMPORT_DRAFT";
                             const canUploadInvoice = charge.status === "UNPAID" || charge.status === "IMPORT_DRAFT";
                             const canDelete = charge.status === "UNPAID" || charge.status === "IMPORT_DRAFT" || charge.status === "CANCELLED";
@@ -478,7 +480,7 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                 </ConfirmActionForm>
                                             ) : null}
 
-                                            {charge.status === "UNPAID" ? (
+                                            {charge.status === "UNPAID" && !isOwnerExpense ? (
                                                 <ConfirmActionForm
                                                     action={async () => {
                                                         "use server";
@@ -518,7 +520,27 @@ export default async function OwnerPropertyChargesPage({ params, searchParams }:
                                                 </ConfirmActionForm>
                                             ) : null}
 
-                                            {charge.status === "PAID" ? (
+                                            {charge.status === "UNPAID" && isOwnerExpense ? (
+                                                <ConfirmActionForm
+                                                    action={async () => {
+                                                        "use server";
+                                                        const res = await archiveCharge(charge.id);
+                                                        if (!res.ok) {
+                                                            redirect(buildNoticeHref(basePath, activeQuery, "error", res.error ?? "Ismeretlen hiba."));
+                                                        }
+                                                        redirect(buildNoticeHref(basePath, activeQuery, "success", "A saját költség archiválva lett."));
+                                                    }}
+                                                    confirmMessage="Biztosan archiválod a rendezett saját költséget?"
+                                                >
+                                                    <PendingSubmitButton
+                                                        className="btn btn-secondary btn-sm"
+                                                        label="Archiválás"
+                                                        pendingLabel="Archiválás..."
+                                                    />
+                                                </ConfirmActionForm>
+                                            ) : null}
+
+                                            {charge.status === "PAID" && !isOwnerExpense ? (
                                                 <ConfirmActionForm
                                                     action={async () => {
                                                         "use server";
